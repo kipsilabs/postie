@@ -370,16 +370,55 @@ jobs:
           echo "commit=$COMMIT" >> $GITHUB_OUTPUT
           echo "timestamp=$TIMESTAMP" >> $GITHUB_OUTPUT
 
-      # Build Linux web interface for multiple architectures
+      # Build Linux web interface for multiple architectures.
+      #
+      # netgo/osusergo are REQUIRED here, not optional. This binary is fully
+      # statically linked (-extldflags "-static") but still needs cgo for
+      # mattn/go-sqlite3 and par2go. Without netgo, net/cgo_unix.go is compiled
+      # in and DNS goes through glibc getaddrinfo -> NSS, which dlopen()s
+      # libnss_*.so from the *host* at runtime. Loading the host's glibc
+      # modules into a process with a different statically-linked glibc leaves
+      # the loader globals uninitialised, and the NSS code divides by a zero
+      # page size -> SIGFPE. Users hit this the moment they pressed "Test
+      # Connection" (issue #243); GODEBUG=netdns=go was the manual workaround.
+      # netgo compiles the cgo resolver out entirely, so there is nothing left
+      # to dlopen. osusergo does the same for os/user's getpwuid NSS path.
       - name: Build Linux Web Interface (amd64)
         run: |
           mkdir -p build
           CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build \
             -trimpath \
             -a \
+            -tags netgo,osusergo \
             -ldflags '-linkmode external -extldflags "-static" -s -w -X "main.Version=${{ steps.version.outputs.version }}" -X "main.GitCommit=${{ steps.version.outputs.commit }}" -X "main.Timestamp=${{ steps.version.outputs.timestamp }}"' \
             -o build/postie-web-linux-amd64 \
             ./cmd/web
+        env:
+          CC: gcc
+
+      # Catch a netgo regression in CI instead of at user launch time (#243).
+      # The shipped binary is stripped (-s -w) and has no usable symbol table,
+      # so rebuild the same package with the same tags unstripped and inspect
+      # that instead. Build tags are what decide which net/*.go files compile,
+      # so the symbols are identical either way.
+      - name: Verify pure-Go DNS resolver is linked
+        run: |
+          CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build \
+            -tags netgo,osusergo \
+            -o /tmp/postie-web-symcheck \
+            ./cmd/web
+          syms=$(go tool nm /tmp/postie-web-symcheck)
+          # Positive control: proves the symbol table is readable, so the
+          # negative assertion below cannot pass vacuously.
+          if ! grep -q 'net\.goLookupIPFiles' <<<"$syms"; then
+            echo "::error::symbol table unreadable - the resolver check would pass vacuously"
+            exit 1
+          fi
+          if grep -q 'net\.cgoLookupHostIP' <<<"$syms"; then
+            echo "::error::cgo DNS resolver linked into the static binary - SIGFPE regression (#243)"
+            exit 1
+          fi
+          echo "OK: pure-Go DNS resolver, no cgo getaddrinfo path"
         env:
           CC: gcc
 

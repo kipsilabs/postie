@@ -51,10 +51,14 @@ COPY ./frontend/embed.go ./frontend/embed.go
 COPY --from=frontend-builder /app/frontend/build ./frontend/build
 
 # Build web binary with enhanced cache mount for native architecture
+# netgo/osusergo are required: this is a fully static cgo binary, and without
+# them DNS goes through glibc getaddrinfo -> NSS, which dlopen()s the host's
+# libnss_*.so into a process with a different statically-linked glibc and
+# crashes with SIGFPE (issue #243). netgo compiles that path out entirely.
 RUN --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
     --mount=type=cache,target=/tmp/go-build-cache,sharing=locked \
     CGO_ENABLED=1 GOOS=linux \
-    go build -a -ldflags '-linkmode external -extldflags "-static"' -o postie-web cmd/web/main.go
+    go build -a -tags netgo,osusergo -ldflags '-linkmode external -extldflags "-static"' -o postie-web cmd/web/main.go
 
 # Final stage - use LinuxServer.io base image (has s6-overlay + PUID/PGID support)
 FROM ghcr.io/linuxserver/baseimage-ubuntu:jammy
