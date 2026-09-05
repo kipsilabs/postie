@@ -70,13 +70,13 @@ func TestIsStaleConnError_RealDeadline(t *testing.T) {
 	if err != nil {
 		t.Skipf("cannot listen: %v", err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	conn, err := net.Dial("tcp", ln.Addr().String())
 	if err != nil {
 		t.Skipf("cannot dial: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	_ = conn.SetReadDeadline(time.Now().Add(50 * time.Millisecond))
 	buf := make([]byte, 1)
