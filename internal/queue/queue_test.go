@@ -367,3 +367,75 @@ func TestAttachVerificationProgress(t *testing.T) {
 		t.Error("GetQueueItems did not return completed item a")
 	}
 }
+
+// TestGetQueueItems_PendingFilterSortsByCreated reproduces issue #245 (1):
+// filtering by status=pending with the default "created" sort produced
+// "no such column: created_at" because the goqite table names that column
+// "created". The endpoint returned HTTP 500 and the dashboard queue was empty.
+func TestGetQueueItems_PendingFilterSortsByCreated(t *testing.T) {
+	q := newTestQueue(t)
+	ctx := context.Background()
+
+	if err := q.AddFile(ctx, "/tmp/pending-a.bin", 10); err != nil {
+		t.Fatalf("AddFile a: %v", err)
+	}
+	if err := q.AddFile(ctx, "/tmp/pending-b.bin", 20); err != nil {
+		t.Fatalf("AddFile b: %v", err)
+	}
+
+	for _, order := range []string{"", "asc", "desc"} {
+		result, err := q.GetQueueItems(PaginationParams{Status: "pending", SortBy: "created", Order: order, Page: 1, Limit: 25})
+		if err != nil {
+			t.Fatalf("GetQueueItems(status=pending, order=%q): %v", order, err)
+		}
+		if result.TotalItems != 2 || len(result.Items) != 2 {
+			t.Fatalf("order=%q: got total=%d items=%d, want 2/2", order, result.TotalItems, len(result.Items))
+		}
+		for _, item := range result.Items {
+			if item.Status != StatusPending {
+				t.Errorf("order=%q: item %s status=%q, want pending", order, item.Path, item.Status)
+			}
+		}
+	}
+}
+
+// TestGetQueueItems_StatusSortPagesAreContiguous guards the offset arithmetic
+// in getMergedItemsByStatus. When a page offset exceeds a status bucket, the
+// offset must shrink by that bucket's total size, not by the (empty) page it
+// returned, otherwise items at the bucket boundary are silently skipped.
+func TestGetQueueItems_StatusSortPagesAreContiguous(t *testing.T) {
+	q := newTestQueue(t)
+	ctx := context.Background()
+
+	// One running item, three pending items.
+	if err := q.AddFile(ctx, "/tmp/running.bin", 1); err != nil {
+		t.Fatalf("AddFile running: %v", err)
+	}
+	if msg, _, err := q.ReceiveFile(ctx); err != nil || msg == nil {
+		t.Fatalf("ReceiveFile: msg=%v err=%v", msg, err)
+	}
+	for _, name := range []string{"p1", "p2", "p3"} {
+		if err := q.AddFile(ctx, "/tmp/"+name+".bin", 1); err != nil {
+			t.Fatalf("AddFile %s: %v", name, err)
+		}
+	}
+
+	seen := map[string]int{}
+	for page := 1; page <= 2; page++ {
+		res, err := q.GetQueueItems(PaginationParams{SortBy: "status", Order: "desc", Page: page, Limit: 2})
+		if err != nil {
+			t.Fatalf("page %d: %v", page, err)
+		}
+		if len(res.Items) != 2 {
+			t.Fatalf("page %d: got %d items, want 2 (%+v)", page, len(res.Items), res.Items)
+		}
+		for _, it := range res.Items {
+			seen[it.Path]++
+		}
+	}
+	for _, path := range []string{"/tmp/running.bin", "/tmp/p1.bin", "/tmp/p2.bin", "/tmp/p3.bin"} {
+		if seen[path] != 1 {
+			t.Errorf("%s appeared %d times across pages, want exactly once", path, seen[path])
+		}
+	}
+}
