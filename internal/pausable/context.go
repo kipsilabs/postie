@@ -13,18 +13,20 @@ const pausableContextKey contextKey = iota
 
 // Context wraps a context.Context and allows pausing/resuming operations
 type Context struct {
-	parent  context.Context
-	paused  bool
-	pauseCh chan struct{}
-	mu      sync.RWMutex
+	parent context.Context
+	paused bool
+	// resumeCh is created on Pause and closed on Resume. Closing broadcasts
+	// to every goroutine blocked in CheckPause; a single token would wake only
+	// one of them and leave the rest parked forever.
+	resumeCh chan struct{}
+	mu       sync.RWMutex
 }
 
 // NewContext creates a new pausable context that stores itself in the context chain
 func NewContext(parent context.Context) *Context {
 	pc := &Context{
-		parent:  parent,
-		paused:  false,
-		pauseCh: make(chan struct{}, 1),
+		parent: parent,
+		paused: false,
 	}
 
 	// Store reference to self in the context chain
@@ -60,42 +62,36 @@ func (pc *Context) Pause() {
 
 	if !pc.paused {
 		pc.paused = true
-		// Clear the resume channel
-		select {
-		case <-pc.pauseCh:
-		default:
-		}
+		pc.resumeCh = make(chan struct{})
 	}
 }
 
-// Resume resumes the context
+// Resume resumes the context and wakes every operation blocked in CheckPause
 func (pc *Context) Resume() {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
 
 	if pc.paused {
 		pc.paused = false
-		// Signal resume to all waiting operations
-		select {
-		case pc.pauseCh <- struct{}{}:
-		default:
-		}
+		close(pc.resumeCh)
+		pc.resumeCh = nil
 	}
 }
 
 // CheckPause blocks if the context is paused until it's resumed or the parent context is canceled
 func (pc *Context) CheckPause() error {
 	pc.mu.RLock()
-	paused := pc.paused
+	paused, resumeCh := pc.paused, pc.resumeCh
 	pc.mu.RUnlock()
 
 	if !paused {
 		return nil
 	}
 
-	// Wait for resume or parent context cancellation
+	// resumeCh was captured under the lock, so a Resume that races with this
+	// call closes the same channel we wait on and the wakeup cannot be lost.
 	select {
-	case <-pc.pauseCh:
+	case <-resumeCh:
 		return nil
 	case <-pc.parent.Done():
 		return pc.parent.Err()
