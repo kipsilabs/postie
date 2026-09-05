@@ -1130,3 +1130,45 @@ func TestScan_JobsCarryWatcherInputFolder(t *testing.T) {
 		}
 	})
 }
+
+// TestScanDirectory_SkipsUnreadableSubdirectory: one unreadable entry (a
+// permission-denied subfolder, or a file removed mid-scan) used to abort the
+// whole scan, so nothing in the watch folder was ever imported while it was
+// there. Unreadable entries must be skipped, not fatal.
+func TestScanDirectory_SkipsUnreadableSubdirectory(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores directory permissions")
+	}
+	for _, singleNzbPerFolder := range []bool{false, true} {
+		t.Run(map[bool]string{false: "per-file", true: "per-folder"}[singleNzbPerFolder], func(t *testing.T) {
+			watcher, tempDir := createTestWatcher(t)
+			watcher.cfg.SingleNzbPerFolder = singleNzbPerFolder
+
+			content := bytes.Repeat([]byte("x"), 1500)
+			goodFile := createTestFile(t, tempDir, "good.bin", content, time.Now().Add(-10*time.Second))
+
+			locked := filepath.Join(tempDir, "locked")
+			if err := os.MkdirAll(locked, 0o755); err != nil {
+				t.Fatalf("mkdir: %v", err)
+			}
+			createTestFile(t, locked, "hidden.bin", content, time.Now().Add(-10*time.Second))
+			if err := os.Chmod(locked, 0o000); err != nil {
+				t.Fatalf("chmod: %v", err)
+			}
+			t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
+
+			mockQueue := &mockQueueWithDuplicateCheck{addFileCalls: make([]string, 0)}
+			watcher.queue = mockQueue
+
+			ctx := context.Background()
+			for i := 0; i < 2; i++ {
+				if err := watcher.scanDirectory(ctx); err != nil {
+					t.Fatalf("scanDirectory #%d: %v", i+1, err)
+				}
+			}
+			if len(mockQueue.addFileCalls) != 1 || mockQueue.addFileCalls[0] != goodFile {
+				t.Errorf("queued %v, want exactly [%s]", mockQueue.addFileCalls, goodFile)
+			}
+		})
+	}
+}
