@@ -22,6 +22,53 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/test
 
+  test-windows:
+    runs-on: windows-latest
+    needs: []
+    timeout-minutes: 30
+    steps:
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.26
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          install: ''
+          update: false
+          path-type: inherit
+
+      # Pin the MinGW GCC toolchain (see build-cli-windows for rationale).
+      - name: Pin MinGW GCC toolchain
+        shell: msys2 {0}
+        run: |
+          GCC_VER=15.2.0-14
+          pacman -U --noconfirm \
+            https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-gcc-${GCC_VER}-any.pkg.tar.zst \
+            https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-gcc-libs-${GCC_VER}-any.pkg.tar.zst
+          gcc --version
+
+      - name: Runner CPU info
+        shell: pwsh
+        run: Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors | Format-List
+
+      # The root package embeds frontend/build, which is not built here, so the
+      # sweep is limited to the library packages.
+      - name: Go tests
+        shell: msys2 {0}
+        env:
+          CGO_ENABLED: 1
+          CC: gcc
+        run: |
+          go version
+          go test -count=1 ./internal/... ./pkg/...
+
   build-frontend:
     runs-on: ubuntu-latest
     needs: test

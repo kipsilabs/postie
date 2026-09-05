@@ -823,7 +823,7 @@ func deriveFolderName(rootDir string, files []fileinfo.FileInfo) string {
 	}
 	// Fallback: use the base name of rootDir itself
 	name := filepath.Base(rootDir)
-	if name == "." || name == "/" || name == "" {
+	if name == "." || name == string(filepath.Separator) || name == "" {
 		return "upload"
 	}
 	return name

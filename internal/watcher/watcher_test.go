@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"sync"
 	"testing"
@@ -1136,6 +1137,9 @@ func TestScan_JobsCarryWatcherInputFolder(t *testing.T) {
 // whole scan, so nothing in the watch folder was ever imported while it was
 // there. Unreadable entries must be skipped, not fatal.
 func TestScanDirectory_SkipsUnreadableSubdirectory(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("directory permission bits are not enforced on Windows")
+	}
 	if os.Geteuid() == 0 {
 		t.Skip("root ignores directory permissions")
 	}
