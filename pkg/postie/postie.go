@@ -145,6 +145,18 @@ func NewWithRuntime(
 	}, nil
 }
 
+// removePar2AfterPost reports whether generated PAR2 files should be deleted as
+// soon as posting succeeds. Only in standalone mode with maintain_par2_files
+// off: in durable mode the background verification may still need to re-post
+// PAR2 articles from those files, and the transfer cleaner removes them once
+// the transfer is verified.
+func (p *Postie) removePar2AfterPost() bool {
+	if p.recorder != nil {
+		return false
+	}
+	return p.par2Cfg.MaintainPar2Files == nil || !*p.par2Cfg.MaintainPar2Files
+}
+
 // completeTransferUpload marks the transfer's files uploaded so the durable
 // verification service can verify them, scheduling the first check after the
 // configured propagation delay. No-op in standalone mode (no recorder).
@@ -324,10 +336,7 @@ func (p *Postie) postInParallel(
 			return
 		}
 
-		// Only clean up if maintain_par2_files is disabled
-		// If enabled, files are already in output directory - no action needed
-		if p.par2Cfg.MaintainPar2Files == nil || !*p.par2Cfg.MaintainPar2Files {
-			// Clean up PAR2 files when maintain_par2_files is disabled (default)
+		if p.removePar2AfterPost() {
 			for _, path := range createdPar2Paths {
 				safeRemoveFile(ctx, path)
 			}
@@ -434,10 +443,7 @@ func (p *Postie) post(
 			return
 		}
 
-		// Only clean up if maintain_par2_files is disabled
-		// If enabled, files are already in output directory - no action needed
-		if p.par2Cfg.MaintainPar2Files == nil || !*p.par2Cfg.MaintainPar2Files {
-			// Clean up PAR2 files when maintain_par2_files is disabled (default)
+		if p.removePar2AfterPost() {
 			for _, path := range createdPar2Paths {
 				safeRemoveFile(ctx, path)
 			}
@@ -543,10 +549,7 @@ func (p *Postie) postFolder(ctx context.Context, files []fileinfo.FileInfo, root
 			return
 		}
 
-		// Only clean up if maintain_par2_files is disabled
-		// If enabled, files are already in output directory - no action needed
-		if p.par2Cfg.MaintainPar2Files == nil || !*p.par2Cfg.MaintainPar2Files {
-			// Clean up PAR2 files when maintain_par2_files is disabled (default)
+		if p.removePar2AfterPost() {
 			for _, path := range createdPar2Paths {
 				safeRemoveFile(ctx, path)
 			}
