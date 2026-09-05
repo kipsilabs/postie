@@ -20,7 +20,17 @@ runs:
       run: |
         go version
         go env
-      # test
+
+    # The par2go/ParPar C kernel picks its SIMD path from the runner's CPU, and
+    # GitHub's ubuntu-latest pool mixes Intel (AVX-512/GFNI) and AMD (AVX2)
+    # hosts. Record it so a native PAR2 segfault can be tied to a CPU family.
+    - name: Runner CPU info
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        grep -m1 'model name' /proc/cpuinfo
+        grep -m1 -o 'avx512[a-z_]*\|avx2\|gfni\|vbmi[0-9]*' /proc/cpuinfo | sort -u | tr '\n' ' '; echo
+        nproc
 
     # Install Bun
     - name: Install Bun
