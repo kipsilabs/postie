@@ -1,0 +1,42 @@
+name: Smoke test CLI startup
+description: Runs the freshly built CLI binary to catch launch-time regressions (missing runtime DLLs, init panics, stray startup errors) before the artifact is published.
+inputs:
+  binary:
+    description: Path to the built CLI binary
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Run CLI startup checks
+      shell: bash
+      run: |
+        set -euo pipefail
+        bin="${{ inputs.binary }}"
+
+        echo "--- $bin --help"
+        "$bin" --help > help.out 2>&1
+        cat help.out
+        grep -q "Path to configuration file" help.out
+
+        echo "--- $bin -c missing-config.yaml (expect exit 1 and only the config error)"
+        set +e
+        "$bin" -c missing-config.yaml > run.out 2>&1
+        code=$?
+        set -e
+        cat run.out
+        if [ "$code" -ne 1 ]; then
+          echo "::error::expected exit code 1 for a missing config, got $code"
+          exit 1
+        fi
+        grep -q "error reading config file" run.out || {
+          echo "::error::CLI did not report the missing config file"
+          exit 1
+        }
+        if grep -iE "error|panic|fatal" run.out \
+            | grep -v "Error loading configuration" \
+            | grep -v "^Error: error reading config file"; then
+          echo "::error::unexpected output during CLI startup (see lines above)"
+          exit 1
+        fi
+        rm -f help.out run.out
+        echo "OK: CLI starts, parses flags, and reports only the expected config error."

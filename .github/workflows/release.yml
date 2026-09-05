@@ -202,6 +202,14 @@ jobs:
         with:
           exe-glob: postie-cli-${{ matrix.goos }}-${{ matrix.goarch }}.exe
 
+      # Issue #154: the rc7 CLI printed errors at launch on Windows and nothing
+      # in CI exercised the exe. Run it once before packaging.
+      - name: Smoke test CLI startup
+        if: matrix.goos == 'windows'
+        uses: ./.github/actions/smoke-test-cli
+        with:
+          binary: ./postie-cli-${{ matrix.goos }}-${{ matrix.goarch }}.exe
+
       # Create archive
       - name: Create archive
         run: |
