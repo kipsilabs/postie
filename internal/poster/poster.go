@@ -1234,12 +1234,33 @@ func (p *poster) checkLoop(ctx context.Context, checkQueue chan *Post, postQueue
 // STATs each to skip those already present on the server, and enqueues only the
 // missing ones. It never rewrites the manifest. If every article is already
 // present the post is enqueued with no articles and completes immediately.
-func (p *poster) addRecoveredPost(ctx context.Context, filePath string, file *os.File, fileInfo os.FileInfo, recs []manifest.ArticleRecord, wg *sync.WaitGroup, failedPosts *atomic.Int64, postQueue chan<- *Post, postsInFlight *sync.WaitGroup) error {
+func (p *poster) addRecoveredPost(ctx context.Context, filePath string, fileNumber int, file *os.File, fileInfo os.FileInfo, recs []manifest.ArticleRecord, wg *sync.WaitGroup, failedPosts *atomic.Int64, postQueue chan<- *Post, nzbGen nzb.NZBGenerator, postsInFlight *sync.WaitGroup) error {
+	// The manifest does not carry OriginalName/FileNumber, but the NZB
+	// generator groups segments by OriginalName and orders files by
+	// FileNumber; without them every recovered file collapses into one
+	// nameless NZB entry.
+	originalName := filepath.Base(filePath)
 	all := make([]*article.Article, 0, len(recs))
 	for _, r := range recs {
-		all = append(all, articleFromRecord(r))
+		art := articleFromRecord(r)
+		art.OriginalName = originalName
+		art.FileNumber = fileNumber
+		all = append(all, art)
 	}
 	missing := p.filterMissing(ctx, all)
+
+	// Articles already on the server are not re-posted, but they are still
+	// part of the upload and must appear in the NZB. Only the ones posted now
+	// are added by processPost.
+	isMissing := make(map[string]struct{}, len(missing))
+	for _, art := range missing {
+		isMissing[art.MessageID] = struct{}{}
+	}
+	for _, art := range all {
+		if _, ok := isMissing[art.MessageID]; !ok {
+			nzbGen.AddArticle(art)
+		}
+	}
 
 	slog.InfoContext(ctx, "Recovered manifest; re-posting only missing articles",
 		"file", filePath, "total", len(all), "missing", len(missing))
@@ -1333,7 +1354,7 @@ func (p *poster) addPost(ctx context.Context, filePath string, displayName strin
 			slog.WarnContext(ctx, "Failed to read existing manifest; regenerating", "file", filePath, "error", err)
 		} else if ok {
 			owned = false // addRecoveredPost enqueues or closes the file itself
-			return p.addRecoveredPost(ctx, filePath, file, fileInfo, recs, wg, failedPosts, postQueue, postsInFlight)
+			return p.addRecoveredPost(ctx, filePath, fileNumber, file, fileInfo, recs, wg, failedPosts, postQueue, nzbGen, postsInFlight)
 		}
 	}
 
