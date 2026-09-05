@@ -12,20 +12,20 @@ There are several ways to install and run Postie. Choose the method that best su
 
 Download the latest release for your platform:
 
-<a href="https://github.com/javi11/postie/releases/latest/download/postie-gui-windows-amd64.zip">
+<a href="https://github.com/kipsilabs/postie/releases/latest/download/postie-gui-windows-amd64.zip">
   <img src="/img/download-for-windows.webp" alt="Download for Windows" width="200" height="60" />
 </a>
-<a href="https://github.com/javi11/postie/releases/latest/download/postie-gui-macos-universal.zip">
+<a href="https://github.com/kipsilabs/postie/releases/latest/download/postie-gui-macos-universal.zip">
   <img src="/img/download-for-mac.png" alt="Download for macOS" width="200" height="60" />
 </a>
 
-[![View All Releases](https://img.shields.io/badge/All%20Releases-View-6c757d?style=for-the-badge&logo=github)](https://github.com/javi11/postie/releases/latest)
+[![View All Releases](https://img.shields.io/badge/All%20Releases-View-6c757d?style=for-the-badge&logo=github)](https://github.com/kipsilabs/postie/releases/latest)
 
 ## Binary Installation
 
 The easiest way to get started is by downloading a pre-built binary:
 
-1. Go to the [releases page](https://github.com/javi11/postie/releases) or use the download buttons above
+1. Go to the [releases page](https://github.com/kipsilabs/postie/releases) or use the download buttons above
 2. Download the appropriate binary for your platform
 3. Extract the archive
 4. Run Postie to start the web interface:
@@ -67,7 +67,7 @@ Postie provides a complete Docker setup that includes the web interface for easy
 services:
   postie:
     container_name: postie
-    image: ghcr.io/javi11/postie:latest
+    image: ghcr.io/kipsilabs/postie:latest
     ports:
       - "8080:8080"
     volumes:
@@ -90,7 +90,7 @@ For ARM devices like Raspberry Pi, you may want to explicitly specify the platfo
 services:
   postie:
     container_name: postie
-    image: ghcr.io/javi11/postie:latest
+    image: ghcr.io/kipsilabs/postie:latest
     platform: linux/arm64  # Explicitly specify ARM64
     ports:
       - "8080:8080"
@@ -135,7 +135,7 @@ docker run -d \
   -v ./output:/output \
   -e PUID=1000 \
   -e PGID=1000 \
-  ghcr.io/javi11/postie:latest
+  ghcr.io/kipsilabs/postie:latest
 ```
 
 #### ARM Device Configuration
@@ -152,17 +152,17 @@ docker run -d \
   -v ./output:/output \
   -e PUID=1000 \
   -e PGID=1000 \
-  ghcr.io/javi11/postie:latest
+  ghcr.io/kipsilabs/postie:latest
 ```
 
 #### Available Image Tags
 
 You can also use architecture-specific tags if needed:
 
-- `ghcr.io/javi11/postie:latest` - Multi-arch manifest (recommended)
-- `ghcr.io/javi11/postie:v{version}` - Multi-arch manifest for specific version
-- `ghcr.io/javi11/postie:v{version}-amd64` - AMD64 specific
-- `ghcr.io/javi11/postie:v{version}-arm64` - ARM64 specific
+- `ghcr.io/kipsilabs/postie:latest` - Multi-arch manifest (recommended)
+- `ghcr.io/kipsilabs/postie:v{version}` - Multi-arch manifest for specific version
+- `ghcr.io/kipsilabs/postie:v{version}-amd64` - AMD64 specific
+- `ghcr.io/kipsilabs/postie:v{version}-arm64` - ARM64 specific
 
 ### Web Interface Access
 
@@ -283,7 +283,7 @@ chmod +x postie
 
 The project provides native ARM64 binaries for Linux:
 
-1. Download the ARM64 binary from the [releases page](https://github.com/javi11/postie/releases)
+1. Download the ARM64 binary from the [releases page](https://github.com/kipsilabs/postie/releases)
    - Look for files ending in `-linux-arm64.tar.gz`
 2. Follow the same Linux installation steps above
 3. The ARM64 binary provides optimal performance on ARM devices
@@ -295,7 +295,7 @@ The project provides native ARM64 binaries for Linux:
 
 #### Web Interface with Binary
 
-1. Download [postie-web](https://github.com/javi11/postie/releases/latest/download/postie-web-linux-amd64.tar.gz)
+1. Download [postie-web](https://github.com/kipsilabs/postie/releases/latest/download/postie-web-linux-amd64.tar.gz)
 2. Extract the file
 3. Start Postie with the web server enabled `./postie-web --port 80080`
 4. Open your web browser
@@ -307,7 +307,7 @@ The project provides native ARM64 binaries for Linux:
 If you prefer to build from source:
 
 ```bash
-git clone https://github.com/javi11/postie.git
+git clone https://github.com/kipsilabs/postie.git
 cd postie
 go build
 ```
@@ -317,7 +317,7 @@ go build
 If you have Go installed, you can install Postie directly:
 
 ```bash
-go install github.com/javi11/postie@latest
+go install github.com/kipsilabs/postie@latest
 ```
 
 ## System Requirements

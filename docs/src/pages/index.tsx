@@ -25,14 +25,14 @@ function HomepageHeader() {
           </Link>
           <Link
             className="button button--outline button--lg button--secondary"
-            to="https://github.com/javi11/postie"
+            to="https://github.com/kipsilabs/postie"
             style={{ marginLeft: '10px' }}>
             GitHub
           </Link>
         </div>
         <div className={styles.buttons} style={{ marginTop: '20px' }}>
           <Link
-            to="https://github.com/javi11/postie/releases/latest/download/postie-gui-windows-amd64.zip"
+            to="https://github.com/kipsilabs/postie/releases/latest/download/postie-gui-windows-amd64.zip"
             style={{ margin: '5px', display: 'inline-block' }}>
             <img 
               src="/img/download-for-windows.webp" 
@@ -41,7 +41,7 @@ function HomepageHeader() {
             />
           </Link>
           <Link
-            to="https://github.com/javi11/postie/releases/latest/download/postie-gui-macos-universal.zip"
+            to="https://github.com/kipsilabs/postie/releases/latest/download/postie-gui-macos-universal.zip"
             style={{ margin: '5px', display: 'inline-block' }}>
             <img 
               src="/img/download-for-mac.png" 
@@ -52,7 +52,7 @@ function HomepageHeader() {
         </div>
         <div style={{ marginTop: '15px', textAlign: 'center' }}>
           <Link
-            to="https://github.com/javi11/postie/releases/latest"
+            to="https://github.com/kipsilabs/postie/releases/latest"
             style={{ color: 'var(--ifm-hero-text-color)', textDecoration: 'underline' }}>
             View all releases
           </Link>
@@ -126,7 +126,7 @@ export default function Home(): ReactNode {
   -v ./config:/config \\
   -v ./watch:/watch \\
   -v ./output:/output \\
-  ghcr.io/javi11/postie:latest`}</code>
+  ghcr.io/kipsilabs/postie:latest`}</code>
               </pre>
               <div style={{ textAlign: 'center', marginTop: '1rem' }}>
                 <p>Then open <strong>http://localhost:8080</strong> in your browser</p>

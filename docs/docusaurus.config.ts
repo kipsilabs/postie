@@ -17,7 +17,7 @@ const config: Config = {
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
-  organizationName: 'javi11', // Usually your GitHub org/user name.
+  organizationName: 'kipsilabs', // Usually your GitHub org/user name.
   projectName: 'postie', // Usually your repo name.
 
   onBrokenLinks: 'throw',
@@ -39,7 +39,7 @@ const config: Config = {
           sidebarPath: './sidebars.ts',
           // Please change this to your repo.
           editUrl:
-            'https://github.com/javi11/postie/tree/main/docs/',
+            'https://github.com/kipsilabs/postie/tree/main/docs/',
         },
         theme: {
           customCss: './src/css/custom.css',
@@ -65,7 +65,7 @@ const config: Config = {
           label: 'Documentation',
         },
         {
-          href: 'https://github.com/javi11/postie',
+          href: 'https://github.com/kipsilabs/postie',
           label: 'GitHub',
           position: 'right',
         },
@@ -92,11 +92,11 @@ const config: Config = {
           items: [
             {
               label: 'GitHub Issues',
-              href: 'https://github.com/javi11/postie/issues',
+              href: 'https://github.com/kipsilabs/postie/issues',
             },
             {
               label: 'GitHub Discussions',
-              href: 'https://github.com/javi11/postie/discussions',
+              href: 'https://github.com/kipsilabs/postie/discussions',
             },
           ],
         },
@@ -105,7 +105,7 @@ const config: Config = {
           items: [
             {
               label: 'GitHub',
-              href: 'https://github.com/javi11/postie',
+              href: 'https://github.com/kipsilabs/postie',
             },
           ],
         },

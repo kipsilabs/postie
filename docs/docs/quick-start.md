@@ -25,7 +25,7 @@ Start Postie using Docker or the binary:
 **Docker:**
 
 ```bash
-docker run -p 8080:8080 -v $(pwd)/config:/config -v $(pwd)/output:/output javi11/postie
+docker run -p 8080:8080 -v $(pwd)/config:/config -v $(pwd)/output:/output kipsilabs/postie
 ```
 
 **Binary:**
