@@ -194,16 +194,16 @@ type ConfigData struct {
 }
 
 type Par2Config struct {
-	Enabled           *bool  `yaml:"enabled" json:"enabled"`
-	Redundancy        string `yaml:"redundancy" json:"redundancy"`
-	TempDir           string `yaml:"temp_dir" json:"temp_dir"`
-	MaintainPar2Files  *bool `yaml:"maintain_par2_files" json:"maintain_par2_files"`
-	SkipIfPar2Exists   *bool `yaml:"skip_if_par2_exists" json:"skip_if_par2_exists"`
+	Enabled           *bool    `yaml:"enabled" json:"enabled"`
+	Redundancy        string   `yaml:"redundancy" json:"redundancy"`
+	TempDir           string   `yaml:"temp_dir" json:"temp_dir"`
+	MaintainPar2Files *bool    `yaml:"maintain_par2_files" json:"maintain_par2_files"`
+	SkipIfPar2Exists  *bool    `yaml:"skip_if_par2_exists" json:"skip_if_par2_exists"`
 	ParparBinaryPath  string   `yaml:"parpar_binary_path" json:"parpar_binary_path"`
 	ParparExtraArgs   []string `yaml:"parpar_extra_args" json:"parpar_extra_args"`
 	NumGoroutines     int      `yaml:"num_goroutines" json:"num_goroutines"`
-	MemoryLimit       int64  `yaml:"memory_limit" json:"memory_limit"`
-	SliceSize         int64  `yaml:"slice_size" json:"slice_size"`
+	MemoryLimit       int64    `yaml:"memory_limit" json:"memory_limit"`
+	SliceSize         int64    `yaml:"slice_size" json:"slice_size"`
 	// MaxConcurrentJobs caps how many PAR2 operations the process-wide PAR2
 	// scheduler runs at once. Additional work is queued rather than run
 	// concurrently, so MemoryLimit applies per active job instead of per queue

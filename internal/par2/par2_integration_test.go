@@ -222,7 +222,7 @@ func TestIntegration_BinaryExecutor_SkipsWhenPar2FilesExistInSourceDir(t *testin
 	mainPar2, _ := createFakePar2Files(t, dir, "video.mkv")
 
 	cfg := &config.Par2Config{
-		Redundancy:      "10",
+		Redundancy:       "10",
 		ParparBinaryPath: "/nonexistent/parpar", // must not be invoked
 	}
 	executor := NewBinaryExecutor(750_000, cfg, nil)
