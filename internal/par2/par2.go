@@ -308,6 +308,7 @@ func (p *NativeExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInf
 		NumGoroutines: p.cfg.NumGoroutines,
 		MemoryLimit:   p.cfg.MemoryLimit,
 		Creator:       "Postie",
+		Logger:        slog.Default(),
 		OnProgress: func(phase string, pct float64) {
 			if pg == nil {
 				return
@@ -491,6 +492,7 @@ func (p *NativeExecutor) createPar2ForFile(ctx context.Context, file fileinfo.Fi
 		NumGoroutines: p.cfg.NumGoroutines,
 		MemoryLimit:   p.cfg.MemoryLimit,
 		Creator:       "Postie",
+		Logger:        slog.Default(),
 		OnProgress: func(phase string, pct float64) {
 			if pg == nil {
 				return
