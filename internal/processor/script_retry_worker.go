@@ -16,11 +16,11 @@ import (
 
 // ScriptRetryWorker handles retrying failed post-upload script executions
 type ScriptRetryWorker struct {
-	queue               *queue.Queue
-	scriptConfig        config.PostUploadScriptConfig
-	ctx                 context.Context
-	cancel              context.CancelFunc
-	retryCheckInterval  time.Duration
+	queue              *queue.Queue
+	scriptConfig       config.PostUploadScriptConfig
+	ctx                context.Context
+	cancel             context.CancelFunc
+	retryCheckInterval time.Duration
 }
 
 // NewScriptRetryWorker creates a new script retry worker

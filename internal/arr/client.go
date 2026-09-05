@@ -76,12 +76,12 @@ func setupSonarrWebhook(ctx context.Context, client *sonarr.Sonarr, fields []*st
 
 func setupLidarrWebhook(ctx context.Context, client *lidarr.Lidarr, fields []*starr.FieldInput) (int64, error) {
 	out, err := client.AddNotificationContext(ctx, &lidarr.NotificationInput{
-		Name:             notificationName,
-		OnReleaseImport:  true, // Lidarr uses OnReleaseImport, not OnDownload
-		OnUpgrade:        true,
-		Implementation:   "Webhook",
-		ConfigContract:   "WebhookSettings",
-		Fields:           fields,
+		Name:            notificationName,
+		OnReleaseImport: true, // Lidarr uses OnReleaseImport, not OnDownload
+		OnUpgrade:       true,
+		Implementation:  "Webhook",
+		ConfigContract:  "WebhookSettings",
+		Fields:          fields,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("lidarr AddNotification: %w", err)
@@ -91,12 +91,12 @@ func setupLidarrWebhook(ctx context.Context, client *lidarr.Lidarr, fields []*st
 
 func setupReadarrWebhook(ctx context.Context, client *readarr.Readarr, fields []*starr.FieldInput) (int64, error) {
 	out, err := client.AddNotificationContext(ctx, &readarr.NotificationInput{
-		Name:             notificationName,
-		OnReleaseImport:  true, // Readarr uses OnReleaseImport, not OnDownload
-		OnUpgrade:        true,
-		Implementation:   "Webhook",
-		ConfigContract:   "WebhookSettings",
-		Fields:           fields,
+		Name:            notificationName,
+		OnReleaseImport: true, // Readarr uses OnReleaseImport, not OnDownload
+		OnUpgrade:       true,
+		Implementation:  "Webhook",
+		ConfigContract:  "WebhookSettings",
+		Fields:          fields,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("readarr AddNotification: %w", err)

@@ -398,9 +398,9 @@ func TestPost(t *testing.T) {
 
 		// Test checkArticle method directly
 		p := &poster{
-			uploadPool:  mockPool,
-			verifyPool:  mockPool, // Use same pool for checking
-			stats:     &Stats{StartTime: time.Now()},
+			uploadPool: mockPool,
+			verifyPool: mockPool, // Use same pool for checking
+			stats:      &Stats{StartTime: time.Now()},
 		}
 		defer p.Close()
 
@@ -438,9 +438,9 @@ func TestPost(t *testing.T) {
 		}).AnyTimes()
 
 		p := &poster{
-			uploadPool:  mockPool,
-			verifyPool:  mockPool, // Use same pool for checking
-			stats:     &Stats{StartTime: time.Now()},
+			uploadPool: mockPool,
+			verifyPool: mockPool, // Use same pool for checking
+			stats:      &Stats{StartTime: time.Now()},
 		}
 		defer p.Close()
 
@@ -749,9 +749,9 @@ func TestCheckArticle(t *testing.T) {
 		mockPool.EXPECT().Stat(ctx, "test@example.com").Return(&nntppool.StatResult{}, nil)
 
 		p := &poster{
-			uploadPool:  mockPool,
-			verifyPool:  mockPool, // Use same pool for checking
-			stats:     &Stats{StartTime: time.Now()},
+			uploadPool: mockPool,
+			verifyPool: mockPool, // Use same pool for checking
+			stats:      &Stats{StartTime: time.Now()},
 		}
 
 		art := &article.Article{
@@ -778,9 +778,9 @@ func TestCheckArticle(t *testing.T) {
 		mockPool.EXPECT().Stat(ctx, "test@example.com").Return(nil, errors.New("not found"))
 
 		p := &poster{
-			uploadPool:  mockPool,
-			verifyPool:  mockPool, // Use same pool for checking
-			stats:     &Stats{StartTime: time.Now()},
+			uploadPool: mockPool,
+			verifyPool: mockPool, // Use same pool for checking
+			stats:      &Stats{StartTime: time.Now()},
 		}
 
 		art := &article.Article{
@@ -1301,9 +1301,9 @@ func TestCheckLoop_Basic(t *testing.T) {
 		mockPool.EXPECT().Stat(ctx, "test@example.com").Return(&nntppool.StatResult{}, nil)
 
 		p := &poster{
-			uploadPool:  mockPool,
-			verifyPool:  mockPool, // Use same pool for checking
-			stats:     &Stats{StartTime: time.Now()},
+			uploadPool: mockPool,
+			verifyPool: mockPool, // Use same pool for checking
+			stats:      &Stats{StartTime: time.Now()},
 		}
 
 		art := &article.Article{
@@ -1329,9 +1329,9 @@ func TestCheckLoop_Basic(t *testing.T) {
 		mockPool.EXPECT().Stat(ctx, "test@example.com").Return(nil, errors.New("article not found"))
 
 		p := &poster{
-			uploadPool:  mockPool,
-			verifyPool:  mockPool, // Use same pool for checking
-			stats:     &Stats{StartTime: time.Now()},
+			uploadPool: mockPool,
+			verifyPool: mockPool, // Use same pool for checking
+			stats:      &Stats{StartTime: time.Now()},
 		}
 
 		art := &article.Article{
