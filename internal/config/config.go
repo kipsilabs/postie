@@ -9,6 +9,8 @@ import (
 	"net"
 	"net/mail"
 	"os"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/javi11/nntppool/v4"
@@ -194,21 +196,42 @@ type ConfigData struct {
 }
 
 type Par2Config struct {
-	Enabled           *bool  `yaml:"enabled" json:"enabled"`
-	Redundancy        string `yaml:"redundancy" json:"redundancy"`
-	TempDir           string `yaml:"temp_dir" json:"temp_dir"`
-	MaintainPar2Files  *bool `yaml:"maintain_par2_files" json:"maintain_par2_files"`
-	SkipIfPar2Exists   *bool `yaml:"skip_if_par2_exists" json:"skip_if_par2_exists"`
+	Enabled           *bool    `yaml:"enabled" json:"enabled"`
+	Redundancy        string   `yaml:"redundancy" json:"redundancy"`
+	TempDir           string   `yaml:"temp_dir" json:"temp_dir"`
+	MaintainPar2Files *bool    `yaml:"maintain_par2_files" json:"maintain_par2_files"`
+	SkipIfPar2Exists  *bool    `yaml:"skip_if_par2_exists" json:"skip_if_par2_exists"`
 	ParparBinaryPath  string   `yaml:"parpar_binary_path" json:"parpar_binary_path"`
 	ParparExtraArgs   []string `yaml:"parpar_extra_args" json:"parpar_extra_args"`
 	NumGoroutines     int      `yaml:"num_goroutines" json:"num_goroutines"`
-	MemoryLimit       int64  `yaml:"memory_limit" json:"memory_limit"`
-	SliceSize         int64  `yaml:"slice_size" json:"slice_size"`
+	MemoryLimit       int64    `yaml:"memory_limit" json:"memory_limit"`
+	SliceSize         int64    `yaml:"slice_size" json:"slice_size"`
 	// MaxConcurrentJobs caps how many PAR2 operations the process-wide PAR2
 	// scheduler runs at once. Additional work is queued rather than run
 	// concurrently, so MemoryLimit applies per active job instead of per queue
 	// job. Default value is `1`.
 	MaxConcurrentJobs int `yaml:"max_concurrent_jobs" json:"max_concurrent_jobs"`
+	// GF16Method pins the PAR2 GF16 SIMD kernel used by the native executor.
+	// "auto" lets par2go pick a safe kernel for the CPU; anything else forces
+	// that kernel even if the CPU does not support it (PAR2 creation then fails).
+	GF16Method string `yaml:"gf16_method" json:"gf16_method"`
+}
+
+const Par2GF16MethodAuto = "auto"
+
+// Par2GF16Methods lists the accepted values for Par2Config.GF16Method.
+var Par2GF16Methods = []string{
+	Par2GF16MethodAuto,
+	"lookup",
+	"lookup3",
+	"shuffle-avx2",
+	"shuffle-avx512",
+	"shuffle-vbmi",
+	"xor-jit-avx2",
+	"affine-avx2",
+	"affine-avx512",
+	"shuffle-neon",
+	"clmul-neon",
 }
 
 // ServerConfig represents a Usenet server configuration
@@ -607,6 +630,10 @@ func Load(path string) (*ConfigData, error) {
 		cfg.Par2.MaxConcurrentJobs = 1
 	}
 
+	if cfg.Par2.GF16Method == "" {
+		cfg.Par2.GF16Method = Par2GF16MethodAuto
+	}
+
 	// Set default for maintain par2 files (default to false to preserve current behavior)
 	if cfg.Par2.MaintainPar2Files == nil {
 		maintainPar2Files := false
@@ -756,6 +783,9 @@ func (c *ConfigData) Validate() error {
 	}
 	if c.Par2.MaxConcurrentJobs < 0 {
 		return fmt.Errorf("par2 max_concurrent_jobs must be >= 0 (0 = auto)")
+	}
+	if c.Par2.GF16Method != "" && !slices.Contains(Par2GF16Methods, c.Par2.GF16Method) {
+		return fmt.Errorf("invalid par2 gf16_method: %q (accepted: %s)", c.Par2.GF16Method, strings.Join(Par2GF16Methods, ", "))
 	}
 	if c.PostCheck.MaxConcurrentChecks < 0 {
 		return fmt.Errorf("post_check max_concurrent_checks must be >= 0 (0 = auto)")
@@ -1082,6 +1112,7 @@ func GetDefaultConfig() ConfigData {
 			MemoryLimit:       4 * 1024 * 1024 * 1024,
 			SliceSize:         10 * 1024 * 1024,
 			MaxConcurrentJobs: 1,
+			GF16Method:        Par2GF16MethodAuto,
 		},
 		Watchers: []WatcherConfig{
 			{

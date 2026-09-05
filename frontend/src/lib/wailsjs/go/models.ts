@@ -643,7 +643,8 @@ export namespace config {
 	    memory_limit: number;
 	    slice_size: number;
 	    max_concurrent_jobs: number;
-	
+	    gf16_method: string;
+
 	    static createFrom(source: any = {}) {
 	        return new Par2Config(source);
 	    }
@@ -661,6 +662,7 @@ export namespace config {
 	        this.memory_limit = source["memory_limit"];
 	        this.slice_size = source["slice_size"];
 	        this.max_concurrent_jobs = source["max_concurrent_jobs"];
+	        this.gf16_method = source["gf16_method"];
 	    }
 	}
 	export class PostCheck {

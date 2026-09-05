@@ -38,6 +38,29 @@ type Par2Executor interface {
 	CreateSet(ctx context.Context, files []fileinfo.FileInfo, outputDir, setName, folderDir string) ([]string, error)
 }
 
+var gf16Methods = map[string]int{
+	"":               par2go.GF16Auto,
+	"auto":           par2go.GF16Auto,
+	"lookup":         par2go.GF16Lookup,
+	"lookup3":        par2go.GF16Lookup3,
+	"shuffle-avx2":   par2go.GF16ShuffleAVX2,
+	"shuffle-avx512": par2go.GF16ShuffleAVX512,
+	"shuffle-vbmi":   par2go.GF16ShuffleVBMI,
+	"xor-jit-avx2":   par2go.GF16XorJitAVX2,
+	"affine-avx2":    par2go.GF16AffineAVX2,
+	"affine-avx512":  par2go.GF16AffineAVX512,
+	"shuffle-neon":   par2go.GF16ShuffleNEON,
+	"clmul-neon":     par2go.GF16ClmulNEON,
+}
+
+// gf16MethodFromConfig maps Par2Config.GF16Method to a par2go.GF16* constant.
+func gf16MethodFromConfig(method string) (int, error) {
+	if m, ok := gf16Methods[method]; ok {
+		return m, nil
+	}
+	return 0, fmt.Errorf("unknown par2 gf16_method %q (accepted: %s)", method, strings.Join(config.Par2GF16Methods, ", "))
+}
+
 // NativeExecutor implements Par2Executor using the built-in Go PAR2 creator.
 type NativeExecutor struct {
 	articleSize uint64
@@ -220,6 +243,10 @@ func (p *NativeExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInf
 	if setName == "" {
 		return nil, fmt.Errorf("par2: empty set name")
 	}
+	gf16Method, err := gf16MethodFromConfig(p.cfg.GF16Method)
+	if err != nil {
+		return nil, err
+	}
 
 	// Filter out any par2 files defensively — callers should not include them.
 	inputs := make([]fileinfo.FileInfo, 0, len(files))
@@ -307,6 +334,7 @@ func (p *NativeExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInf
 		NumRecovery:   numRecovery,
 		NumGoroutines: p.cfg.NumGoroutines,
 		MemoryLimit:   p.cfg.MemoryLimit,
+		Method:        gf16Method,
 		Creator:       "Postie",
 		Logger:        slog.Default(),
 		OnProgress: func(phase string, pct float64) {
@@ -460,6 +488,11 @@ func (p *NativeExecutor) createPar2ForFile(ctx context.Context, file fileinfo.Fi
 		return nil, nil
 	}
 
+	gf16Method, err := gf16MethodFromConfig(p.cfg.GF16Method)
+	if err != nil {
+		return nil, err
+	}
+
 	par2FileName := filepath.Base(file.Path) + ".par2"
 	par2Path := filepath.Join(dirPath, par2FileName)
 
@@ -491,6 +524,7 @@ func (p *NativeExecutor) createPar2ForFile(ctx context.Context, file fileinfo.Fi
 		NumRecovery:   numRecovery,
 		NumGoroutines: p.cfg.NumGoroutines,
 		MemoryLimit:   p.cfg.MemoryLimit,
+		Method:        gf16Method,
 		Creator:       "Postie",
 		Logger:        slog.Default(),
 		OnProgress: func(phase string, pct float64) {
@@ -514,7 +548,7 @@ func (p *NativeExecutor) createPar2ForFile(ctx context.Context, file fileinfo.Fi
 		},
 	}
 
-	err := par2go.Create(ctx, par2Path, []string{file.Path}, opts)
+	err = par2go.Create(ctx, par2Path, []string{file.Path}, opts)
 	if err != nil {
 		if ctx.Err() == context.Canceled {
 			slog.InfoContext(ctx, "Par2 creation cancelled", "path", file.Path)

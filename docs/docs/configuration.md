@@ -94,6 +94,7 @@ par2:
   temp_dir: "" # Optional temporary directory for PAR2 operations
   maintain_par2_files: false # Keep PAR2 files after successful upload
   parpar_binary_path: "" # Path to external parpar binary (empty = use built-in)
+  gf16_method: auto # GF16 SIMD kernel for the built-in generator. Leave on auto unless troubleshooting; a kernel the CPU lacks makes PAR2 creation fail. Options: auto, lookup, lookup3, shuffle-avx2, shuffle-avx512, shuffle-vbmi, xor-jit-avx2, affine-avx2, affine-avx512, shuffle-neon, clmul-neon
 
 nzb_compression:
   enabled: false # Whether to enable compression of the output NZB file
@@ -262,6 +263,7 @@ par2:
   temp_dir: "" # Optional temporary directory for PAR2 operations
   maintain_par2_files: false # Keep PAR2 files after successful upload
   parpar_binary_path: "" # Path to external parpar binary (empty = use built-in)
+  gf16_method: auto # GF16 SIMD kernel for the built-in generator. Leave on auto unless troubleshooting; a kernel the CPU lacks makes PAR2 creation fail. Options: auto, lookup, lookup3, shuffle-avx2, shuffle-avx512, shuffle-vbmi, xor-jit-avx2, affine-avx2, affine-avx512, shuffle-neon, clmul-neon
 ```
 
 **💡 Tip: The web UI provides easy-to-use controls for redundancy settings with preset buttons for common percentages.**
