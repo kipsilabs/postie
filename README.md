@@ -1,8 +1,8 @@
 # Postie
 
-[![Build](https://github.com/javi11/postie/actions/workflows/pull-request.yml/badge.svg)](https://github.com/javi11/postie/actions/workflows/pull-request.yml)
-[![Coverage](https://github.com/javi11/postie/actions/workflows/coverage.yml/badge.svg)](https://github.com/javi11/postie/actions/workflows/coverage.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/javi11/postie)](https://goreportcard.com/report/github.com/javi11/postie)
+[![Build](https://github.com/kipsilabs/postie/actions/workflows/pull-request.yml/badge.svg)](https://github.com/kipsilabs/postie/actions/workflows/pull-request.yml)
+[![Coverage](https://github.com/kipsilabs/postie/actions/workflows/coverage.yml/badge.svg)](https://github.com/kipsilabs/postie/actions/workflows/coverage.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/kipsilabs/postie)](https://goreportcard.com/report/github.com/kipsilabs/postie)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/qbt52hh7sjd)
@@ -32,7 +32,7 @@ A high-performance Usenet binary poster written in Go, inspired by Nyuu-Obfuscat
 
 ```bash
 # Create docker-compose.yml
-curl -o docker-compose.yml https://raw.githubusercontent.com/javi11/postie/main/docker-compose.yml
+curl -o docker-compose.yml https://raw.githubusercontent.com/kipsilabs/postie/main/docker-compose.yml
 
 # Start Postie
 docker-compose up -d
@@ -42,9 +42,9 @@ docker-compose up -d
 
 ### Binary Download
 
-[![Download for Windows](https://img.shields.io/badge/Windows-Download-0078d4?style=for-the-badge&logo=windows)](https://github.com/javi11/postie/releases/latest/download/postie_windows_amd64.zip)
-[![Download for macOS](https://img.shields.io/badge/macOS-Download-0078d4?style=for-the-badge&logo=apple)](https://github.com/javi11/postie/releases/latest/download/postie_darwin_amd64.zip)
-[![Download for Linux](https://img.shields.io/badge/Linux-Download-0078d4?style=for-the-badge&logo=linux)](https://github.com/javi11/postie/releases/latest/download/postie_linux_amd64.zip)
+[![Download for Windows](https://img.shields.io/badge/Windows-Download-0078d4?style=for-the-badge&logo=windows)](https://github.com/kipsilabs/postie/releases/latest/download/postie_windows_amd64.zip)
+[![Download for macOS](https://img.shields.io/badge/macOS-Download-0078d4?style=for-the-badge&logo=apple)](https://github.com/kipsilabs/postie/releases/latest/download/postie_darwin_amd64.zip)
+[![Download for Linux](https://img.shields.io/badge/Linux-Download-0078d4?style=for-the-badge&logo=linux)](https://github.com/kipsilabs/postie/releases/latest/download/postie_linux_amd64.zip)
 
 ## Documentation
 
@@ -63,7 +63,7 @@ For detailed documentation, installation instructions, configuration options, an
 ### Building from Source
 
 ```bash
-git clone https://github.com/javi11/postie.git
+git clone https://github.com/kipsilabs/postie.git
 cd postie
 go build
 ```
@@ -71,7 +71,7 @@ go build
 ### Installing with Go
 
 ```bash
-go install github.com/javi11/postie@latest
+go install github.com/kipsilabs/postie@latest
 ```
 
 ## License

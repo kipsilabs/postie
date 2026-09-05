@@ -12,8 +12,8 @@ Before starting, install Postie using one of the available methods — see the [
 
 | Method | How to run |
 |--------|-----------|
-| **Desktop App** (Windows / macOS) | Download from [GitHub Releases](https://github.com/javi11/postie/releases/latest) and launch the app |
-| **Docker** | `docker run -p 8080:8080 -v $(pwd)/config:/config javi11/postie` |
+| **Desktop App** (Windows / macOS) | Download from [GitHub Releases](https://github.com/kipsilabs/postie/releases/latest) and launch the app |
+| **Docker** | `docker run -p 8080:8080 -v $(pwd)/config:/config kipsilabs/postie` |
 | **Binary** | Download from Releases, then run `./postie` |
 
 > 💡 The setup wizard launches automatically the first time you open Postie.
