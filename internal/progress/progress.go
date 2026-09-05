@@ -117,6 +117,7 @@ func (pm *jobProgress) AddProgress(
 		pType:     pType,
 		total:     total,
 		startTime: time.Now(),
+		clock:     time.Now,
 		progress: progressbar.NewOptions64(
 			total,
 			progressbar.OptionSetDescription(name),
@@ -224,13 +225,45 @@ type progress struct {
 	progress     *progressbar.ProgressBar
 	paused       bool
 	waitDeadline time.Time
+	clock        func() time.Time
+	bytes        int64
+	firstByteAt  time.Time
+	pausedAt     time.Time
+	pausedTotal  time.Duration
 	mu           sync.RWMutex
+}
+
+// activeSeconds is the time spent actually transferring: from the first byte
+// onwards, minus any paused intervals. Wall-clock time since the bar was
+// created includes queue waits and pauses, which made the displayed speed
+// meaningless for jobs that sat behind other uploads.
+func (p *progress) activeSeconds(now time.Time) float64 {
+	if p.firstByteAt.IsZero() {
+		return 0
+	}
+	active := now.Sub(p.firstByteAt) - p.pausedTotal
+	if !p.pausedAt.IsZero() {
+		active -= now.Sub(p.pausedAt)
+	}
+	return active.Seconds()
 }
 
 func (p *progress) UpdateProgress(processed int64) {
 	if p.progress.IsFinished() {
 		return
 	}
+
+	p.mu.Lock()
+	if p.firstByteAt.IsZero() {
+		now := p.clock()
+		p.firstByteAt = now
+		p.pausedTotal = 0
+		if p.paused {
+			p.pausedAt = now
+		}
+	}
+	p.bytes += processed
+	p.mu.Unlock()
 
 	_ = p.progress.Add64(processed)
 }
@@ -257,7 +290,19 @@ func (p *progress) GetState() ProgressState {
 	p.mu.RLock()
 	paused := p.paused
 	waitDeadline := p.waitDeadline
+	now := p.clock()
+	bytes := p.bytes
+	activeSecs := p.activeSeconds(now)
 	p.mu.RUnlock()
+
+	kbsPerSecond := 0.0
+	secondsLeft := 0.0
+	if bytes > 0 && activeSecs > 0 {
+		kbsPerSecond = float64(bytes) / 1024.0 / activeSecs
+		if remaining := p.total - bytes; remaining > 0 {
+			secondsLeft = float64(remaining) / (kbsPerSecond * 1024.0)
+		}
+	}
 
 	secsRemaining := 0.0
 	isWaiting := false
@@ -283,16 +328,6 @@ func (p *progress) GetState() ProgressState {
 	secondsSince := s.SecondsSince
 	if math.IsNaN(secondsSince) || math.IsInf(secondsSince, 0) {
 		secondsSince = 0.0
-	}
-
-	secondsLeft := s.SecondsLeft
-	if math.IsNaN(secondsLeft) || math.IsInf(secondsLeft, 0) {
-		secondsLeft = 0.0
-	}
-
-	kbsPerSecond := s.KBsPerSecond
-	if math.IsNaN(kbsPerSecond) || math.IsInf(kbsPerSecond, 0) {
-		kbsPerSecond = 0.0
 	}
 
 	return ProgressState{
@@ -347,7 +382,17 @@ func (p *progress) GetLeftTime() time.Duration {
 func (p *progress) SetPaused(paused bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if paused == p.paused {
+		return
+	}
 	p.paused = paused
+	now := p.clock()
+	if paused {
+		p.pausedAt = now
+		return
+	}
+	p.pausedTotal += now.Sub(p.pausedAt)
+	p.pausedAt = time.Time{}
 }
 
 func (p *progress) IsPaused() bool {
