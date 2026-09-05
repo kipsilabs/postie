@@ -946,9 +946,19 @@ func (q *Queue) getMergedItemsByStatus(order string, offset, limit int) ([]Queue
 			break
 		}
 
-		var items []QueueItem
-		var err error
+		// The offset must be consumed against the bucket's total size, not the
+		// page it returns: a bucket smaller than the offset returns nothing,
+		// and reducing by that empty page would skip items at the boundary.
+		count, err := q.countItemsByStatus(status)
+		if err != nil {
+			return nil, err
+		}
+		if currentOffset >= count {
+			currentOffset -= count
+			continue
+		}
 
+		var items []QueueItem
 		switch status {
 		case "running":
 			items, err = q.getInProgressItemsPaginated("started_at DESC", currentOffset, remaining)
@@ -959,24 +969,39 @@ func (q *Queue) getMergedItemsByStatus(order string, offset, limit int) ([]Queue
 		case "error":
 			items, err = q.getErroredItemsPaginated(currentOffset, remaining)
 		}
-
 		if err != nil {
 			return nil, err
 		}
-
-		// Adjust offset for next category
-		if len(items) < currentOffset {
-			currentOffset -= len(items)
-			continue
-		}
 		currentOffset = 0
 
-		// Add items and reduce remaining count
 		allItems = append(allItems, items...)
 		remaining -= len(items)
 	}
 
 	return allItems, nil
+}
+
+// countItemsByStatus returns the number of items in the table backing status.
+func (q *Queue) countItemsByStatus(status string) (int, error) {
+	var query string
+	switch status {
+	case "running":
+		query = "SELECT COUNT(*) FROM in_progress_items"
+	case "pending":
+		query = "SELECT COUNT(*) FROM goqite WHERE queue = 'file_jobs'"
+	case "complete":
+		query = "SELECT COUNT(*) FROM completed_items"
+	case "error":
+		query = "SELECT COUNT(*) FROM errored_items"
+	default:
+		return 0, fmt.Errorf("unknown status %q", status)
+	}
+
+	var count int
+	if err := q.db.QueryRow(query).Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count %s items: %w", status, err)
+	}
+	return count, nil
 }
 
 // getInProgressItemsPaginated returns paginated in-progress items
@@ -1200,8 +1225,10 @@ func (q *Queue) getPendingItemsPaginated(orderBy string, offset, limit int) ([]Q
 	// Map column names for goqite table (which uses JSON body)
 	var sortColumn string
 	switch orderBy {
-	case "created_at DESC", "created_at ASC":
-		sortColumn = orderBy
+	case "created_at DESC":
+		sortColumn = "created DESC"
+	case "created_at ASC":
+		sortColumn = "created ASC"
 	case "size DESC":
 		sortColumn = "CAST(json_extract(body, '$.size') AS INTEGER) DESC"
 	case "size ASC":
