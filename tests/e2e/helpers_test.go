@@ -114,12 +114,15 @@ func newChromedpCtx(t *testing.T) (context.Context, context.CancelFunc) {
 		// Workaround for Chromium ThreadCache crash on newer Linux kernels
 		// (FATAL:scheduler_loop_quarantine_support.h Check failed: ThreadCache::IsValid)
 		chromedp.Flag("disable-features", "PartitionAlloc"),
+		// A cold Chrome start on a loaded CI runner can exceed chromedp's
+		// default 20s wait for the DevTools websocket URL, which surfaces as
+		// "websocket url timeout reached" before the page is even opened.
+		chromedp.WSURLReadTimeout(60*time.Second),
 	)
 	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	ctx, cancel := chromedp.NewContext(allocCtx)
 
-	// Set a reasonable per-test timeout
-	ctx, timeoutCancel := context.WithTimeout(ctx, 30*time.Second)
+	ctx, timeoutCancel := context.WithTimeout(ctx, 90*time.Second)
 
 	return ctx, func() {
 		timeoutCancel()
