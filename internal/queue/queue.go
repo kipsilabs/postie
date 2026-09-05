@@ -1481,6 +1481,10 @@ func (q *Queue) RemoveCompletedItem(id string) error {
 		return fmt.Errorf("failed to delete pending article checks: %w", err)
 	}
 
+	if err := q.detachTransfers("completed_item_id = ?", id); err != nil {
+		return err
+	}
+
 	// Delete the database record
 	_, err = q.db.Exec("DELETE FROM completed_items WHERE id = ?", id)
 	if err != nil {
@@ -1493,6 +1497,59 @@ func (q *Queue) RemoveCompletedItem(id string) error {
 		// Don't return error here as the database record is already deleted
 	}
 
+	return nil
+}
+
+// detachTransfers removes the durable transfer rows (and their verification
+// failures and manifests) selected by the transfer_files WHERE clause. Called
+// when the completed items they belong to are removed by the user: the
+// background verification must stop for them, and above all the
+// post-verification cleaner must never delete originals for an upload whose
+// NZB the user has just thrown away.
+func (q *Queue) detachTransfers(where string, arg any) error {
+	var args []any
+	if arg != nil {
+		args = append(args, arg)
+	}
+
+	rows, err := q.db.Query("SELECT DISTINCT transfer_id, manifest_path FROM transfer_files WHERE "+where, args...)
+	if err != nil {
+		return fmt.Errorf("failed to list transfer files: %w", err)
+	}
+	transferIDs := make(map[string]struct{})
+	var manifests []string
+	for rows.Next() {
+		var transferID, manifestPath string
+		if err := rows.Scan(&transferID, &manifestPath); err != nil {
+			_ = rows.Close()
+			return fmt.Errorf("failed to scan transfer file: %w", err)
+		}
+		transferIDs[transferID] = struct{}{}
+		manifests = append(manifests, manifestPath)
+	}
+	// Close before writing: with a single SQLite connection an open cursor
+	// would block the deletes below.
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("failed to close transfer files cursor: %w", err)
+	}
+
+	for transferID := range transferIDs {
+		if _, err := q.db.Exec("DELETE FROM verification_failures WHERE transfer_id = ?", transferID); err != nil {
+			return fmt.Errorf("failed to delete verification failures for %s: %w", transferID, err)
+		}
+		if _, err := q.db.Exec("DELETE FROM transfer_files WHERE transfer_id = ?", transferID); err != nil {
+			return fmt.Errorf("failed to delete transfer files for %s: %w", transferID, err)
+		}
+	}
+
+	for _, path := range manifests {
+		if path == "" {
+			continue
+		}
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			slog.Warn("Failed to remove manifest of detached transfer", "path", path, "error", err)
+		}
+	}
 	return nil
 }
 
@@ -1532,6 +1589,10 @@ func (q *Queue) ClearQueue() error {
 	// Clear pending article checks first (FK constraint)
 	_, err = q.db.Exec("DELETE FROM pending_article_checks")
 	if err != nil {
+		return err
+	}
+
+	if err := q.detachTransfers("completed_item_id IS NOT NULL", nil); err != nil {
 		return err
 	}
 
@@ -1584,6 +1645,10 @@ func (q *Queue) ClearCompletedItems() error {
 	// Clear pending article checks first (FK constraint)
 	_, err = q.db.Exec("DELETE FROM pending_article_checks")
 	if err != nil {
+		return err
+	}
+
+	if err := q.detachTransfers("completed_item_id IS NOT NULL", nil); err != nil {
 		return err
 	}
 
