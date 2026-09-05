@@ -399,6 +399,12 @@ func (p *Processor) processNextItem(ctx context.Context) error {
 					slog.ErrorContext(ctx, "Failed to clean up in-progress item after cancel",
 						"error", cancelErr, "id", string(msg.ID))
 				}
+				// The job will not be resumed, so its durable recovery data
+				// (planned rows, manifests) would otherwise be orphaned.
+				if discardErr := p.transferRuntime.DiscardTransfer(ctx, job.TransferID); discardErr != nil {
+					slog.WarnContext(ctx, "Failed to discard transfer after cancel",
+						"error", discardErr, "transfer", job.TransferID)
+				}
 			}
 
 			return nil

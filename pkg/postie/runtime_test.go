@@ -2,9 +2,12 @@ package postie
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/javi11/postie/internal/article"
 	"github.com/javi11/postie/internal/config"
 	"github.com/javi11/postie/internal/database"
 	"github.com/javi11/postie/internal/mocks"
@@ -137,5 +140,54 @@ func TestRuntime_DurableVerificationEnabled(t *testing.T) {
 	rt := &Runtime{store: store, verifyService: verification.New(store, nil, nil, verification.Config{}, "w")}
 	if !rt.DurableVerificationEnabled() {
 		t.Error("Runtime with a verify service should report durable verification enabled")
+	}
+}
+
+// TestRuntime_DiscardTransferRemovesRowsAndManifests: a cancelled durable job
+// used to leave its planned transfer_files rows, any verification failures and
+// the manifest directory behind forever (never due, never cleaned).
+func TestRuntime_DiscardTransferRemovesRowsAndManifests(t *testing.T) {
+	store := newTestTransferStore(t)
+	manifestDir := t.TempDir()
+	rt := &Runtime{store: store, manifestDir: manifestDir}
+	ctx := context.Background()
+
+	rec := rt.NewManifestRecorder("tid-cancel")
+	src := filepath.Join(t.TempDir(), "video.mkv")
+	if err := rec.RecordFile(ctx, src, []*article.Article{{MessageID: "m1", OriginalName: "video.mkv", PartNumber: 1}}); err != nil {
+		t.Fatalf("RecordFile: %v", err)
+	}
+	if err := store.AddFailure(ctx, transferstore.VerificationFailure{
+		TransferID: "tid-cancel", FileID: "f", ArticleIndex: 0, MessageID: "m1",
+		State: transferstore.FailurePending, NextAttemptAt: time.Now(),
+	}); err != nil {
+		t.Fatalf("AddFailure: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(manifestDir, "tid-cancel")); err != nil {
+		t.Fatalf("manifest dir not created: %v", err)
+	}
+
+	if err := rt.DiscardTransfer(ctx, "tid-cancel"); err != nil {
+		t.Fatalf("DiscardTransfer: %v", err)
+	}
+
+	files, err := store.ListFilesByTransfer(ctx, "tid-cancel")
+	if err != nil || len(files) != 0 {
+		t.Errorf("transfer_files left: %d (err=%v), want 0", len(files), err)
+	}
+	if n, _ := store.CountFailures(ctx, "tid-cancel", "f", transferstore.FailurePending); n != 0 {
+		t.Errorf("verification_failures left: %d, want 0", n)
+	}
+	if _, err := os.Stat(filepath.Join(manifestDir, "tid-cancel")); !os.IsNotExist(err) {
+		t.Errorf("manifest dir still exists (err=%v), want removed", err)
+	}
+
+	// Nil-safe and idempotent.
+	var none *Runtime
+	if err := none.DiscardTransfer(ctx, "tid-cancel"); err != nil {
+		t.Errorf("nil runtime: %v", err)
+	}
+	if err := rt.DiscardTransfer(ctx, "tid-cancel"); err != nil {
+		t.Errorf("second discard: %v", err)
 	}
 }
