@@ -123,7 +123,7 @@ func makeSourceFiles(t *testing.T, watchRoot, folderName, fileName string) ([]fi
 		Size:         7,
 		RelativePath: folderName + "/" + fileName,
 	}}
-	return files, func() { os.RemoveAll(watchRoot) }
+	return files, func() { _ = os.RemoveAll(watchRoot) }
 }
 
 // ─── tests ───────────────────────────────────────────────────────────────────

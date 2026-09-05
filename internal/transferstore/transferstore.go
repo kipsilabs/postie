@@ -397,6 +397,13 @@ func (s *Store) DeleteFilesByTransfer(ctx context.Context, transferID string) er
 	return err
 }
 
+// DeleteFailuresByTransfer removes every verification failure recorded for a
+// transfer, used when the transfer is discarded before verification.
+func (s *Store) DeleteFailuresByTransfer(ctx context.Context, transferID string) error {
+	_, err := s.db.ExecContext(ctx, "DELETE FROM verification_failures WHERE transfer_id = ?", transferID)
+	return err
+}
+
 // ListDueFiles returns files awaiting their first verification check
 // (verification_state = uploaded, next_check_at <= now), oldest first.
 func (s *Store) ListDueFiles(ctx context.Context, now time.Time, limit int) ([]TransferFile, error) {

@@ -26,6 +26,8 @@ type NZBGenerator interface {
 	AddArticle(article *article.Article)
 	// AddFileHash adds a hash for a file
 	AddFileHash(filename string, hash string)
+	// RemoveFile drops every article (and hash) recorded for a file
+	RemoveFile(filename string)
 	// Generate creates an NZB file
 	Generate(outputPath string) (string, error)
 }
@@ -76,6 +78,17 @@ func (g *Generator) AddArticle(art *article.Article) {
 	// Add to index and append to articles
 	g.articleIdx[filename][art.MessageID] = len(g.articles[filename])
 	g.articles[filename] = append(g.articles[filename], art)
+}
+
+// RemoveFile drops every article and hash recorded for filename, so a file
+// whose upload was abandoned part-way is not referenced by the NZB. Unknown
+// names are a no-op.
+func (g *Generator) RemoveFile(filename string) {
+	g.mx.Lock()
+	defer g.mx.Unlock()
+	delete(g.articles, filename)
+	delete(g.articleIdx, filename)
+	delete(g.filesHash, filename)
 }
 
 // Generate creates an NZB file for all files

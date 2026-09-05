@@ -78,3 +78,15 @@ func (mr *MockNZBGeneratorMockRecorder) Generate(outputPath any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Generate", reflect.TypeOf((*MockNZBGenerator)(nil).Generate), outputPath)
 }
+
+// RemoveFile mocks base method.
+func (m *MockNZBGenerator) RemoveFile(filename string) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "RemoveFile", filename)
+}
+
+// RemoveFile indicates an expected call of RemoveFile.
+func (mr *MockNZBGeneratorMockRecorder) RemoveFile(filename any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveFile", reflect.TypeOf((*MockNZBGenerator)(nil).RemoveFile), filename)
+}

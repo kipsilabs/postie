@@ -3,6 +3,9 @@ package postie
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 
 	nntppool "github.com/javi11/nntppool/v4"
 	"github.com/javi11/postie/internal/config"
@@ -270,6 +273,30 @@ func (r *Runtime) TransferStore() *transferstore.Store {
 		return nil
 	}
 	return r.store
+}
+
+// DiscardTransfer forgets a transfer that will never be verified (the job was
+// cancelled): its transfer_files rows, verification failures and manifest
+// directory are removed. Without this a cancelled job leaves planned rows and
+// manifests behind forever, since they are never due for verification and the
+// cleaner only runs for verified transfers. Safe on a nil runtime, a runtime
+// without a store, and for an unknown transfer.
+func (r *Runtime) DiscardTransfer(ctx context.Context, transferID string) error {
+	if r == nil || r.store == nil || transferID == "" {
+		return nil
+	}
+	if err := r.store.DeleteFailuresByTransfer(ctx, transferID); err != nil {
+		return fmt.Errorf("discard transfer %s: delete failures: %w", transferID, err)
+	}
+	if err := r.store.DeleteFilesByTransfer(ctx, transferID); err != nil {
+		return fmt.Errorf("discard transfer %s: delete files: %w", transferID, err)
+	}
+	if r.manifestDir != "" {
+		if err := os.RemoveAll(filepath.Join(r.manifestDir, transferID)); err != nil {
+			return fmt.Errorf("discard transfer %s: remove manifests: %w", transferID, err)
+		}
+	}
+	return nil
 }
 
 // NewManifestRecorder returns a per-job manifest recorder bound to transferID,

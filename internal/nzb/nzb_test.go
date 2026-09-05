@@ -597,3 +597,30 @@ func TestCompressWithBrotli(t *testing.T) {
 	require.NoError(t, err, "Compressed file should exist")
 	assert.Greater(t, info.Size(), int64(0), "Compressed file should not be empty")
 }
+
+func TestRemoveFile(t *testing.T) {
+	gen := NewGenerator(1000, config.NzbCompressionConfig{}, false).(*Generator)
+	gen.AddArticle(&article.Article{MessageID: "a1", OriginalName: "video.mkv", PartNumber: 1})
+	gen.AddArticle(&article.Article{MessageID: "p1", OriginalName: "video.par2", PartNumber: 1})
+	gen.AddArticle(&article.Article{MessageID: "p2", OriginalName: "video.par2", PartNumber: 2})
+	gen.AddFileHash("video.par2", "abc")
+
+	gen.RemoveFile("video.par2")
+
+	if _, ok := gen.articles["video.par2"]; ok {
+		t.Error("articles for removed file still present")
+	}
+	if _, ok := gen.articleIdx["video.par2"]; ok {
+		t.Error("article index for removed file still present")
+	}
+	if _, ok := gen.filesHash["video.par2"]; ok {
+		t.Error("hash for removed file still present")
+	}
+	if len(gen.articles["video.mkv"]) != 1 {
+		t.Errorf("unrelated file lost articles: %d", len(gen.articles["video.mkv"]))
+	}
+
+	// Removing again, or a name never added, is a no-op.
+	gen.RemoveFile("video.par2")
+	gen.RemoveFile("never-added")
+}
