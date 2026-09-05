@@ -16,16 +16,16 @@ import (
 
 // QueueItem represents a queue item for the frontend - matches queue.QueueItem
 type QueueItem struct {
-	ID           string     `json:"id"`
-	Path         string     `json:"path"`
-	FileName     string     `json:"fileName"`
-	Size         int64      `json:"size"`
-	Status       string     `json:"status"`
-	RetryCount   int        `json:"retryCount"`
-	Priority     int        `json:"priority"`
-	ErrorMessage *string    `json:"errorMessage"`
-	CreatedAt    time.Time  `json:"createdAt"`
-	UpdatedAt    time.Time  `json:"updatedAt"`
+	ID                 string     `json:"id"`
+	Path               string     `json:"path"`
+	FileName           string     `json:"fileName"`
+	Size               int64      `json:"size"`
+	Status             string     `json:"status"`
+	RetryCount         int        `json:"retryCount"`
+	Priority           int        `json:"priority"`
+	ErrorMessage       *string    `json:"errorMessage"`
+	CreatedAt          time.Time  `json:"createdAt"`
+	UpdatedAt          time.Time  `json:"updatedAt"`
 	CompletedAt        *time.Time `json:"completedAt"`
 	NzbPath            *string    `json:"nzbPath"`
 	VerificationStatus *string    `json:"verificationStatus"`
@@ -213,16 +213,16 @@ func (a *App) GetQueueItems(params PaginationParams) (*PaginatedQueueResult, err
 	var items []QueueItem
 	for _, queueItem := range result.Items {
 		item := QueueItem{
-			ID:           queueItem.ID,
-			Path:         queueItem.Path,
-			FileName:     queueItem.FileName,
-			Size:         queueItem.Size,
-			Status:       queueItem.Status,
-			RetryCount:   queueItem.RetryCount,
-			Priority:     queueItem.Priority,
-			ErrorMessage: queueItem.ErrorMessage,
-			CreatedAt:    queueItem.CreatedAt,
-			UpdatedAt:    queueItem.UpdatedAt,
+			ID:                 queueItem.ID,
+			Path:               queueItem.Path,
+			FileName:           queueItem.FileName,
+			Size:               queueItem.Size,
+			Status:             queueItem.Status,
+			RetryCount:         queueItem.RetryCount,
+			Priority:           queueItem.Priority,
+			ErrorMessage:       queueItem.ErrorMessage,
+			CreatedAt:          queueItem.CreatedAt,
+			UpdatedAt:          queueItem.UpdatedAt,
 			CompletedAt:        queueItem.CompletedAt,
 			NzbPath:            queueItem.NzbPath,
 			VerificationStatus: queueItem.VerificationStatus,
@@ -247,6 +247,14 @@ func (a *App) GetQueueItems(params PaginationParams) (*PaginatedQueueResult, err
 func (a *App) RemoveFromQueue(id string) error {
 	if a.queue == nil {
 		return fmt.Errorf("queue not initialized")
+	}
+
+	// A running job keeps uploading after its tracking row is deleted and
+	// then re-creates a completed row; stop it first so removal is final.
+	if a.processor != nil && a.processor.GetRunningJobs()[id] {
+		if err := a.processor.CancelJob(id); err != nil {
+			slog.Warn("Failed to cancel running job before removal", "id", id, "error", err)
+		}
 	}
 
 	err := a.queue.RemoveFromQueue(id)

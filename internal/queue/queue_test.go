@@ -3,6 +3,7 @@ package queue
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -438,4 +439,89 @@ func TestGetQueueItems_StatusSortPagesAreContiguous(t *testing.T) {
 			t.Errorf("%s appeared %d times across pages, want exactly once", path, seen[path])
 		}
 	}
+}
+
+// completeItemWithTransfer adds a file, completes it, and links a durable
+// transfer_files row (delete_original policy) plus a pending verification
+// failure to it, the state a durable upload is in right after posting.
+func completeItemWithTransfer(t *testing.T, q *Queue, path string) (itemID, manifestPath string) {
+	t.Helper()
+	ctx := context.Background()
+	if err := q.AddFile(ctx, path, 10); err != nil {
+		t.Fatalf("AddFile: %v", err)
+	}
+	msg, job, err := q.ReceiveFile(ctx)
+	if err != nil || msg == nil {
+		t.Fatalf("ReceiveFile: msg=%v err=%v", msg, err)
+	}
+	if err := q.CompleteFile(ctx, msg.ID, path+".nzb", job); err != nil {
+		t.Fatalf("CompleteFile: %v", err)
+	}
+	itemID = string(msg.ID)
+
+	manifestPath = filepath.Join(t.TempDir(), "manifest.jsonl.zst")
+	if err := os.WriteFile(manifestPath, []byte("m"), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	if _, err := q.db.Exec(`
+		INSERT INTO transfer_files (transfer_id, file_id, completed_item_id, manifest_path, source_path,
+		                            upload_state, verification_state, next_check_at, cleanup_policy)
+		VALUES (?, 'f1', ?, ?, ?, 'uploaded', 'uploaded', '2000-01-01T00:00:00.000Z', 'delete_original')`,
+		job.TransferID, itemID, manifestPath, path); err != nil {
+		t.Fatalf("insert transfer_files: %v", err)
+	}
+	if _, err := q.db.Exec(`
+		INSERT INTO verification_failures (transfer_id, file_id, article_index, message_id)
+		VALUES (?, 'f1', 0, 'mid-1')`, job.TransferID); err != nil {
+		t.Fatalf("insert verification_failures: %v", err)
+	}
+	return itemID, manifestPath
+}
+
+func assertTransferDetached(t *testing.T, q *Queue, itemID, manifestPath string) {
+	t.Helper()
+	if n := countRows(t, q, "transfer_files", "completed_item_id = ?", itemID); n != 0 {
+		t.Errorf("transfer_files rows for removed item: %d, want 0 (verification would keep running and could delete originals)", n)
+	}
+	if n := countRows(t, q, "verification_failures", ""); n != 0 {
+		t.Errorf("verification_failures rows left: %d, want 0", n)
+	}
+	if _, err := os.Stat(manifestPath); !os.IsNotExist(err) {
+		t.Errorf("manifest %s still exists, want removed", manifestPath)
+	}
+}
+
+// TestRemoveCompletedItemDetachesTransfer: a user removing a completed item
+// (deleting its NZB) must also stop background verification for it. Otherwise
+// the verification service keeps STAT-ing, and once verified the cleaner
+// deletes the originals under the delete_original policy — leaving the user
+// with neither the NZB nor the source files.
+func TestRemoveCompletedItemDetachesTransfer(t *testing.T) {
+	q := newTestQueue(t)
+	itemID, manifestPath := completeItemWithTransfer(t, q, "/tmp/removed.bin")
+
+	if err := q.RemoveFromQueue(itemID); err != nil {
+		t.Fatalf("RemoveFromQueue: %v", err)
+	}
+	assertTransferDetached(t, q, itemID, manifestPath)
+}
+
+func TestClearQueueDetachesTransfers(t *testing.T) {
+	q := newTestQueue(t)
+	itemID, manifestPath := completeItemWithTransfer(t, q, "/tmp/cleared.bin")
+
+	if err := q.ClearQueue(); err != nil {
+		t.Fatalf("ClearQueue: %v", err)
+	}
+	assertTransferDetached(t, q, itemID, manifestPath)
+}
+
+func TestClearCompletedItemsDetachesTransfers(t *testing.T) {
+	q := newTestQueue(t)
+	itemID, manifestPath := completeItemWithTransfer(t, q, "/tmp/cleared-completed.bin")
+
+	if err := q.ClearCompletedItems(); err != nil {
+		t.Fatalf("ClearCompletedItems: %v", err)
+	}
+	assertTransferDetached(t, q, itemID, manifestPath)
 }
