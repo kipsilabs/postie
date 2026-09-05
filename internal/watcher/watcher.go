@@ -14,7 +14,6 @@ import (
 
 	"github.com/javi11/postie/internal/config"
 	"github.com/javi11/postie/internal/queue"
-	"github.com/opencontainers/selinux/pkg/pwalkdir"
 )
 
 // WatcherScheduleInfo represents the schedule configuration
@@ -157,33 +156,7 @@ func (w *Watcher) scanDirectory(ctx context.Context) error {
 	}
 
 	// Process all files in directory (traditional mode - one NZB per file)
-	return pwalkdir.Walk(w.watchFolder, func(path string, dir fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// Skip directories
-		if dir.IsDir() {
-			return nil
-		}
-
-		// Check if the path is a symlink and skip if not following symlinks
-		if !w.cfg.FollowSymlinks {
-			isSymlinkFile, err := isSymlink(path)
-			if err != nil {
-				slog.DebugContext(ctx, "Error checking if path is symlink, skipping", "path", path, "error", err)
-				return nil
-			}
-			if isSymlinkFile {
-				slog.DebugContext(ctx, "Skipping symlink", "path", path)
-				return nil
-			}
-		}
-
-		info, err := dir.Info()
-		if err != nil {
-			return err
-		}
+	return w.walkFiles(ctx, func(path string, info os.FileInfo) error {
 
 		slog.DebugContext(ctx, "Processing file", "path", path, "size", info.Size(), "mod_time", info.ModTime())
 
@@ -237,33 +210,7 @@ func (w *Watcher) scanDirectoryGroupByFolder(ctx context.Context) error {
 	var mapMutex sync.Mutex
 
 	// Walk the directory tree and collect files by folder
-	err := pwalkdir.Walk(w.watchFolder, func(path string, dir fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// Skip directories
-		if dir.IsDir() {
-			return nil
-		}
-
-		// Check if the path is a symlink and skip if not following symlinks
-		if !w.cfg.FollowSymlinks {
-			isSymlinkFile, err := isSymlink(path)
-			if err != nil {
-				slog.DebugContext(ctx, "Error checking if path is symlink, skipping", "path", path, "error", err)
-				return nil
-			}
-			if isSymlinkFile {
-				slog.DebugContext(ctx, "Skipping symlink", "path", path)
-				return nil
-			}
-		}
-
-		info, err := dir.Info()
-		if err != nil {
-			return err
-		}
+	err := w.walkFiles(ctx, func(path string, info os.FileInfo) error {
 
 		// Skip files that don't meet criteria
 		if !w.shouldProcessFile(path, info) {
@@ -401,6 +348,51 @@ func (w *Watcher) scanDirectoryGroupByFolder(ctx context.Context) error {
 	return nil
 }
 
+// walkFiles calls fn for every regular file under the watch folder, skipping
+// directories and (unless configured otherwise) symlinks. An entry that cannot
+// be read or stat'ed is logged and skipped rather than aborting the whole scan:
+// a single permission-denied subfolder, or a file removed between listing and
+// stat, must not stop every other file from being imported. Only an unreadable
+// watch folder root is an error.
+func (w *Watcher) walkFiles(ctx context.Context, fn func(path string, info os.FileInfo) error) error {
+	return filepath.WalkDir(w.watchFolder, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			if path == w.watchFolder {
+				return err
+			}
+			slog.WarnContext(ctx, "Skipping unreadable entry in watch folder", "path", path, "error", err)
+			if entry != nil && entry.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
+
+		if entry.IsDir() {
+			return nil
+		}
+
+		if !w.cfg.FollowSymlinks {
+			isSymlinkFile, err := isSymlink(path)
+			if err != nil {
+				slog.DebugContext(ctx, "Error checking if path is symlink, skipping", "path", path, "error", err)
+				return nil
+			}
+			if isSymlinkFile {
+				slog.DebugContext(ctx, "Skipping symlink", "path", path)
+				return nil
+			}
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			slog.DebugContext(ctx, "Skipping entry that could not be stat'ed", "path", path, "error", err)
+			return nil
+		}
+
+		return fn(path, info)
+	})
+}
+
 func (w *Watcher) shouldProcessFile(path string, info os.FileInfo) bool {
 	// Check minimum file size
 	if info.Size() < int64(w.cfg.MinFileSize) {
@@ -431,33 +423,7 @@ func (w *Watcher) shouldProcessFile(path string, info os.FileInfo) bool {
 func (w *Watcher) calculateDirectorySize(ctx context.Context) (int64, error) {
 	var totalSize int64
 
-	err := pwalkdir.Walk(w.watchFolder, func(path string, dir fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// Skip directories
-		if dir.IsDir() {
-			return nil
-		}
-
-		// Check if the path is a symlink and skip if not following symlinks
-		if !w.cfg.FollowSymlinks {
-			isSymlinkFile, err := isSymlink(path)
-			if err != nil {
-				slog.DebugContext(ctx, "Error checking if path is symlink, skipping", "path", path, "error", err)
-				return nil
-			}
-			if isSymlinkFile {
-				slog.DebugContext(ctx, "Skipping symlink in size calculation", "path", path)
-				return nil
-			}
-		}
-
-		info, err := dir.Info()
-		if err != nil {
-			return err
-		}
+	err := w.walkFiles(ctx, func(path string, info os.FileInfo) error {
 
 		// Only count files that meet basic criteria (not ignore patterns and min file size)
 		if w.shouldCountFile(path, info) {

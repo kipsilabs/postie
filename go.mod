@@ -15,7 +15,6 @@ require (
 	github.com/klauspost/compress v1.18.2
 	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/mnightingale/rapidyenc v0.0.0-20251128204712-7aafef1eaf1c
-	github.com/opencontainers/selinux v1.13.1
 	github.com/pressly/goose/v3 v3.26.0
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/sourcegraph/conc v0.3.0
