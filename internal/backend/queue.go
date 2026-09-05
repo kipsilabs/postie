@@ -249,12 +249,8 @@ func (a *App) RemoveFromQueue(id string) error {
 		return fmt.Errorf("queue not initialized")
 	}
 
-	// A running job keeps uploading after its tracking row is deleted and
-	// then re-creates a completed row; stop it first so removal is final.
-	if a.processor != nil && a.processor.GetRunningJobs()[id] {
-		if err := a.processor.CancelJob(id); err != nil {
-			slog.Warn("Failed to cancel running job before removal", "id", id, "error", err)
-		}
+	if a.processor != nil {
+		stopRunningJob(a.processor, id)
 	}
 
 	err := a.queue.RemoveFromQueue(id)
@@ -530,4 +526,20 @@ func (a *App) RecreateDatabase() error {
 
 	migrationRunner := a.database.GetMigrationRunner()
 	return migrationRunner.RecreateDatabase()
+}
+
+type jobController interface {
+	GetRunningJobs() map[string]bool
+	CancelJob(jobID string) error
+}
+
+// A running job keeps uploading after its tracking row is deleted and then
+// re-creates a completed row, so removal is only final once the job is stopped.
+func stopRunningJob(jobs jobController, id string) {
+	if !jobs.GetRunningJobs()[id] {
+		return
+	}
+	if err := jobs.CancelJob(id); err != nil {
+		slog.Warn("Failed to cancel running job before removal", "id", id, "error", err)
+	}
 }
