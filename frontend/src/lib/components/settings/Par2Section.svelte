@@ -33,6 +33,21 @@ let numGoroutines = $state(config.par2?.num_goroutines ?? 0);
 let memoryLimit = $state(config.par2?.memory_limit ?? 0);
 let sliceSize = $state(config.par2?.slice_size ?? 0);
 let maxConcurrentJobs = $state(config.par2?.max_concurrent_jobs ?? 1);
+let gf16Method = $state(config.par2?.gf16_method || "auto");
+
+const gf16Methods = [
+	"auto",
+	"lookup",
+	"lookup3",
+	"shuffle-avx2",
+	"shuffle-avx512",
+	"shuffle-vbmi",
+	"xor-jit-avx2",
+	"affine-avx2",
+	"affine-avx512",
+	"shuffle-neon",
+	"clmul-neon",
+];
 
 // Sync local state back to config
 $effect(() => {
@@ -77,6 +92,10 @@ $effect(() => {
 
 $effect(() => {
 	config.par2.max_concurrent_jobs = maxConcurrentJobs;
+});
+
+$effect(() => {
+	config.par2.gf16_method = gf16Method;
 });
 
 async function selectTempDirectory() {
@@ -269,6 +288,28 @@ let redundancyDisplay = $derived(redundancy || "10%");
                 {$t('settings.par2.max_concurrent_jobs_description')}
               </p>
             </div>
+
+            {#if !parparBinaryPath}
+            <div>
+              <label for="par2-gf16-method" class="label">
+                <span class="label-text">{$t('settings.par2.gf16_method')}</span>
+              </label>
+              <select
+                id="par2-gf16-method"
+                class="select select-bordered w-full"
+                bind:value={gf16Method}
+              >
+                {#each gf16Methods as method (method)}
+                  <option value={method}>
+                    {method === 'auto' ? $t('settings.par2.gf16_method_auto') : method}
+                  </option>
+                {/each}
+              </select>
+              <p class="text-sm text-base-content/70 mt-1">
+                {$t('settings.par2.gf16_method_description')}
+              </p>
+            </div>
+            {/if}
           </div>
 
           <div class="space-y-4">

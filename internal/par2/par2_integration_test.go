@@ -560,3 +560,53 @@ func equalStrings(a, b []string) bool {
 	}
 	return true
 }
+
+// TestIntegration_NativeExecutor_PinnedLookupKernel verifies that a pinned
+// gf16_method is honoured end-to-end. The Lookup kernel is portable, so this
+// runs on every CPU.
+func TestIntegration_NativeExecutor_PinnedLookupKernel(t *testing.T) {
+	dir := t.TempDir()
+	sourcePath := createIntegrationTestFile(t, dir, "file.rar", 100_000) // 100 KB
+
+	cfg := &config.Par2Config{
+		Redundancy:  "10",
+		SliceSize:   10 * 1024 * 1024,
+		MemoryLimit: 4 * 1024 * 1024 * 1024,
+		GF16Method:  "lookup",
+	}
+	executor := New(10_000, cfg, nil)
+
+	files := []fileinfo.FileInfo{{Path: sourcePath, Size: 100_000}}
+	result, err := executor.Create(context.Background(), files)
+	if err != nil {
+		t.Fatalf("Create: unexpected error: %v", err)
+	}
+	if len(result) == 0 {
+		t.Fatal("expected PAR2 files to be created, got empty result")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "file.rar.par2")); err != nil {
+		t.Errorf("expected main PAR2 file to exist: %v", err)
+	}
+}
+
+// TestIntegration_NativeExecutor_RejectsUnknownGF16Method verifies an invalid
+// kernel name fails fast instead of silently falling back to auto.
+func TestIntegration_NativeExecutor_RejectsUnknownGF16Method(t *testing.T) {
+	dir := t.TempDir()
+	sourcePath := createIntegrationTestFile(t, dir, "file.rar", 100_000)
+
+	cfg := &config.Par2Config{
+		Redundancy:  "10",
+		MemoryLimit: 4 * 1024 * 1024 * 1024,
+		GF16Method:  "bogus",
+	}
+	executor := New(10_000, cfg, nil)
+
+	_, err := executor.Create(context.Background(), []fileinfo.FileInfo{{Path: sourcePath, Size: 100_000}})
+	if err == nil {
+		t.Fatal("Create: expected error for gf16_method=bogus, got nil")
+	}
+	if !strings.Contains(err.Error(), "gf16_method") {
+		t.Errorf("error %q should mention gf16_method", err)
+	}
+}
