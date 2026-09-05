@@ -373,6 +373,7 @@ func (p *Postie) postInParallel(
 			if !errors.Is(err, context.Canceled) {
 				slog.ErrorContext(ctx, fmt.Sprintf("Error during upload of par2 files: %s. Upload will continue without par2.", createdPar2Paths), "error", err)
 			}
+			dropPar2FromNZB(nzbGen, createdPar2Paths)
 
 			return nil
 		}
@@ -509,6 +510,17 @@ func (p *Postie) post(
 		return finalPath, deferredErr
 	}
 	return finalPath, nil
+}
+
+// dropPar2FromNZB removes the PAR2 files from the NZB after their upload
+// failed part-way: the articles posted before the failure were already added
+// to the generator, and an NZB pointing at an incomplete PAR2 set is worse
+// than one without PAR2 (downloaders try to repair with volumes that are not
+// there). The main files remain untouched.
+func dropPar2FromNZB(nzbGen nzb.NZBGenerator, par2Paths []string) {
+	for _, path := range par2Paths {
+		nzbGen.RemoveFile(filepath.Base(path))
+	}
 }
 
 // hasPar2Files returns true if any file in the list is a PAR2 file.
@@ -676,6 +688,7 @@ func (p *Postie) postFolder(ctx context.Context, files []fileinfo.FileInfo, root
 				if !errors.Is(err, context.Canceled) {
 					slog.ErrorContext(ctx, "Error during upload of par2 files. Upload will continue without par2.", "error", err)
 				}
+				dropPar2FromNZB(nzbGen, createdPar2Paths)
 				return nil
 			}
 			return nil
@@ -789,28 +802,6 @@ func runPostUploadScript(ctx context.Context, cfg config.PostUploadScriptConfig,
 
 	slog.InfoContext(ctx, "Post upload script executed successfully", "command", command, "output", string(output))
 	return nil
-}
-
-// buildPar2RelativePaths builds a relative-path map for PAR2 files by matching each
-// par2 file's base name to its source file's base name (par2 names are sourceBase+".par2"
-// or sourceBase+".vol*+*.par2"). The relative path is derived from the source file's
-// relative path directory joined with the par2 base name.
-func buildPar2RelativePaths(sourceFiles []fileinfo.FileInfo, par2Paths []string) map[string]string {
-	result := make(map[string]string)
-	for _, par2Path := range par2Paths {
-		par2Base := filepath.Base(par2Path)
-		for _, sf := range sourceFiles {
-			if sf.RelativePath == "" {
-				continue
-			}
-			sfBase := filepath.Base(sf.Path)
-			if strings.HasPrefix(par2Base, sfBase+".") {
-				result[par2Path] = filepath.Join(filepath.Dir(sf.RelativePath), par2Base)
-				break
-			}
-		}
-	}
-	return result
 }
 
 // deriveFolderName determines the top-level subfolder name from files relative to rootDir.
