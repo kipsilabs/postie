@@ -88,3 +88,31 @@ func TestRemoveFromQueue_RemovesPendingItemAndEmitsEvent(t *testing.T) {
 		t.Fatalf("expected one queue-updated event, got %v", events)
 	}
 }
+
+func TestGetQueueStats_TotalCountsEveryItemEverSeen(t *testing.T) {
+	q := newTestQueue(t)
+	ctx := context.Background()
+	if err := q.AddFile(ctx, filepath.Join(t.TempDir(), "pending.bin"), 10); err != nil {
+		t.Fatalf("AddFile: %v", err)
+	}
+	for _, id := range []string{"c1", "c2"} {
+		if _, err := q.DB().ExecContext(ctx, `INSERT INTO completed_items
+			(id, path, size, nzb_path, created_at, job_data, verification_status)
+			VALUES (?,?,?,?,?,?,?)`,
+			id, "/d/"+id, 1, "/o/"+id+".nzb", "2026-01-01T00:00:00Z", []byte("{}"), "verified"); err != nil {
+			t.Fatalf("insert %s: %v", id, err)
+		}
+	}
+
+	app := &App{queue: q}
+	stats, err := app.GetQueueStats()
+	if err != nil {
+		t.Fatalf("GetQueueStats: %v", err)
+	}
+	if stats.Pending != 1 || stats.Complete != 2 {
+		t.Fatalf("pending=%d complete=%d, want 1/2", stats.Pending, stats.Complete)
+	}
+	if stats.Total != 3 {
+		t.Errorf("Total = %d, want 3 (pending + running + complete + errored)", stats.Total)
+	}
+}

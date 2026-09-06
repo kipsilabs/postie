@@ -195,7 +195,7 @@
             "errors": "Hatalar",
             "elapsed": "Çalışma Süresi",
             "total_errors": "Toplam Hata",
-            "inflight": "Eşzamanlı",
+            "inflight": "Pipeline derinliği",
             "current_speed": "Anlık Hız",
             "ttfb": "TTFB",
             "downloaded": "İndirilen",
@@ -205,6 +205,7 @@
             "quota_resets": "Sıfırlanma",
             "status": {
                 "connected": "Bağlandı",
+                "idle": "Boşta",
                 "connecting": "Bağlanıyor",
                 "reconnecting": "Yeniden Bağlanıyor",
                 "failed": "Başarısız",
