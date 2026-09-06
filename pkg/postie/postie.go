@@ -12,14 +12,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/javi11/postie/internal/config"
-	"github.com/javi11/postie/internal/nzb"
-	"github.com/javi11/postie/internal/par2"
-	"github.com/javi11/postie/internal/pool"
-	"github.com/javi11/postie/internal/poster"
-	"github.com/javi11/postie/internal/progress"
-	"github.com/javi11/postie/internal/transferwriter"
-	"github.com/javi11/postie/pkg/fileinfo"
+	"github.com/kipsilabs/postie/internal/config"
+	"github.com/kipsilabs/postie/internal/nzb"
+	"github.com/kipsilabs/postie/internal/par2"
+	"github.com/kipsilabs/postie/internal/pool"
+	"github.com/kipsilabs/postie/internal/poster"
+	"github.com/kipsilabs/postie/internal/progress"
+	"github.com/kipsilabs/postie/internal/transferwriter"
+	"github.com/kipsilabs/postie/pkg/fileinfo"
 	"golang.org/x/sync/errgroup"
 )
 

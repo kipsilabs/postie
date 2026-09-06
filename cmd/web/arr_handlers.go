@@ -10,9 +10,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/javi11/postie/internal/arr"
-	"github.com/javi11/postie/internal/backend"
-	"github.com/javi11/postie/internal/config"
+	"github.com/kipsilabs/postie/internal/arr"
+	"github.com/kipsilabs/postie/internal/backend"
+	"github.com/kipsilabs/postie/internal/config"
 )
 
 type addArrInstanceRequest struct {

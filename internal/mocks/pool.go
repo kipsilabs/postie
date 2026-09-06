@@ -12,7 +12,7 @@ package mocks
 import (
 	reflect "reflect"
 
-	pool "github.com/javi11/postie/internal/pool"
+	pool "github.com/kipsilabs/postie/internal/pool"
 	gomock "go.uber.org/mock/gomock"
 )
 

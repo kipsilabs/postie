@@ -18,9 +18,9 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
-	"github.com/javi11/postie/frontend"
-	"github.com/javi11/postie/internal/backend"
-	"github.com/javi11/postie/internal/config"
+	"github.com/kipsilabs/postie/frontend"
+	"github.com/kipsilabs/postie/internal/backend"
+	"github.com/kipsilabs/postie/internal/config"
 	"github.com/spf13/cobra"
 )
 

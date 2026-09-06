@@ -1,7 +1,7 @@
 package processor
 
 // Integration tests for the processor's folder-collection logic, covering bugs
-// reported in github.com/javi11/postie/issues/168.
+// reported in github.com/kipsilabs/postie/issues/168.
 //
 // Run with: go test ./internal/processor/... -run "Integration" -v -timeout 60s
 
@@ -183,7 +183,7 @@ func TestIntegration_CollectFilesInFolder_DeeplyNested(t *testing.T) {
 // TestIntegration_CollectFilesInFolder_PathsAreFolderNamePrefixed verifies the
 // deriveFolderName contract: that filepath.Base(files[0].RelativePath split by "/")[0]
 // equals the folder name — which is what deriveFolderName() uses to name the NZB.
-// Regression guard for github.com/javi11/postie#190.
+// Regression guard for github.com/kipsilabs/postie#190.
 func TestIntegration_CollectFilesInFolder_PathsAreFolderNamePrefixed(t *testing.T) {
 	watchDir := t.TempDir()
 	folderName := "TheMovie2024"

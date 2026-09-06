@@ -10,7 +10,7 @@ import (
 	"golift.io/starr/readarr"
 	"golift.io/starr/sonarr"
 
-	"github.com/javi11/postie/internal/config"
+	"github.com/kipsilabs/postie/internal/config"
 )
 
 const notificationName = "Postie"

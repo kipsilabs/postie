@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/javi11/postie/internal/arr"
-	"github.com/javi11/postie/internal/config"
+	"github.com/kipsilabs/postie/internal/arr"
+	"github.com/kipsilabs/postie/internal/config"
 )
 
 // SetupArrWebhook registers a Postie import webhook with the given arr instance,

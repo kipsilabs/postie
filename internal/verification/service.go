@@ -22,8 +22,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/javi11/postie/internal/manifest"
-	"github.com/javi11/postie/internal/transferstore"
+	"github.com/kipsilabs/postie/internal/manifest"
+	"github.com/kipsilabs/postie/internal/transferstore"
 )
 
 // Stater reports whether articles exist on the server. Stat returns

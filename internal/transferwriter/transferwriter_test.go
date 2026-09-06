@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/javi11/postie/internal/article"
-	"github.com/javi11/postie/internal/config"
-	"github.com/javi11/postie/internal/database"
-	"github.com/javi11/postie/internal/manifest"
-	"github.com/javi11/postie/internal/transferstore"
+	"github.com/kipsilabs/postie/internal/article"
+	"github.com/kipsilabs/postie/internal/config"
+	"github.com/kipsilabs/postie/internal/database"
+	"github.com/kipsilabs/postie/internal/manifest"
+	"github.com/kipsilabs/postie/internal/transferstore"
 )
 
 func newTestStore(t *testing.T) *transferstore.Store {

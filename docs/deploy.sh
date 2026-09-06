@@ -26,4 +26,4 @@ git checkout main
 git branch -D gh-pages-temp
 git branch -D gh-pages
 
-echo "Deployment complete! Your site should be available at https://javi11.github.io/postie/" 
+echo "Deployment complete! Your site should be available at https://postie.kipsilabs.top/" 

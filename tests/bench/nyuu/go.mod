@@ -1,4 +1,4 @@
-module github.com/javi11/postie/tests/bench/nyuu
+module github.com/kipsilabs/postie/tests/bench/nyuu
 
 go 1.26
 

@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/javi11/postie/internal/watcher"
+	"github.com/kipsilabs/postie/internal/watcher"
 )
 
 func (a *App) initializeWatchers() error {

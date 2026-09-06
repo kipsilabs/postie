@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/javi11/postie/internal/transferstore"
+	"github.com/kipsilabs/postie/internal/transferstore"
 )
 
 // Regression: files could go terminal before the processor linked the

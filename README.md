@@ -52,11 +52,11 @@ For detailed documentation, installation instructions, configuration options, an
 
 ## Quick Links
 
-- [Installation Guide](https://javi11.github.io/postie/docs/installation)
-- [Quick Start](https://javi11.github.io/postie/docs/quick-start)
-- [Configuration Guide](https://javi11.github.io/postie/docs/configuration)
-- [Obfuscation Policies](https://javi11.github.io/postie/docs/obfuscation)
-- [File Watcher](https://javi11.github.io/postie/docs/watcher)
+- [Installation Guide](https://postie.kipsilabs.top/docs/installation)
+- [Quick Start](https://postie.kipsilabs.top/docs/quick-start)
+- [Configuration Guide](https://postie.kipsilabs.top/docs/configuration)
+- [Obfuscation Policies](https://postie.kipsilabs.top/docs/obfuscation)
+- [File Watcher](https://postie.kipsilabs.top/docs/watcher)
 
 ## For Developers
 

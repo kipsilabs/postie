@@ -83,7 +83,7 @@ docker: snapshot
 
 # Build Docker images using GoReleaser with optimizations
 docker-build: build-frontend
-	REGISTRY=ghcr.io IMAGE_NAME=javi11/postie goreleaser release --config .goreleaser-docker.yml --snapshot --skip-publish --clean
+	REGISTRY=ghcr.io IMAGE_NAME=kipsilabs/postie goreleaser release --config .goreleaser-docker.yml --snapshot --skip-publish --clean
 
 # Build targets
 .PHONY: dev

@@ -8,8 +8,8 @@ import (
 	"github.com/javi11/nntppool/v4"
 	"go.uber.org/mock/gomock"
 
-	"github.com/javi11/postie/internal/article"
-	"github.com/javi11/postie/internal/mocks"
+	"github.com/kipsilabs/postie/internal/article"
+	"github.com/kipsilabs/postie/internal/mocks"
 )
 
 func TestFilterMissing_KeepsOnlyMissingPreservingOrder(t *testing.T) {

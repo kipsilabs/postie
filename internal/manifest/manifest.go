@@ -26,7 +26,7 @@ import (
 
 	"github.com/klauspost/compress/zstd"
 
-	"github.com/javi11/postie/internal/article"
+	"github.com/kipsilabs/postie/internal/article"
 )
 
 // Version is the current manifest format version. Bump when the record schema

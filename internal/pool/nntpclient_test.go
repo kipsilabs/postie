@@ -8,8 +8,8 @@ import (
 	"github.com/javi11/nntppool/v4"
 	"go.uber.org/mock/gomock"
 
-	"github.com/javi11/postie/internal/mocks"
-	"github.com/javi11/postie/internal/pool"
+	"github.com/kipsilabs/postie/internal/mocks"
+	"github.com/kipsilabs/postie/internal/pool"
 )
 
 // statManyStub answers each id as present unless it has an error in errs. It

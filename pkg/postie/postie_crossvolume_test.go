@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/javi11/postie/pkg/fileinfo"
+	"github.com/kipsilabs/postie/pkg/fileinfo"
 )
 
 // withinDir checks whether path is inside dir.

@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/javi11/nntppool/v4"
-	"github.com/javi11/postie/internal/config"
+	"github.com/kipsilabs/postie/internal/config"
 )
 
 // PoolManager defines the interface for connection pool management.

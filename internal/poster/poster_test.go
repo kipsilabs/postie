@@ -15,11 +15,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/javi11/nntppool/v4"
-	"github.com/javi11/postie/internal/article"
-	"github.com/javi11/postie/internal/config"
-	"github.com/javi11/postie/internal/mocks"
-	"github.com/javi11/postie/internal/pausable"
-	"github.com/javi11/postie/internal/pool"
+	"github.com/kipsilabs/postie/internal/article"
+	"github.com/kipsilabs/postie/internal/config"
+	"github.com/kipsilabs/postie/internal/mocks"
+	"github.com/kipsilabs/postie/internal/pausable"
+	"github.com/kipsilabs/postie/internal/pool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -1349,7 +1349,7 @@ func TestCheckLoop_Basic(t *testing.T) {
 // Test helper functions
 
 // TestSharedUploadPool verifies that the global poster worker pool introduced
-// for issue #184 (https://github.com/javi11/postie/issues/184) actually caps
+// for issue #184 (https://github.com/kipsilabs/postie/issues/184) actually caps
 // concurrent in-flight article posts at numOfConnections regardless of how
 // many concurrent Post() calls are happening, and that Close() drains cleanly.
 func TestSharedUploadPool(t *testing.T) {

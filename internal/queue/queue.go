@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/javi11/postie/internal/database"
+	"github.com/kipsilabs/postie/internal/database"
 	_ "github.com/mattn/go-sqlite3"
 	"maragu.dev/goqite"
 )

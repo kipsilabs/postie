@@ -12,7 +12,7 @@ package mocks
 import (
 	reflect "reflect"
 
-	article "github.com/javi11/postie/internal/article"
+	article "github.com/kipsilabs/postie/internal/article"
 	gomock "go.uber.org/mock/gomock"
 )
 

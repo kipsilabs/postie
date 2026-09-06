@@ -1,7 +1,7 @@
 package par2
 
 // Integration tests for PAR2 executor behavior, covering bugs reported in
-// github.com/javi11/postie/issues/168.
+// github.com/kipsilabs/postie/issues/168.
 //
 // Run with: go test ./internal/par2/... -run "Integration" -v -timeout 120s
 
@@ -15,8 +15,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/javi11/postie/internal/config"
-	"github.com/javi11/postie/pkg/fileinfo"
+	"github.com/kipsilabs/postie/internal/config"
+	"github.com/kipsilabs/postie/pkg/fileinfo"
 )
 
 // createIntegrationTestFile creates a temporary file filled with deterministic data.
@@ -71,7 +71,7 @@ func countPar2FilesInDir(t *testing.T, dir string) int {
 // TestIntegration_NativeExecutor_SkipsWhenPar2FilesExistInSourceDir verifies that
 // NativeExecutor returns the existing PAR2 files without regenerating when they
 // already live in the source directory — even when TempDir is configured.
-// Regression test for github.com/javi11/postie#188.
+// Regression test for github.com/kipsilabs/postie#188.
 func TestIntegration_NativeExecutor_SkipsWhenPar2FilesExistInSourceDir(t *testing.T) {
 	dir := t.TempDir()
 	tempDir := t.TempDir()
@@ -140,7 +140,7 @@ func TestIntegration_NativeExecutor_SkipsWhenPar2FilesExistInSourceDir(t *testin
 // TestIntegration_NativeExecutor_SkipsWhenPar2FilesExistInTempDir verifies that
 // when PAR2 files do NOT exist in the source dir but DO exist in TempDir, the
 // executor returns the TempDir files without regenerating.
-// Regression test for github.com/javi11/postie#188.
+// Regression test for github.com/kipsilabs/postie#188.
 func TestIntegration_NativeExecutor_SkipsWhenPar2FilesExistInTempDir(t *testing.T) {
 	sourceDir := t.TempDir()
 	tempDir := t.TempDir()
@@ -253,7 +253,7 @@ func TestIntegration_BinaryExecutor_SkipsWhenPar2FilesExistInSourceDir(t *testin
 
 // TestIntegration_NativeExecutor_HandlesVerySmallFiles_512Bytes verifies that the
 // native executor does not panic or return an error for a 512-byte file.
-// Regression test for github.com/javi11/postie#189.
+// Regression test for github.com/kipsilabs/postie#189.
 func TestIntegration_NativeExecutor_HandlesVerySmallFiles_512Bytes(t *testing.T) {
 	dir := t.TempDir()
 	sourcePath := createIntegrationTestFile(t, dir, "tiny.rar", 512)
@@ -286,7 +286,7 @@ func TestIntegration_NativeExecutor_HandlesVerySmallFiles_512Bytes(t *testing.T)
 
 // TestIntegration_NativeExecutor_HandlesVerySmallFiles_10Bytes verifies that the
 // native executor handles a 10-byte file gracefully (skips or errors without panicking).
-// Regression test for github.com/javi11/postie#189.
+// Regression test for github.com/kipsilabs/postie#189.
 func TestIntegration_NativeExecutor_HandlesVerySmallFiles_10Bytes(t *testing.T) {
 	dir := t.TempDir()
 	sourcePath := createIntegrationTestFile(t, dir, "micro.rar", 10)

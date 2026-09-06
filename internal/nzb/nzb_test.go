@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/javi11/postie/internal/article"
-	"github.com/javi11/postie/internal/config"
+	"github.com/kipsilabs/postie/internal/article"
+	"github.com/kipsilabs/postie/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -1,7 +1,7 @@
 services:
   postie:
     container_name: postie
-    image: ghcr.io/javi11/postie:latest
+    image: ghcr.io/kipsilabs/postie:latest
     ports:
       - "8080:8080"
     volumes:

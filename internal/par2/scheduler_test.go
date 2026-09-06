@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/javi11/postie/pkg/fileinfo"
+	"github.com/kipsilabs/postie/pkg/fileinfo"
 )
 
 // fakeExecutor records how many calls are in flight simultaneously and blocks

@@ -12,8 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/javi11/postie/internal/config"
-	"github.com/javi11/postie/internal/queue"
+	"github.com/kipsilabs/postie/internal/config"
+	"github.com/kipsilabs/postie/internal/queue"
 )
 
 // WatcherScheduleInfo represents the schedule configuration

@@ -1,7 +1,7 @@
 package watcher
 
 // Integration tests for the watcher's single-NZB-per-folder logic, covering bugs
-// reported in github.com/javi11/postie/issues/168.
+// reported in github.com/kipsilabs/postie/issues/168.
 //
 // Run with: go test ./internal/watcher/... -run "Integration" -v -timeout 60s
 
@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/javi11/postie/internal/config"
+	"github.com/kipsilabs/postie/internal/config"
 )
 
 // ---------------------------------------------------------------------------
@@ -219,7 +219,7 @@ func TestIntegration_ScanDirectoryGroupByFolder_MultipleTopLevelDirs(t *testing.
 // TestIntegration_ScanDirectoryGroupByFolder_NzbNameNotWatchFolder verifies that
 // the folder name embedded in the queue path is the subdirectory name, not the
 // watch folder name. This is how the processor derives the NZB filename.
-// Regression test for github.com/javi11/postie#190.
+// Regression test for github.com/kipsilabs/postie#190.
 func TestIntegration_ScanDirectoryGroupByFolder_NzbNameNotWatchFolder(t *testing.T) {
 	watchDir := t.TempDir()
 	w, q := createIntegrationWatcher(t, watchDir)

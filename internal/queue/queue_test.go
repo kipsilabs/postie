@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/javi11/postie/internal/config"
-	"github.com/javi11/postie/internal/database"
+	"github.com/kipsilabs/postie/internal/config"
+	"github.com/kipsilabs/postie/internal/database"
 )
 
 // newTestQueue creates an isolated Queue backed by a temp sqlite DB with all

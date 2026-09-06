@@ -8,15 +8,15 @@ import (
 	"path/filepath"
 
 	nntppool "github.com/javi11/nntppool/v4"
-	"github.com/javi11/postie/internal/config"
-	"github.com/javi11/postie/internal/manifest"
-	"github.com/javi11/postie/internal/par2"
-	"github.com/javi11/postie/internal/pool"
-	"github.com/javi11/postie/internal/poster"
-	"github.com/javi11/postie/internal/transfercleaner"
-	"github.com/javi11/postie/internal/transferstore"
-	"github.com/javi11/postie/internal/transferwriter"
-	"github.com/javi11/postie/internal/verification"
+	"github.com/kipsilabs/postie/internal/config"
+	"github.com/kipsilabs/postie/internal/manifest"
+	"github.com/kipsilabs/postie/internal/par2"
+	"github.com/kipsilabs/postie/internal/pool"
+	"github.com/kipsilabs/postie/internal/poster"
+	"github.com/kipsilabs/postie/internal/transfercleaner"
+	"github.com/kipsilabs/postie/internal/transferstore"
+	"github.com/kipsilabs/postie/internal/transferwriter"
+	"github.com/kipsilabs/postie/internal/verification"
 )
 
 // poolStater adapts an NNTP client to the verification.Stater interface.

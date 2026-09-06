@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/javi11/postie/internal/apikey"
-	"github.com/javi11/postie/internal/queue"
+	"github.com/kipsilabs/postie/internal/apikey"
+	"github.com/kipsilabs/postie/internal/queue"
 )
 
 // errAPINotInitialized is returned when the database is not yet ready.

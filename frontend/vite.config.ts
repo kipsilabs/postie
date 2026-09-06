@@ -8,7 +8,7 @@ export default defineConfig({
 	define: {
 		__APP_VERSION__: JSON.stringify(process.env.npm_package_version || "0.0.0"),
 		__GIT_COMMIT__: JSON.stringify(process.env.GIT_COMMIT || "unknown"),
-		__GITHUB_URL__: JSON.stringify("https://github.com/javi11/postie"),
+		__GITHUB_URL__: JSON.stringify("https://github.com/kipsilabs/postie"),
 	},
 	resolve: {
 		alias: {

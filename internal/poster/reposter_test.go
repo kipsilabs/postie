@@ -11,8 +11,8 @@ import (
 	"github.com/mnightingale/rapidyenc"
 	"go.uber.org/mock/gomock"
 
-	"github.com/javi11/postie/internal/manifest"
-	"github.com/javi11/postie/internal/mocks"
+	"github.com/kipsilabs/postie/internal/manifest"
+	"github.com/kipsilabs/postie/internal/mocks"
 )
 
 func TestReposter_RepostReusesMessageIDAndBody(t *testing.T) {

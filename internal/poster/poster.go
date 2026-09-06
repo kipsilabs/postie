@@ -18,14 +18,14 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/javi11/nxg"
-	"github.com/javi11/postie/internal/article"
-	"github.com/javi11/postie/internal/config"
-	"github.com/javi11/postie/internal/manifest"
-	"github.com/javi11/postie/internal/nzb"
-	"github.com/javi11/postie/internal/par2"
-	"github.com/javi11/postie/internal/pausable"
-	"github.com/javi11/postie/internal/pool"
-	"github.com/javi11/postie/internal/progress"
+	"github.com/kipsilabs/postie/internal/article"
+	"github.com/kipsilabs/postie/internal/config"
+	"github.com/kipsilabs/postie/internal/manifest"
+	"github.com/kipsilabs/postie/internal/nzb"
+	"github.com/kipsilabs/postie/internal/par2"
+	"github.com/kipsilabs/postie/internal/pausable"
+	"github.com/kipsilabs/postie/internal/pool"
+	"github.com/kipsilabs/postie/internal/progress"
 	concpool "github.com/sourcegraph/conc/pool"
 )
 
