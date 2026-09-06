@@ -35,6 +35,11 @@ const sidebars: SidebarsConfig = {
       label: 'File Hash',
       items: ['file-hash'],
     },
+    {
+      type: 'category',
+      label: 'Performance',
+      items: ['benchmarks'],
+    },
   ],
 };
 

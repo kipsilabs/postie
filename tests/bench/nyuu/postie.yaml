@@ -1,0 +1,28 @@
+# Upload-only config for the postie-vs-nyuu comparison. PAR2 and post-check
+# are off so both tools do the same work: yEnc + POST of one file.
+version: 2
+servers:
+  - host: 127.0.0.1
+    port: 1199
+    ssl: false
+    insecure_ssl: true
+    max_connections: 20
+    enabled: true
+    role: upload
+posting:
+  wait_for_par2: true
+  article_size_in_bytes: 750000
+  groups:
+    - name: alt.binaries.test
+      enabled: true
+  obfuscation_policy: none
+  par2_obfuscation_policy: none
+  message_id_format: random
+post_check:
+  enabled: false
+par2:
+  enabled: false
+database:
+  database_type: sqlite
+  database_path: ./work/postie.db
+output_dir: ./work/out
