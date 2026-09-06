@@ -370,6 +370,15 @@ post_upload_script:
   timeout: 30s
 ```
 
+Example running a PowerShell script on Windows:
+
+```yaml
+post_upload_script:
+  enabled: true
+  command: 'powershell C:\Usenet_Programms\Postie\Scripts\ZIP.ps1 {nzb_path}'
+  timeout: 30s
+```
+
 **💡 Tip: The web UI allows you to test your post-upload scripts and provides examples for common use cases.**
 
 ### Global Settings
