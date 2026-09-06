@@ -1070,7 +1070,11 @@ func (p *Processor) checkAndHandleProviderAvailability() {
 	// Do not touch the manual pause state — if the user manually paused,
 	// that remains in effect.
 	if activeProviders > 0 && wasAutoPaused {
-		slog.Info("Providers available - unblocking new jobs",
+		// This also fires as a probe: with no jobs running, no new errors can
+		// accrue, so a still-dead provider looks reachable until the next job
+		// actually tries it. That retry is the point — never unblocking is the
+		// failure mode this replaced.
+		slog.Info("No new provider errors since last check - allowing new jobs",
 			"activeProviders", activeProviders)
 		p.setAutoBlock(false)
 

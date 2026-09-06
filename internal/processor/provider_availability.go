@@ -11,6 +11,13 @@ import "github.com/javi11/nntppool/v4"
 // recorded no new errors since the last check. Providers seen for the first
 // time only seed the baseline: errors from before monitoring started say
 // nothing about current reachability.
+//
+// The counter can also go down: editing a server in the settings makes
+// Manager.UpdateConfig remove and re-add the provider under the same key, which
+// installs a fresh stats struct. A decrease is read as "no new errors", giving
+// the reconfigured provider a clean slate. The cost is that errors accrued
+// between such a reset and the next check can be masked for a single cycle,
+// which resolves itself because the baseline is replaced on every call.
 func evaluateProviderAvailability(stats nntppool.ClientStats, baseline map[string]int64) (int, map[string]int64) {
 	next := make(map[string]int64, len(stats.Providers))
 	healthy := 0

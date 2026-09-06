@@ -72,6 +72,34 @@ func TestEvaluateProviderAvailability(t *testing.T) {
 	}
 }
 
+// The monitor's baseline field starts as a nil map, so the first real call
+// always passes nil rather than an empty map.
+func TestEvaluateProviderAvailabilityWithNilBaseline(t *testing.T) {
+	stats := nntppool.ClientStats{
+		Providers: []nntppool.ProviderStats{{Name: "news.example.com", Errors: 42}},
+	}
+
+	healthy, next := evaluateProviderAvailability(stats, nil)
+
+	if healthy != 1 {
+		t.Errorf("healthy providers = %d; want 1 (first observation only seeds the baseline)", healthy)
+	}
+	if got := next["news.example.com"]; got != 42 {
+		t.Errorf("baseline = %d; want 42", got)
+	}
+}
+
+func TestEvaluateProviderAvailabilityWithNoProviders(t *testing.T) {
+	healthy, next := evaluateProviderAvailability(nntppool.ClientStats{}, nil)
+
+	if healthy != 0 {
+		t.Errorf("healthy providers = %d; want 0", healthy)
+	}
+	if len(next) != 0 {
+		t.Errorf("baseline has %d entries; want 0", len(next))
+	}
+}
+
 func TestEvaluateProviderAvailabilityForgetsRemovedProviders(t *testing.T) {
 	baseline := map[string]int64{"removed.example.com": 4}
 	stats := nntppool.ClientStats{
