@@ -5,11 +5,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/javi11/postie/internal/config"
-	"github.com/javi11/postie/internal/pool"
-	"github.com/javi11/postie/internal/progress"
-	"github.com/javi11/postie/pkg/fileinfo"
-	"github.com/javi11/postie/pkg/postie"
+	"github.com/kipsilabs/postie/internal/config"
+	"github.com/kipsilabs/postie/internal/pool"
+	"github.com/kipsilabs/postie/internal/progress"
+	"github.com/kipsilabs/postie/pkg/fileinfo"
+	"github.com/kipsilabs/postie/pkg/postie"
 	"github.com/spf13/cobra"
 )
 

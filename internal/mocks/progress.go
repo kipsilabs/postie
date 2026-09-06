@@ -14,7 +14,7 @@ import (
 	time "time"
 
 	uuid "github.com/google/uuid"
-	progress "github.com/javi11/postie/internal/progress"
+	progress "github.com/kipsilabs/postie/internal/progress"
 	gomock "go.uber.org/mock/gomock"
 )
 

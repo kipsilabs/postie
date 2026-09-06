@@ -3,7 +3,7 @@ package postie
 import (
 	"testing"
 
-	"github.com/javi11/postie/pkg/fileinfo"
+	"github.com/kipsilabs/postie/pkg/fileinfo"
 )
 
 func TestDeriveFolderName(t *testing.T) {

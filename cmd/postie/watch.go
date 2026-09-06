@@ -8,12 +8,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/javi11/postie/internal/config"
-	"github.com/javi11/postie/internal/database"
-	"github.com/javi11/postie/internal/pool"
-	"github.com/javi11/postie/internal/processor"
-	"github.com/javi11/postie/internal/queue"
-	"github.com/javi11/postie/internal/watcher"
+	"github.com/kipsilabs/postie/internal/config"
+	"github.com/kipsilabs/postie/internal/database"
+	"github.com/kipsilabs/postie/internal/pool"
+	"github.com/kipsilabs/postie/internal/processor"
+	"github.com/kipsilabs/postie/internal/queue"
+	"github.com/kipsilabs/postie/internal/watcher"
 	"github.com/spf13/cobra"
 )
 

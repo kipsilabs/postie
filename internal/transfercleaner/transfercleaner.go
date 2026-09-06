@@ -16,8 +16,8 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/javi11/postie/internal/manifest"
-	"github.com/javi11/postie/internal/transferstore"
+	"github.com/kipsilabs/postie/internal/manifest"
+	"github.com/kipsilabs/postie/internal/transferstore"
 )
 
 // ScriptRunner runs the post-upload script for a verified transfer. It may be

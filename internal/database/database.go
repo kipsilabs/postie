@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/javi11/postie/internal/config"
+	"github.com/kipsilabs/postie/internal/config"
 	_ "github.com/mattn/go-sqlite3"
 )
 

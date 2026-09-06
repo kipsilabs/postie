@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/javi11/postie/internal/config"
-	"github.com/javi11/postie/internal/pool"
-	"github.com/javi11/postie/internal/queue"
+	"github.com/kipsilabs/postie/internal/config"
+	"github.com/kipsilabs/postie/internal/pool"
+	"github.com/kipsilabs/postie/internal/queue"
 )
 
 // postCheckQueue is the subset of *queue.Queue used by PostCheckRetryWorker.

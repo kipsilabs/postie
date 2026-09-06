@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/javi11/postie/internal/config"
-	"github.com/javi11/postie/internal/pool"
+	"github.com/kipsilabs/postie/internal/config"
+	"github.com/kipsilabs/postie/internal/pool"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 

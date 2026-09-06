@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/javi11/postie/internal/backend"
+	"github.com/kipsilabs/postie/internal/backend"
 )
 
 // handleGetAPIKey returns (or generates) the current API key. Open route used

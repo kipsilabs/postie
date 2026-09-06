@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/javi11/postie/internal/processor"
+	"github.com/kipsilabs/postie/internal/processor"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 

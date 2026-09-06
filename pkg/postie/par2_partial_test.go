@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/javi11/postie/internal/article"
-	"github.com/javi11/postie/internal/nzb"
-	"github.com/javi11/postie/internal/par2"
+	"github.com/kipsilabs/postie/internal/article"
+	"github.com/kipsilabs/postie/internal/nzb"
+	"github.com/kipsilabs/postie/internal/par2"
 )
 
 // par2FailingPoster posts every file's articles into the NZB generator like the

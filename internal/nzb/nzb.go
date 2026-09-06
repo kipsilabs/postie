@@ -15,8 +15,8 @@ import (
 
 	"github.com/andybalholm/brotli"
 	"github.com/javi11/nzbparser"
-	"github.com/javi11/postie/internal/article"
-	"github.com/javi11/postie/internal/config"
+	"github.com/kipsilabs/postie/internal/article"
+	"github.com/kipsilabs/postie/internal/config"
 	"github.com/klauspost/compress/zstd"
 )
 

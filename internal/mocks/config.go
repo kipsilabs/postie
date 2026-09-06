@@ -14,7 +14,7 @@ import (
 	reflect "reflect"
 
 	nntppool "github.com/javi11/nntppool/v4"
-	config "github.com/javi11/postie/internal/config"
+	config "github.com/kipsilabs/postie/internal/config"
 	gomock "go.uber.org/mock/gomock"
 )
 

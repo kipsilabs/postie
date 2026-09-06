@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/javi11/postie/internal/article"
-	"github.com/javi11/postie/internal/config"
-	"github.com/javi11/postie/internal/database"
-	"github.com/javi11/postie/internal/mocks"
-	"github.com/javi11/postie/internal/transferstore"
-	"github.com/javi11/postie/internal/verification"
+	"github.com/kipsilabs/postie/internal/article"
+	"github.com/kipsilabs/postie/internal/config"
+	"github.com/kipsilabs/postie/internal/database"
+	"github.com/kipsilabs/postie/internal/mocks"
+	"github.com/kipsilabs/postie/internal/transferstore"
+	"github.com/kipsilabs/postie/internal/verification"
 	"go.uber.org/mock/gomock"
 )
 

@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/javi11/postie/internal/apikey"
-	"github.com/javi11/postie/internal/database"
-	"github.com/javi11/postie/internal/queue"
+	"github.com/kipsilabs/postie/internal/apikey"
+	"github.com/kipsilabs/postie/internal/database"
+	"github.com/kipsilabs/postie/internal/queue"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 

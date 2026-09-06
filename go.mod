@@ -1,4 +1,4 @@
-module github.com/javi11/postie
+module github.com/kipsilabs/postie
 
 go 1.26
 

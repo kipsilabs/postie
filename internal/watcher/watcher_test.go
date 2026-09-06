@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/javi11/postie/internal/config"
-	"github.com/javi11/postie/internal/queue"
+	"github.com/kipsilabs/postie/internal/config"
+	"github.com/kipsilabs/postie/internal/queue"
 )
 
 // mockProcessor implements ProcessorInterface for testing

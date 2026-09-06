@@ -12,9 +12,9 @@ import (
 	"github.com/javi11/nntppool/v4"
 	"github.com/mnightingale/rapidyenc"
 
-	"github.com/javi11/postie/internal/article"
-	"github.com/javi11/postie/internal/manifest"
-	"github.com/javi11/postie/internal/pool"
+	"github.com/kipsilabs/postie/internal/article"
+	"github.com/kipsilabs/postie/internal/manifest"
+	"github.com/kipsilabs/postie/internal/pool"
 )
 
 // postYenc builds the NNTP headers + yEnc metadata for art and posts body,

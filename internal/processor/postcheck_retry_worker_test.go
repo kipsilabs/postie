@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/javi11/nntppool/v4"
-	"github.com/javi11/postie/internal/config"
-	"github.com/javi11/postie/internal/mocks"
-	"github.com/javi11/postie/internal/queue"
+	"github.com/kipsilabs/postie/internal/config"
+	"github.com/kipsilabs/postie/internal/mocks"
+	"github.com/kipsilabs/postie/internal/queue"
 	"go.uber.org/mock/gomock"
 )
 

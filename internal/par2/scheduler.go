@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync/atomic"
 
-	"github.com/javi11/postie/pkg/fileinfo"
+	"github.com/kipsilabs/postie/pkg/fileinfo"
 )
 
 // Scheduler bounds the number of PAR2 operations that run concurrently across

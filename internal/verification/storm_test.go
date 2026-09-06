@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/javi11/postie/internal/transferstore"
+	"github.com/kipsilabs/postie/internal/transferstore"
 )
 
 // TestVerifyFile_LargeManifestStormStaysCorrect stresses the bounded-concurrency

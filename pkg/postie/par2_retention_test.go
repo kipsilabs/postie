@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/javi11/postie/internal/transferwriter"
-	"github.com/javi11/postie/pkg/fileinfo"
+	"github.com/kipsilabs/postie/internal/transferwriter"
+	"github.com/kipsilabs/postie/pkg/fileinfo"
 )
 
 // par2InDir is a PAR2 executor that always materialises a set in dir, mirroring

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/javi11/postie/internal/article"
+	"github.com/kipsilabs/postie/internal/article"
 )
 
 func sampleRecords(n int) []ArticleRecord {

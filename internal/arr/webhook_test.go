@@ -3,7 +3,7 @@ package arr_test
 import (
 	"testing"
 
-	"github.com/javi11/postie/internal/arr"
+	"github.com/kipsilabs/postie/internal/arr"
 	"github.com/stretchr/testify/assert"
 )
 
