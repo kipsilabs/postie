@@ -58,6 +58,9 @@ type Processor struct {
 	isAutoBlockingNewJobs bool // blocks new jobs without pausing running ones
 	autoPausedMux         sync.RWMutex
 	providerCheckTicker   *time.Ticker
+	// providerErrorBaseline holds each provider's cumulative error count as of
+	// the previous availability check. Only touched by the monitor goroutine.
+	providerErrorBaseline map[string]int64
 	providerCheckCtx      context.Context
 	providerCheckCancel   context.CancelFunc
 	// Callback to check if processor can start new items
@@ -1031,16 +1034,12 @@ func (p *Processor) checkAndHandleProviderAvailability() {
 		return
 	}
 
-	// Count connected/active providers
-	activeProviders := 0
+	// Count reachable providers. Error counts are cumulative, so they only carry
+	// health information as a delta against the previous check — see
+	// evaluateProviderAvailability.
 	totalProviders := len(metrics.Providers)
-
-	for _, provider := range metrics.Providers {
-		// Consider a provider active if it has active connections or no errors
-		if provider.ActiveConnections > 0 || provider.Errors == 0 {
-			activeProviders++
-		}
-	}
+	activeProviders, nextBaseline := evaluateProviderAvailability(metrics, p.providerErrorBaseline)
+	p.providerErrorBaseline = nextBaseline
 
 	p.autoPausedMux.Lock()
 	wasAutoPaused := p.isAutoPaused
@@ -1071,7 +1070,11 @@ func (p *Processor) checkAndHandleProviderAvailability() {
 	// Do not touch the manual pause state — if the user manually paused,
 	// that remains in effect.
 	if activeProviders > 0 && wasAutoPaused {
-		slog.Info("Providers available - unblocking new jobs",
+		// This also fires as a probe: with no jobs running, no new errors can
+		// accrue, so a still-dead provider looks reachable until the next job
+		// actually tries it. That retry is the point — never unblocking is the
+		// failure mode this replaced.
+		slog.Info("No new provider errors since last check - allowing new jobs",
 			"activeProviders", activeProviders)
 		p.setAutoBlock(false)
 

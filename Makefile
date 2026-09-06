@@ -92,38 +92,38 @@ dev:
 	go tool wails dev
 
 .PHONY: build
-build: build-cli build-client
+build: build-cli build-web
 	@echo "Build completed!"
 	@echo "CLI binary: ./postie-cli"
-	@echo "Client binary: ./postie-client"
+	@echo "Web server binary: ./postie-web"
 	@echo "GUI binary: ./build/bin/postie(.app on macOS)"
 
 .PHONY: build-debug
-build-debug: build-cli-debug build-client-debug build-gui-debug
+build-debug: build-cli-debug build-web-debug build-gui-debug
 	@echo "Debug build completed!"
 	@echo "CLI binary: ./postie-cli-debug"
-	@echo "Client binary: ./postie-client-debug"
+	@echo "Web server binary: ./postie-web-debug"
 	@echo "GUI binary: ./build/bin/postie(.app on macOS)"
 
 .PHONY: build-cli
 build-cli:
 	@echo "Building CLI..."
-	$(GO) build -o postie-cli .
+	$(GO) build -o postie-cli ./cmd/postie
 
 .PHONY: build-cli-debug
 build-cli-debug:
 	@echo "Building CLI (debug)..."
-	$(GO) build -tags debug -o postie-cli-debug .
+	$(GO) build -tags debug -o postie-cli-debug ./cmd/postie
 
-.PHONY: build-client
-build-client:
-	@echo "Building Client..."
-	$(GO) build -o postie-client ./cmd/main
+.PHONY: build-web
+build-web:
+	@echo "Building Web server..."
+	$(GO) build -o postie-web ./cmd/web
 
-.PHONY: build-client-debug
-build-client-debug:
-	@echo "Building Client (debug)..."
-	$(GO) build -tags debug -o postie-client-debug ./cmd/main
+.PHONY: build-web-debug
+build-web-debug:
+	@echo "Building Web server (debug)..."
+	$(GO) build -tags debug -o postie-web-debug ./cmd/web
 
 .PHONY: build-gui
 build-gui:
@@ -154,16 +154,16 @@ run-cli: build-cli
 	@echo "Running CLI..."
 	./postie-cli $(ARGS)
 
-.PHONY: run-client
-run-client: build-client
-	@echo "Running Client..."
-	./postie-client $(ARGS)
+.PHONY: run-web
+run-web: build-web
+	@echo "Running web server..."
+	./postie-web $(ARGS)
 
 .PHONY: clean-build
 clean-build:
 	@echo "Cleaning build artifacts..."
 	rm -rf build/
-	rm -f postie-cli postie-cli-debug postie-client postie-client-debug
+	rm -f postie-cli postie-cli-debug postie-web postie-web-debug
 	rm -rf frontend/dist/
 	rm -rf frontend/node_modules/
 	@echo "Clean completed!"
@@ -178,14 +178,14 @@ help:
 	@echo "Building:"
 	@echo "  build            - Build production version (CLI + Client + GUI)"
 	@echo "  build-debug      - Build debug version (CLI + Client + GUI)"
-	@echo "  build-cli        - Build CLI only (uses root main)"
-	@echo "  build-client     - Build Client only (uses cmd/main)"
+	@echo "  build-cli        - Build CLI only (cmd/postie)"
+	@echo "  build-web        - Build web server only (cmd/web)"
 	@echo "  build-gui        - Build GUI only"
 	@echo ""
 	@echo "Running:"
 	@echo "  run              - Build and run the GUI"
 	@echo "  run-cli ARGS=... - Build and run CLI"
-	@echo "  run-client ARGS=... - Build and run Client"
+	@echo "  run-web ARGS=...    - Build and run the web server"
 	@echo ""
 	@echo "Maintenance:"
 	@echo "  clean-build      - Clean build artifacts"
@@ -195,7 +195,7 @@ help:
 	@echo "  make dev                    # Start GUI development mode"
 	@echo "  make build                  # Build all components"
 	@echo "  make run-cli ARGS='--help'  # Show CLI help"
-	@echo "  make run-client ARGS='...'  # Run client with args"
+	@echo "  make run-web ARGS='...'     # Run web server with args"
 
 .PHONY: clean
 clean: clean-build

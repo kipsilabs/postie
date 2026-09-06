@@ -60,19 +60,53 @@ For detailed documentation, installation instructions, configuration options, an
 
 ## For Developers
 
+### Prerequisites
+
+- **Go** 1.26+
+- **[Bun](https://bun.sh)** — used for the frontend (do not use npm)
+- A **C toolchain**, because the native PAR2 encoder uses cgo. On Windows use
+  [MSYS2](https://www.msys2.org/) with the MinGW-w64 GCC toolchain and build
+  from the MSYS2 shell; on macOS the Xcode command line tools are enough.
+
+Wails does not need to be installed separately — it is declared as a Go tool
+dependency and runs via `go tool wails`.
+
 ### Building from Source
+
+The Go binaries embed the compiled frontend, so **the frontend must be built
+first**. Skipping this step fails with
+`pattern all:frontend/build: no matching files found`.
 
 ```bash
 git clone https://github.com/kipsilabs/postie.git
 cd postie
-go build
+
+make build-frontend   # cd frontend && bun i && bun run build
+make build            # CLI + web server
+```
+
+Individual targets:
+
+| Command | Builds | Output |
+|---------|--------|--------|
+| `make build-cli` | CLI (`./cmd/postie`) | `./postie-cli` |
+| `make build-web` | Web server (`./cmd/web`) | `./postie-web` |
+| `make build-gui` | Desktop app via Wails | `./build/bin/postie` (`.app` on macOS) |
+
+Run `make help` for the full target list, and `make check` before opening a pull
+request (it runs `go generate`, `go mod tidy`, golangci-lint and the race tests).
+
+### Development Mode
+
+```bash
+make dev          # desktop app with hot reload
 ```
 
 ### Installing with Go
 
-```bash
-go install github.com/kipsilabs/postie@latest
-```
+`go install` cannot build this repository, because the embedded frontend assets
+are not present in a fresh module cache. Use the release binaries, or build from
+source as above.
 
 ## License
 
