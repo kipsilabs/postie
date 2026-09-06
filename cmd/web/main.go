@@ -12,27 +12,20 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/gorilla/websocket"
 	"github.com/kipsilabs/postie/frontend"
 	"github.com/kipsilabs/postie/internal/backend"
 	"github.com/kipsilabs/postie/internal/config"
+	"github.com/kipsilabs/postie/internal/wshub"
 	"github.com/spf13/cobra"
 )
 
 // For development, serve static files from disk
 // In production, these would be embedded
 var frontendBuildPath = "../../frontend/build"
-
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins for now, should be configured properly
-	},
-}
 
 // ErrorResponse represents a structured error response
 type ErrorResponse struct {
@@ -59,139 +52,20 @@ var (
 	host string
 )
 
-// WebSocketClient represents a connected WebSocket client
-type WebSocketClient struct {
-	conn *websocket.Conn
-	send chan []byte
-	hub  *WebSocketHub
-	id   string
-}
-
-// WebSocketHub manages WebSocket connections and broadcasts
-type WebSocketHub struct {
-	clients    map[*WebSocketClient]bool
-	broadcast  chan []byte
-	register   chan *WebSocketClient
-	unregister chan *WebSocketClient
-	mu         sync.RWMutex
-}
-
-// WebSocketMessage represents a message sent over WebSocket
-type WebSocketMessage struct {
-	Type string `json:"type"`
-	Data any    `json:"data"`
-}
-
-// NewWebSocketHub creates a new WebSocket hub
-func NewWebSocketHub() *WebSocketHub {
-	return &WebSocketHub{
-		clients:    make(map[*WebSocketClient]bool),
-		broadcast:  make(chan []byte, 256),
-		register:   make(chan *WebSocketClient),
-		unregister: make(chan *WebSocketClient),
-	}
-}
-
-// Run starts the WebSocket hub
-func (h *WebSocketHub) Run() {
-	for {
-		select {
-		case client := <-h.register:
-			h.mu.Lock()
-			h.clients[client] = true
-			h.mu.Unlock()
-			slog.Info("WebSocket client connected", "id", client.id)
-
-		case client := <-h.unregister:
-			h.mu.Lock()
-			if _, ok := h.clients[client]; ok {
-				delete(h.clients, client)
-				close(client.send)
-				slog.Info("WebSocket client disconnected", "id", client.id)
-			}
-			h.mu.Unlock()
-
-		case message := <-h.broadcast:
-			h.mu.RLock()
-			for client := range h.clients {
-				select {
-				case client.send <- message:
-				default:
-					delete(h.clients, client)
-					close(client.send)
-				}
-			}
-			h.mu.RUnlock()
-		}
-	}
-}
-
-// EmitEvent sends an event to all connected clients
-func (h *WebSocketHub) EmitEvent(eventType string, data any) {
-	message := WebSocketMessage{
-		Type: eventType,
-		Data: data,
-	}
-
-	jsonData, err := json.Marshal(message)
-	if err != nil {
-		slog.Error("Error marshaling WebSocket message", "error", err)
-		return
-	}
-
-	select {
-	case h.broadcast <- jsonData:
-	default:
-		slog.Warn("WebSocket broadcast channel full, dropping message")
-	}
-}
-
-// readPump handles reading from the WebSocket connection
-func (c *WebSocketClient) readPump() {
-	defer func() {
-		c.hub.unregister <- c
-		_ = c.conn.Close()
-	}()
-
-	for {
-		_, _, err := c.conn.ReadMessage()
-		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				slog.Error("WebSocket error", "error", err)
-			}
-			break
-		}
-	}
-}
-
-// writePump handles writing to the WebSocket connection
-func (c *WebSocketClient) writePump() {
-	defer func() {
-		_ = c.conn.Close()
-	}()
-
-	for message := range c.send {
-		if err := c.conn.WriteMessage(websocket.TextMessage, message); err != nil {
-			slog.Error("WebSocket write error", "error", err)
-			return
-		}
-	}
-}
-
 // WebEventEmitter is a function that emits events for web mode
 type WebEventEmitter func(eventType string, data any)
 
 type WebServer struct {
 	app          *backend.App
 	router       *mux.Router
-	wsHub        *WebSocketHub
+	wsHub        *wshub.Hub
 	eventEmitter WebEventEmitter
 }
 
 func NewWebServer() *WebServer {
 	app := backend.NewApp()
 	router := mux.NewRouter()
-	wsHub := NewWebSocketHub()
+	wsHub := wshub.NewHub()
 
 	ws := &WebServer{
 		app:    app,
@@ -383,28 +257,7 @@ func (ws *WebServer) handleTriggerScan(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ws *WebServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		slog.Error("WebSocket upgrade error", "error", err)
-		return
-	}
-
-	slog.Info("WebSocket connection established successfully")
-
-	// Create client
-	client := &WebSocketClient{
-		conn: conn,
-		send: make(chan []byte, 256),
-		hub:  ws.wsHub,
-		id:   fmt.Sprintf("client-%s", conn.RemoteAddr().String()),
-	}
-
-	// Register client
-	ws.wsHub.register <- client
-
-	// Start client pumps
-	go client.writePump()
-	go client.readPump()
+	ws.wsHub.ServeHTTP(w, r)
 }
 
 func (ws *WebServer) handleGetStatus(w http.ResponseWriter, r *http.Request) {

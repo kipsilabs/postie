@@ -1,5 +1,6 @@
 <script lang="ts">
 import apiClient from "$lib/api/client";
+import { startLiveFallback } from "$lib/api/live-fallback";
 import {
 	EVENT_NNTP_POOL_METRICS_UPDATED,
 	type NntpPoolMetricsEvent,
@@ -13,6 +14,7 @@ import { onDestroy, onMount } from "svelte";
 let poolMetrics = $state<backend.NntpPoolMetrics | null>(null);
 let initialLoad = $state(true);
 let error = $state("");
+let stopFallback: (() => void) | undefined;
 
 function applyPoolMetrics(data: unknown) {
 	if (!data) return;
@@ -79,9 +81,16 @@ function formatSpeed(bytesPerSec: number): string {
 onMount(async () => {
 	await fetchProviderStatus();
 	await apiClient.on(EVENT_NNTP_POOL_METRICS_UPDATED, applyPoolMetrics);
+	stopFallback = startLiveFallback({
+		intervalMs: 5000,
+		isLive: () => apiClient.isLive(),
+		refresh: fetchProviderStatus,
+		onReconnect: (cb) => apiClient.onReconnect(cb),
+	});
 });
 
 onDestroy(() => {
+	stopFallback?.();
 	apiClient.off(EVENT_NNTP_POOL_METRICS_UPDATED, applyPoolMetrics);
 });
 </script>

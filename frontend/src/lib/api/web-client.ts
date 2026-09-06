@@ -19,6 +19,7 @@ export interface ArrInstance {
 export class WebClient {
 	private ws: WebSocket | null = null;
 	private wsListeners: Map<string, (data: unknown) => void> = new Map();
+	private reconnectListeners = new Set<() => void>();
 
 	constructor() {
 		this.initWebSocket();
@@ -59,6 +60,9 @@ export class WebClient {
 
 		this.ws.onopen = (event) => {
 			console.log("WebSocket connected successfully", event);
+			for (const listener of this.reconnectListeners) {
+				listener();
+			}
 		};
 
 		this.ws.onmessage = (event) => {
@@ -113,6 +117,18 @@ export class WebClient {
 	// Remove event listener
 	off(event: string) {
 		this.wsListeners.delete(event);
+	}
+
+	isConnected(): boolean {
+		return this.ws?.readyState === WebSocket.OPEN;
+	}
+
+	// Fires on every successful (re)connection so event-driven views can re-sync.
+	onReconnect(callback: () => void): () => void {
+		this.reconnectListeners.add(callback);
+		return () => {
+			this.reconnectListeners.delete(callback);
+		};
 	}
 
 	// Requests that hang (e.g. the backend blocked on the database during a

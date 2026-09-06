@@ -620,6 +620,28 @@ export class UnifiedClient {
 		}
 	}
 
+	// True when push events are flowing. Wails events cannot silently drop;
+	// in web mode this reflects the WebSocket state.
+	isLive(): boolean {
+		if (this._environment === "wails") return true;
+		if (this._environment === "web") return webClient?.isConnected() ?? false;
+		return false;
+	}
+
+	onReconnect(callback: () => void): () => void {
+		if (this._environment !== "web") return () => {};
+		let unsubscribe: (() => void) | undefined;
+		let cancelled = false;
+		getWebClient().then((client) => {
+			if (cancelled) return;
+			unsubscribe = client.onReconnect(callback);
+		});
+		return () => {
+			cancelled = true;
+			unsubscribe?.();
+		};
+	}
+
 	// Queue Actions
 	async clearQueue(): Promise<void> {
 		await this.initialize();
