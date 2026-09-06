@@ -165,8 +165,11 @@ func main() {
 		EnableDefaultContextMenu: true,
 		Menu:                     appMenu,
 		DragAndDrop: &options.DragAndDrop{
-			EnableFileDrop:     true,
-			DisableWebViewDrop: true,
+			EnableFileDrop: true,
+			// Windows has no native drop handler: the only path to wails:file-drop is the
+			// webview's JS drop event posting the files back to Go. Disabling the webview
+			// drop there calls AllowExternalDrag(false) and kills that path entirely.
+			DisableWebViewDrop: runtime.GOOS != "windows",
 			CSSDropProperty:    "--wails-drop-target",
 			CSSDropValue:       "drop",
 		},
