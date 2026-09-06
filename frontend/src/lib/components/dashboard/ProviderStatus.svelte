@@ -159,20 +159,8 @@ onDestroy(() => {
 
 						<div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
 							<div>
-								<span class="text-base-content/70">{$t("dashboard.provider.current_speed")}:</span>
-								<span class="font-medium ml-1">{provider.speedEwma > 0 ? formatSpeed(provider.speedEwma) : "—"}</span>
-							</div>
-							<div>
-								<span class="text-base-content/70">{$t("dashboard.provider.avg_speed")}:</span>
-								<span class="font-medium ml-1">{provider.activeConnections > 0 ? formatSpeed(provider.avgSpeed) : "—"}</span>
-							</div>
-							<div>
 								<span class="text-base-content/70">{$t("dashboard.provider.ttfb")}:</span>
 								<span class="font-medium ml-1">{provider.ttfb || "—"}</span>
-							</div>
-							<div>
-								<span class="text-base-content/70">{$t("dashboard.provider.downloaded")}:</span>
-								<span class="font-medium ml-1">{provider.bytesConsumed > 0 ? formatBytes(provider.bytesConsumed) : "—"}</span>
 							</div>
 							<div>
 								<span class="text-base-content/70">{$t("dashboard.provider.inflight")}:</span>
@@ -220,12 +208,16 @@ onDestroy(() => {
 			<!-- Pool Summary -->
 			<div class="mt-4 p-3 bg-base-200 rounded-lg">
 				<div class="flex justify-between items-center text-sm">
-					<span class="text-base-content/70">{$t("dashboard.provider.avg_speed")}:</span>
-					<span class="font-medium">{poolMetrics.activeConnections > 0 ? formatSpeed(poolMetrics.avgSpeed) : "—"}</span>
+					<span class="text-base-content/70">{$t("dashboard.provider.upload_speed")}:</span>
+					<span class="font-medium">{poolMetrics.uploadSpeed > 0 ? formatSpeed(poolMetrics.uploadSpeed) : "—"}</span>
 				</div>
 				<div class="flex justify-between items-center text-sm mt-1">
-					<span class="text-base-content/70">{$t("dashboard.provider.downloaded")}:</span>
-					<span class="font-medium">{poolMetrics.bytesConsumed > 0 ? formatBytes(poolMetrics.bytesConsumed) : "—"}</span>
+					<span class="text-base-content/70">{$t("dashboard.provider.avg_upload_speed")}:</span>
+					<span class="font-medium">{poolMetrics.uploadAvgSpeed > 0 ? formatSpeed(poolMetrics.uploadAvgSpeed) : "—"}</span>
+				</div>
+				<div class="flex justify-between items-center text-sm mt-1">
+					<span class="text-base-content/70">{$t("dashboard.provider.uploaded")}:</span>
+					<span class="font-medium">{poolMetrics.bytesUploaded > 0 ? formatBytes(poolMetrics.bytesUploaded) : "—"}</span>
 				</div>
 				<div class="flex justify-between items-center text-sm mt-1">
 					<span class="text-base-content/70">{$t("dashboard.provider.elapsed")}:</span>

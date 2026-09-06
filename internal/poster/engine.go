@@ -112,6 +112,16 @@ type Engine struct {
 	// posting path sharing this engine shares one token bucket.
 	throttleOnce sync.Once
 	throttle     *Throttle
+
+	meter *UploadMeter
+}
+
+// UploadMeter returns the engine-wide upload byte meter. Nil on a nil engine.
+func (e *Engine) UploadMeter() *UploadMeter {
+	if e == nil {
+		return nil
+	}
+	return e.meter
 }
 
 // SharedThrottle lazily creates (first caller's rate wins) and returns the
@@ -142,6 +152,7 @@ func NewEngine(articleSize uint64, bufferLimit int64, connCapacity int) *Engine 
 		budget:  b,
 		workers: semaphore.NewWeighted(b.WorkerCount),
 		memory:  semaphore.NewWeighted(b.BudgetBytes),
+		meter:   NewUploadMeter(),
 	}
 }
 
@@ -222,6 +233,9 @@ type Metrics struct {
 	ReservedBytes  int64
 	BudgetBytes    int64
 	PerArticleByte int64
+	UploadBytes    int64
+	UploadSpeed    float64
+	UploadAvgSpeed float64
 }
 
 // Metrics returns a snapshot of current engine activity. Safe on a nil engine.
@@ -229,6 +243,7 @@ func (e *Engine) Metrics() Metrics {
 	if e == nil {
 		return Metrics{}
 	}
+	up := e.meter.Snapshot()
 	return Metrics{
 		ActiveWorkers:  e.activeWk.Load(),
 		QueuedWorkers:  e.queuedWk.Load(),
@@ -236,5 +251,8 @@ func (e *Engine) Metrics() Metrics {
 		ReservedBytes:  e.reserved.Load(),
 		BudgetBytes:    e.budget.BudgetBytes,
 		PerArticleByte: e.budget.PerArticleBytes,
+		UploadBytes:    up.BytesUploaded,
+		UploadSpeed:    up.Speed,
+		UploadAvgSpeed: up.AvgSpeed,
 	}
 }

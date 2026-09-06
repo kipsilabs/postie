@@ -107,7 +107,7 @@ func TestPostYenc_InternalTimeoutSurfacesRealError(t *testing.T) {
 	mockPool.EXPECT().PostYenc(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, context.DeadlineExceeded).Times(1)
 
 	art := &article.Article{MessageID: "<x@test>", Groups: []string{"alt.test"}, Size: 4}
-	err := postYenc(context.Background(), mockPool, nil, nil, art, []byte("body"))
+	err := postYenc(context.Background(), mockPool, nil, nil, nil, art, []byte("body"))
 
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, context.Canceled)
@@ -125,7 +125,7 @@ func TestPostYenc_ParentCancellationIsCanceled(t *testing.T) {
 	cancel()
 
 	art := &article.Article{MessageID: "<x@test>", Groups: []string{"alt.test"}, Size: 4}
-	err := postYenc(ctx, mockPool, nil, nil, art, []byte("body"))
+	err := postYenc(ctx, mockPool, nil, nil, nil, art, []byte("body"))
 
 	assert.ErrorIs(t, err, context.Canceled)
 }

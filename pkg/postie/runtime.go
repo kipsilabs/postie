@@ -314,14 +314,17 @@ func (r *Runtime) NewManifestRecorder(transferID string) *transferwriter.Recorde
 // usage, suitable for surfacing in the UI or logs so memory growth can be
 // attributed to a subsystem.
 type RuntimeMetrics struct {
-	UploadActiveWorkers int64 `json:"uploadActiveWorkers"`
-	UploadQueuedWorkers int64 `json:"uploadQueuedWorkers"`
-	UploadWorkerCount   int64 `json:"uploadWorkerCount"`
-	UploadReservedBytes int64 `json:"uploadReservedBytes"`
-	UploadBudgetBytes   int64 `json:"uploadBudgetBytes"`
-	Par2ActiveJobs      int64 `json:"par2ActiveJobs"`
-	Par2QueuedJobs      int64 `json:"par2QueuedJobs"`
-	Par2Capacity        int   `json:"par2Capacity"`
+	UploadActiveWorkers int64   `json:"uploadActiveWorkers"`
+	UploadQueuedWorkers int64   `json:"uploadQueuedWorkers"`
+	UploadWorkerCount   int64   `json:"uploadWorkerCount"`
+	UploadReservedBytes int64   `json:"uploadReservedBytes"`
+	UploadBudgetBytes   int64   `json:"uploadBudgetBytes"`
+	UploadBytes         int64   `json:"uploadBytes"`
+	UploadSpeedBps      float64 `json:"uploadSpeedBps"`
+	UploadAvgSpeedBps   float64 `json:"uploadAvgSpeedBps"`
+	Par2ActiveJobs      int64   `json:"par2ActiveJobs"`
+	Par2QueuedJobs      int64   `json:"par2QueuedJobs"`
+	Par2Capacity        int     `json:"par2Capacity"`
 }
 
 // Metrics returns a snapshot of current runtime resource usage. Safe on a nil
@@ -339,6 +342,9 @@ func (r *Runtime) Metrics() RuntimeMetrics {
 		m.UploadWorkerCount = em.WorkerCount
 		m.UploadReservedBytes = em.ReservedBytes
 		m.UploadBudgetBytes = em.BudgetBytes
+		m.UploadBytes = em.UploadBytes
+		m.UploadSpeedBps = em.UploadSpeed
+		m.UploadAvgSpeedBps = em.UploadAvgSpeed
 	}
 	if r.par2Scheduler != nil {
 		m.Par2ActiveJobs = r.par2Scheduler.Active()

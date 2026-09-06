@@ -82,6 +82,9 @@ type NntpPoolMetrics struct {
 	TotalErrors       int64                 `json:"totalErrors"`
 	AvgSpeed          float64               `json:"avgSpeed"`
 	BytesConsumed     int64                 `json:"bytesConsumed"`
+	BytesUploaded     int64                 `json:"bytesUploaded"`  // article payload bytes posted, measured engine-side
+	UploadSpeed       float64               `json:"uploadSpeed"`    // bytes/sec over the trailing window
+	UploadAvgSpeed    float64               `json:"uploadAvgSpeed"` // bytes/sec since the first posted byte
 	Elapsed           string                `json:"elapsed"`
 	ProviderErrors    map[string]int64      `json:"providerErrors"`
 	Providers         []NntpProviderMetrics `json:"providers"`
@@ -577,14 +580,17 @@ func (a *App) GetProcessorStatus() ProcessorStatus {
 // TransferRuntimeMetrics is the backend-facing view of process-wide upload/PAR2
 // scheduler metrics for the diagnostics dashboard.
 type TransferRuntimeMetrics struct {
-	UploadActiveWorkers int64 `json:"uploadActiveWorkers"`
-	UploadQueuedWorkers int64 `json:"uploadQueuedWorkers"`
-	UploadWorkerCount   int64 `json:"uploadWorkerCount"`
-	UploadReservedBytes int64 `json:"uploadReservedBytes"`
-	UploadBudgetBytes   int64 `json:"uploadBudgetBytes"`
-	Par2ActiveJobs      int64 `json:"par2ActiveJobs"`
-	Par2QueuedJobs      int64 `json:"par2QueuedJobs"`
-	Par2Capacity        int   `json:"par2Capacity"`
+	UploadActiveWorkers int64   `json:"uploadActiveWorkers"`
+	UploadQueuedWorkers int64   `json:"uploadQueuedWorkers"`
+	UploadWorkerCount   int64   `json:"uploadWorkerCount"`
+	UploadReservedBytes int64   `json:"uploadReservedBytes"`
+	UploadBudgetBytes   int64   `json:"uploadBudgetBytes"`
+	UploadBytes         int64   `json:"uploadBytes"`
+	UploadSpeedBps      float64 `json:"uploadSpeedBps"`
+	UploadAvgSpeedBps   float64 `json:"uploadAvgSpeedBps"`
+	Par2ActiveJobs      int64   `json:"par2ActiveJobs"`
+	Par2QueuedJobs      int64   `json:"par2QueuedJobs"`
+	Par2Capacity        int     `json:"par2Capacity"`
 }
 
 // GetTransferRuntimeMetrics returns process-wide upload/PAR2 scheduler metrics
@@ -601,6 +607,9 @@ func (a *App) GetTransferRuntimeMetrics() TransferRuntimeMetrics {
 		UploadWorkerCount:   m.UploadWorkerCount,
 		UploadReservedBytes: m.UploadReservedBytes,
 		UploadBudgetBytes:   m.UploadBudgetBytes,
+		UploadBytes:         m.UploadBytes,
+		UploadSpeedBps:      m.UploadSpeedBps,
+		UploadAvgSpeedBps:   m.UploadAvgSpeedBps,
 		Par2ActiveJobs:      m.Par2ActiveJobs,
 		Par2QueuedJobs:      m.Par2QueuedJobs,
 		Par2Capacity:        m.Par2Capacity,
@@ -1180,13 +1189,18 @@ func (a *App) GetNntpPoolMetrics() (NntpPoolMetrics, error) {
 		providerErrors[provider.Name] = provider.Errors
 	}
 
-	// Convert v4 ClientStats to our metrics structure
+	// nntppool's speed/bytes fields count wire bytes read, which for a poster
+	// is only the status lines; real upload throughput comes from the engine.
+	upload := a.GetTransferRuntimeMetrics()
 	metrics := NntpPoolMetrics{
 		Timestamp:         time.Now().Format(time.RFC3339),
 		ActiveConnections: activeConnections,
 		TotalErrors:       totalErrors,
 		AvgSpeed:          stats.AvgSpeed,
 		BytesConsumed:     stats.BytesConsumed,
+		BytesUploaded:     upload.UploadBytes,
+		UploadSpeed:       upload.UploadSpeedBps,
+		UploadAvgSpeed:    upload.UploadAvgSpeedBps,
 		Elapsed:           stats.Elapsed.String(),
 		ProviderErrors:    providerErrors,
 	}
