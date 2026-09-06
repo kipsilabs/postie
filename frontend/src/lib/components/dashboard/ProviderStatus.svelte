@@ -6,12 +6,33 @@ import {
 	type NntpPoolMetricsEvent,
 } from "$lib/api/events";
 import { t } from "$lib/i18n";
+import { classifyProvider, type ProviderSnapshot, type ProviderState } from "$lib/provider-status";
 import { backend } from "$lib/wailsjs/go/models";
 import { CheckCircle, Clock, AlertCircle, Server, WifiOff } from "lucide-svelte";
 import { onDestroy, onMount } from "svelte";
   import { formatElapsed } from '$lib/utils';
 
 let poolMetrics = $state<backend.NntpPoolMetrics | null>(null);
+let previousByHost = new Map<string, ProviderSnapshot>();
+let statesByHost = $state<Map<string, ProviderState>>(new Map());
+
+function updateStates(metrics: backend.NntpPoolMetrics | null) {
+	const next = new Map<string, ProviderState>();
+	const seen = new Map<string, ProviderSnapshot>();
+	for (const provider of metrics?.providers ?? []) {
+		next.set(provider.host, classifyProvider(provider, previousByHost.get(provider.host)));
+		seen.set(provider.host, {
+			activeConnections: provider.activeConnections,
+			totalErrors: provider.totalErrors,
+		});
+	}
+	previousByHost = seen;
+	statesByHost = next;
+}
+
+function stateOf(provider: backend.NntpProviderMetrics): ProviderState {
+	return statesByHost.get(provider.host) ?? "idle";
+}
 let initialLoad = $state(true);
 let error = $state("");
 let stopFallback: (() => void) | undefined;
@@ -19,6 +40,7 @@ let stopFallback: (() => void) | undefined;
 function applyPoolMetrics(data: unknown) {
 	if (!data) return;
 	poolMetrics = data as NntpPoolMetricsEvent;
+	updateStates(poolMetrics);
 	error = "";
 }
 
@@ -26,6 +48,7 @@ async function fetchProviderStatus() {
 	try {
 		error = "";
 		poolMetrics = await apiClient.getNntpPoolMetrics();
+		updateStates(poolMetrics);
 	} catch (err) {
 		console.error("Failed to fetch provider status:", err);
 		error = String(err);
@@ -36,33 +59,29 @@ async function fetchProviderStatus() {
 }
 
 function getProviderStatusIcon(provider: backend.NntpProviderMetrics) {
-	if (provider.activeConnections > 0) {
-		return CheckCircle;
+	switch (stateOf(provider)) {
+		case "connected":
+			return CheckCircle;
+		case "failed":
+			return AlertCircle;
+		default:
+			return Clock;
 	}
-	if (provider.totalErrors > 0) {
-		return AlertCircle;
-	}
-	return Clock;
 }
 
 function getProviderStatusClass(provider: backend.NntpProviderMetrics) {
-	if (provider.activeConnections > 0) {
-		return "text-success";
+	switch (stateOf(provider)) {
+		case "connected":
+			return "text-success";
+		case "failed":
+			return "text-error";
+		default:
+			return "text-base-content/50";
 	}
-	if (provider.totalErrors > 0 && provider.activeConnections === 0) {
-		return "text-error";
-	}
-	return "text-base-content/50";
 }
 
 function getProviderStatusText(provider: backend.NntpProviderMetrics) {
-	if (provider.activeConnections > 0) {
-		return $t("dashboard.provider.status.connected");
-	}
-	if (provider.totalErrors > 0 && provider.activeConnections === 0) {
-		return $t("dashboard.provider.status.failed");
-	}
-	return $t("dashboard.provider.status.idle");
+	return $t(`dashboard.provider.status.${stateOf(provider)}`);
 }
 
 function formatBytes(bytes: number): string {
@@ -157,7 +176,7 @@ onDestroy(() => {
 							</div>
 							<div>
 								<span class="text-base-content/70">{$t("dashboard.provider.inflight")}:</span>
-								<span class="font-medium ml-1">{provider.inflight || 10}</span>
+								<span class="font-medium ml-1">{provider.inflight}</span>
 							</div>
 							<div>
 								<span class="text-base-content/70">{$t("dashboard.provider.missing")}:</span>

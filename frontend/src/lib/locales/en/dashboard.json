@@ -190,7 +190,7 @@
 			"active_connections": "active connections",
 			"total_errors": "Total Errors",
 			"no_providers": "No providers configured",
-			"inflight": "Inflight",
+			"inflight": "Pipeline depth",
 			"current_speed": "Current Speed",
 			"ttfb": "TTFB",
 			"downloaded": "Downloaded",

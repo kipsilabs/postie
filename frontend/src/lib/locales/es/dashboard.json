@@ -192,7 +192,7 @@
 			"active_connections": "conexiones activas",
 			"total_errors": "Errores Totales",
 			"no_providers": "No hay proveedores configurados",
-			"inflight": "En vuelo",
+			"inflight": "Profundidad de pipeline",
 			"current_speed": "Velocidad Actual",
 			"ttfb": "TTFB",
 			"downloaded": "Descargado",

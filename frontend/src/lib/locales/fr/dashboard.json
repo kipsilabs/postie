@@ -196,7 +196,7 @@
 			"errors": "Erreurs",
 			"elapsed": "Disponibilité",
 			"total_errors": "Erreurs Totales",
-			"inflight": "En cours",
+			"inflight": "Profondeur du pipeline",
 			"current_speed": "Vitesse Actuelle",
 			"ttfb": "TTFB",
 			"downloaded": "Téléchargé",
@@ -206,6 +206,7 @@
 			"quota_resets": "Réinitialisation",
 			"status": {
 				"connected": "Connecté",
+				"idle": "Inactif",
 				"connecting": "Connexion",
 				"reconnecting": "Reconnexion",
 				"failed": "Échec",

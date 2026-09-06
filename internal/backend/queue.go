@@ -327,7 +327,9 @@ func (a *App) GetQueueStats() (QueueStats, error) {
 	// Convert map[string]interface{} to QueueStats struct
 	queueStats := QueueStats{}
 
-	if total, ok := stats["total"].(int); ok {
+	// The dashboard card reads "Total Items"; the queue's own "total" is only
+	// the live backlog, which drops to 0 the moment a batch finishes.
+	if total, ok := stats["total_including_completed"].(int); ok {
 		queueStats.Total = total
 	}
 	if pending, ok := stats["pending"].(int); ok {
