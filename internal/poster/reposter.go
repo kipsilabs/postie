@@ -22,7 +22,7 @@ import (
 // primitive used by both the normal upload path (postArticleWithBody) and the
 // durable re-post path (Reposter.Repost); extracting it keeps the exact same
 // Message-ID and header handling for re-posts.
-func postYenc(ctx context.Context, uploadPool pool.NNTPClient, throttle *Throttle, stats *Stats, art *article.Article, body []byte) error {
+func postYenc(ctx context.Context, uploadPool pool.NNTPClient, throttle *Throttle, stats *Stats, meter *UploadMeter, art *article.Article, body []byte) error {
 	headers := nntppool.PostHeaders{
 		From:       art.From,
 		Subject:    art.Subject,
@@ -73,6 +73,7 @@ func postYenc(ctx context.Context, uploadPool pool.NNTPClient, throttle *Throttl
 
 		_, lastErr = uploadPool.PostYenc(postCtx, headers, bytes.NewReader(body), meta)
 		if lastErr == nil {
+			meter.Record(int64(len(body)))
 			break
 		}
 		if errors.Is(lastErr, context.Canceled) || errors.Is(lastErr, context.DeadlineExceeded) {
@@ -183,7 +184,7 @@ func (r *Reposter) Repost(ctx context.Context, rec manifest.ArticleRecord) error
 	}
 	defer r.engine.ReleaseWorker()
 
-	return postYenc(ctx, r.uploadPool, r.throttle, r.stats, articleFromRecord(rec), body)
+	return postYenc(ctx, r.uploadPool, r.throttle, r.stats, r.engine.UploadMeter(), articleFromRecord(rec), body)
 }
 
 // Stats returns a snapshot of re-post statistics.

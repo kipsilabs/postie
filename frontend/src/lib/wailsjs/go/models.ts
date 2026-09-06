@@ -116,6 +116,9 @@ export namespace backend {
 	    totalErrors: number;
 	    avgSpeed: number;
 	    bytesConsumed: number;
+	    bytesUploaded: number;
+	    uploadSpeed: number;
+	    uploadAvgSpeed: number;
 	    elapsed: string;
 	    providerErrors: Record<string, number>;
 	    providers: NntpProviderMetrics[];
@@ -131,6 +134,9 @@ export namespace backend {
 	        this.totalErrors = source["totalErrors"];
 	        this.avgSpeed = source["avgSpeed"];
 	        this.bytesConsumed = source["bytesConsumed"];
+	        this.bytesUploaded = source["bytesUploaded"];
+	        this.uploadSpeed = source["uploadSpeed"];
+	        this.uploadAvgSpeed = source["uploadAvgSpeed"];
 	        this.elapsed = source["elapsed"];
 	        this.providerErrors = source["providerErrors"];
 	        this.providers = this.convertValues(source["providers"], NntpProviderMetrics);

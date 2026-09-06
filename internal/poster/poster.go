@@ -1588,7 +1588,7 @@ func (p *poster) postArticleWithBody(ctx context.Context, art *article.Article, 
 	// Delegate to the shared posting primitive so the normal and durable
 	// re-post paths build identical headers and apply the same stale-connection
 	// retry, throttle and stats accounting.
-	return postYenc(ctx, p.uploadPool, p.throttle, p.stats, art, body)
+	return postYenc(ctx, p.uploadPool, p.throttle, p.stats, p.engine.UploadMeter(), art, body)
 }
 
 // isStaleConnError reports whether err looks like a stale pooled connection:

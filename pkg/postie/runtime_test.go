@@ -11,6 +11,7 @@ import (
 	"github.com/kipsilabs/postie/internal/config"
 	"github.com/kipsilabs/postie/internal/database"
 	"github.com/kipsilabs/postie/internal/mocks"
+	"github.com/kipsilabs/postie/internal/poster"
 	"github.com/kipsilabs/postie/internal/transferstore"
 	"github.com/kipsilabs/postie/internal/verification"
 	"go.uber.org/mock/gomock"
@@ -189,5 +190,18 @@ func TestRuntime_DiscardTransferRemovesRowsAndManifests(t *testing.T) {
 	}
 	if err := rt.DiscardTransfer(ctx, "tid-cancel"); err != nil {
 		t.Errorf("second discard: %v", err)
+	}
+}
+
+func TestRuntime_MetricsIncludeUploadThroughput(t *testing.T) {
+	rt := &Runtime{uploadEngine: poster.NewEngine(750_000, 0, 2)}
+	rt.uploadEngine.UploadMeter().Record(2048)
+
+	m := rt.Metrics()
+	if m.UploadBytes != 2048 {
+		t.Errorf("UploadBytes = %d, want 2048", m.UploadBytes)
+	}
+	if m.UploadSpeedBps <= 0 {
+		t.Errorf("UploadSpeedBps = %v, want > 0 right after recording", m.UploadSpeedBps)
 	}
 }
