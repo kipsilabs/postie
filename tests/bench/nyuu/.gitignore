@@ -1,0 +1,4 @@
+work/
+node_modules
+bun.lock
+package.json
