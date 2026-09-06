@@ -1,5 +1,6 @@
 <script lang="ts">
 import apiClient from "$lib/api/client";
+import { startLiveFallback } from "$lib/api/live-fallback";
 import {
   EVENT_PROCESSING_AUTO_PAUSED,
   EVENT_PROCESSING_PAUSED,
@@ -17,6 +18,7 @@ import { onMount, onDestroy } from "svelte";
 
 let isPaused = $state(false);
 let destroyed = false;
+let stopFallback: (() => void) | undefined;
 
 function applyRunningJobs(data: unknown) {
   if (destroyed) return;
@@ -52,10 +54,17 @@ onMount(async () => {
   await apiClient.on(EVENT_PROCESSING_PAUSED, applyPauseEvent);
   await apiClient.on(EVENT_PROCESSING_RESUMED, applyPauseEvent);
   await apiClient.on(EVENT_PROCESSING_AUTO_PAUSED, applyPauseEvent);
+  stopFallback = startLiveFallback({
+    intervalMs: 5000,
+    isLive: () => apiClient.isLive(),
+    refresh: fetchInitialState,
+    onReconnect: (cb) => apiClient.onReconnect(cb),
+  });
 });
 
 onDestroy(() => {
   destroyed = true;
+  stopFallback?.();
   apiClient.off(EVENT_RUNNING_JOBS_UPDATED, applyRunningJobs);
   apiClient.off(EVENT_PROCESSING_PAUSED, applyPauseEvent);
   apiClient.off(EVENT_PROCESSING_RESUMED, applyPauseEvent);
