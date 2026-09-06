@@ -18,6 +18,8 @@ let needsConfiguration = false;
 let criticalConfigError = false;
 let isDragOver = false;
 let dragCounter = 0;
+let fileDropOff: (() => void) | null = null;
+let destroyed = false;
 
 onMount(() => {
 	// Set up drag over detection for UI feedback
@@ -25,6 +27,8 @@ onMount(() => {
 	window.addEventListener("dragleave", handleDragLeave);
 	window.addEventListener("dragover", handleDragOver);
 	window.addEventListener("drop", handleDrop);
+
+	registerWailsFileDrop();
 
 	// Listen for file drop events from backend
 	apiClient.on("file-drop-success", () => {
@@ -93,7 +97,37 @@ onDestroy(() => {
 	window.removeEventListener("dragleave", handleDragLeave);
 	window.removeEventListener("dragover", handleDragOver);
 	window.removeEventListener("drop", handleDrop);
+
+	destroyed = true;
+	fileDropOff?.();
+	fileDropOff = null;
 });
+
+// On Windows the Go-side OnFileDrop handler only ever fires if the JS runtime
+// installs its own drop listener, which is what posts the dropped files back to
+// the webview. Registering here is what makes drag & drop work on Windows.
+async function registerWailsFileDrop() {
+	if (apiClient.environment !== "wails") {
+		return;
+	}
+
+	try {
+		const { OnFileDrop, OnFileDropOff } = await import(
+			"$lib/wailsjs/runtime/runtime"
+		);
+
+		if (destroyed) {
+			return;
+		}
+
+		// useDropTarget: false — the default re-checks elementFromPoint against
+		// --wails-drop-target, which our conditionally rendered overlay breaks.
+		OnFileDrop(() => {}, false);
+		fileDropOff = OnFileDropOff;
+	} catch (error) {
+		console.error("Failed to register Wails file drop handler:", error);
+	}
+}
 
 function handleDragEnter(e: DragEvent) {
 	e.preventDefault();
