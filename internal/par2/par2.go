@@ -100,40 +100,23 @@ func (p *NativeExecutor) checkExistingPar2FilesInDir(ctx context.Context, source
 }
 
 // checkExistingPar2FilesInPath is the shared implementation for checking existing PAR2 files.
+// A set is only reused when its main file describes exactly this source file
+// (name, size and leading hash); anything else on disk under the same name is a
+// leftover from other data and is ignored.
 func checkExistingPar2FilesInPath(ctx context.Context, sourceFile fileinfo.FileInfo, dirPath string) ([]string, bool) {
 	baseName := filepath.Base(sourceFile.Path)
-	par2FileName := baseName + ".par2"
-	mainPar2Path := filepath.Join(dirPath, par2FileName)
+	mainPar2Path := filepath.Join(dirPath, baseName+".par2")
 
-	// Check if main PAR2 file exists
 	if _, err := os.Stat(mainPar2Path); os.IsNotExist(err) {
 		return nil, false
 	}
-
-	// Collect all existing PAR2 files (main + volume files)
-	var existingPaths []string
-	existingPaths = append(existingPaths, mainPar2Path)
-
-	// Find all volume files
-	entries, err := os.ReadDir(dirPath)
-	if err != nil {
-		slog.WarnContext(ctx, "Failed to read directory for existing par2 volumes", "error", err)
+	if !par2Describes(ctx, mainPar2Path, []par2go.InputFile{{Path: sourceFile.Path, Name: baseName}}) {
 		return nil, false
 	}
 
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		if strings.HasPrefix(name, baseName) && strings.Contains(name, ".vol") && strings.HasSuffix(name, ".par2") {
-			existingPaths = append(existingPaths, filepath.Join(dirPath, name))
-		}
-	}
-
+	existingPaths := par2SetOnDisk(ctx, dirPath, baseName)
 	slog.InfoContext(ctx, "Found existing PAR2 files, skipping generation",
 		"sourceFile", sourceFile.Path, "par2Files", len(existingPaths))
-
 	return existingPaths, true
 }
 
@@ -272,8 +255,10 @@ func (p *NativeExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInf
 		return nil, fmt.Errorf("par2: create output dir %s: %w", dirPath, err)
 	}
 
-	// Reuse existing set if already on disk.
-	if existing, ok := checkExistingPar2SetInPath(ctx, setName, dirPath); ok {
+	par2Inputs := setInputNames(inputs, folderDir)
+
+	// Reuse an existing set only if it was built from exactly these files.
+	if existing, ok := checkExistingPar2SetInPath(ctx, setName, dirPath, par2Inputs); ok {
 		return existing, nil
 	}
 
@@ -313,20 +298,6 @@ func (p *NativeExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInf
 	var pg progress.Progress
 	if p.jobProgress != nil {
 		pg = p.jobProgress.AddProgress(progressID, progressName, progress.ProgressTypePar2Generation, 100)
-	}
-
-	par2Inputs := make([]par2go.InputFile, len(inputs))
-	for i, f := range inputs {
-		// Compute the path relative to folderDir (e.g. "extras/bonus.mkv").
-		// SABnzbd already creates a job folder named after the NZB title, so
-		// FileDesc must NOT include the top-level folder name as a prefix.
-		name, relErr := filepath.Rel(folderDir, f.Path)
-		if relErr != nil || name == "" || name == "." {
-			name = filepath.Base(f.Path)
-		}
-		// Forward slashes only — par2go validates this and downloaders rely on it.
-		name = filepath.ToSlash(name)
-		par2Inputs[i] = par2go.InputFile{Path: f.Path, Name: name}
 	}
 
 	opts := par2go.Options{
@@ -377,7 +348,7 @@ func (p *NativeExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInf
 		p.jobProgress.FinishProgress(progressID)
 	}
 
-	return collectPar2SetFiles(ctx, dirPath, setName, par2Path), nil
+	return par2SetOnDisk(ctx, dirPath, setName), nil
 }
 
 // computeSetBlockSize picks a slice size for a multi-file par2 set such that
@@ -413,37 +384,19 @@ func (p *NativeExecutor) computeSetBlockSize(totalSize, maxFileSize uint64) uint
 }
 
 // checkExistingPar2SetInPath looks for an already-generated par2 set in
-// dirPath named "<setName>.par2" plus any companion volume files.
-func checkExistingPar2SetInPath(ctx context.Context, setName, dirPath string) ([]string, bool) {
+// dirPath and reuses it only when it describes exactly inputs.
+func checkExistingPar2SetInPath(ctx context.Context, setName, dirPath string, inputs []par2go.InputFile) ([]string, bool) {
 	main := filepath.Join(dirPath, setName+".par2")
 	if _, err := os.Stat(main); os.IsNotExist(err) {
 		return nil, false
 	}
-	paths := collectPar2SetFiles(ctx, dirPath, setName, main)
+	if !par2Describes(ctx, main, inputs) {
+		return nil, false
+	}
+	paths := par2SetOnDisk(ctx, dirPath, setName)
 	slog.InfoContext(ctx, "Found existing PAR2 set, skipping generation",
 		"setName", setName, "par2Files", len(paths))
 	return paths, true
-}
-
-// collectPar2SetFiles returns the main par2 path plus all companion volume
-// files matching "<setName>.vol*.par2" in dirPath.
-func collectPar2SetFiles(ctx context.Context, dirPath, setName, mainPath string) []string {
-	out := []string{mainPath}
-	entries, err := os.ReadDir(dirPath)
-	if err != nil {
-		slog.WarnContext(ctx, "Failed to read directory for par2 volumes", "error", err)
-		return out
-	}
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		if strings.HasPrefix(name, setName) && strings.Contains(name, ".vol") && strings.HasSuffix(name, ".par2") {
-			out = append(out, filepath.Join(dirPath, name))
-		}
-	}
-	return out
 }
 
 // computeFileBlockSize picks a SIMD-safe slice size for a single file. Returns
@@ -564,27 +517,7 @@ func (p *NativeExecutor) createPar2ForFile(ctx context.Context, file fileinfo.Fi
 	slog.InfoContext(ctx, "Par2 creation completed successfully", "file", file.Path)
 
 	// Collect all created PAR2 files (main + volumes)
-	var createdPaths []string
-	createdPaths = append(createdPaths, par2Path)
-
-	baseName := filepath.Base(file.Path)
-	entries, err := os.ReadDir(dirPath)
-	if err != nil {
-		slog.WarnContext(ctx, "Failed to read directory to find par2 volumes", "error", err)
-		return createdPaths, nil
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		if strings.HasPrefix(name, baseName) && strings.Contains(name, ".vol") && strings.HasSuffix(name, ".par2") {
-			createdPaths = append(createdPaths, filepath.Join(dirPath, name))
-		}
-	}
-
-	return createdPaths, nil
+	return par2SetOnDisk(ctx, dirPath, filepath.Base(file.Path)), nil
 }
 
 // parseRedundancyPercentage parses the redundancy config string into a percentage.

@@ -77,7 +77,8 @@ func (b *BinaryExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInf
 		return nil, fmt.Errorf("par2: create output dir %s: %w", dirPath, err)
 	}
 
-	if existing, ok := checkExistingPar2SetInPath(ctx, setName, dirPath); ok {
+	// Reuse an existing set only if it was built from exactly these files.
+	if existing, ok := checkExistingPar2SetInPath(ctx, setName, dirPath, setInputNames(inputs, folderDir)); ok {
 		return existing, nil
 	}
 
@@ -192,7 +193,7 @@ func (b *BinaryExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInf
 		b.jobProgress.FinishProgress(progressID)
 	}
 
-	return collectPar2SetFiles(ctx, dirPath, setName, outputBase+".par2"), nil
+	return par2SetOnDisk(ctx, dirPath, setName), nil
 }
 
 // CreateInDirectory creates PAR2 files in the specified output directory using the parpar binary.
@@ -329,27 +330,12 @@ func (b *BinaryExecutor) runParpar(ctx context.Context, file fileinfo.FileInfo, 
 		b.jobProgress.FinishProgress(progressID)
 	}
 
-	// Collect output files
-	var created []string
-	mainPar2 := outputBase + ".par2"
-	if _, statErr := os.Stat(mainPar2); statErr == nil {
-		created = append(created, mainPar2)
+	// Collect output files (main + volumes named exactly after this file)
+	if _, statErr := os.Stat(outputBase + ".par2"); statErr != nil {
+		slog.WarnContext(ctx, "Parpar finished but main PAR2 file is missing", "path", outputBase+".par2", "error", statErr)
+		return nil, nil
 	}
-	entries, err := os.ReadDir(dirPath)
-	if err != nil {
-		slog.WarnContext(ctx, "Failed to read dir after parpar", "error", err)
-		return created, nil
-	}
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		if strings.HasPrefix(name, baseName) && strings.Contains(name, ".vol") && strings.HasSuffix(name, ".par2") {
-			created = append(created, filepath.Join(dirPath, name))
-		}
-	}
-	return created, nil
+	return par2SetOnDisk(ctx, dirPath, baseName), nil
 }
 
 // splitOnCROrLF is a bufio.SplitFunc that splits on either \r or \n.
