@@ -345,3 +345,24 @@ func TestMigrateLegacyPendingChecks(t *testing.T) {
 		t.Errorf("second migration = %d,%v, want 0,nil", n2, err)
 	}
 }
+
+func TestListSourcePaths(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	for i, tf := range []TransferFile{
+		{TransferID: "t1", FileID: "a", SourcePath: "/x/a.mkv", ManifestPath: "/m/a", FileRole: "original", UploadState: StatePlanned, VerificationState: StatePlanned},
+		{TransferID: "t1", FileID: "b", SourcePath: "/x/a.mkv.par2", ManifestPath: "/m/b", FileRole: "generated_par2", UploadState: StatePlanned, VerificationState: StatePlanned},
+		{TransferID: "t2", FileID: "c", SourcePath: "/x/a.mkv.par2", ManifestPath: "/m/c", FileRole: "generated_par2", UploadState: StatePlanned, VerificationState: StatePlanned},
+	} {
+		if err := s.UpsertFile(ctx, tf); err != nil {
+			t.Fatalf("upsert %d: %v", i, err)
+		}
+	}
+	got, err := s.ListSourcePaths(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("ListSourcePaths = %v, want 2 distinct paths", got)
+	}
+}

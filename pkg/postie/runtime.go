@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
+	"time"
 
 	nntppool "github.com/javi11/nntppool/v4"
 	"github.com/kipsilabs/postie/internal/config"
 	"github.com/kipsilabs/postie/internal/manifest"
 	"github.com/kipsilabs/postie/internal/par2"
+	"github.com/kipsilabs/postie/internal/par2sweep"
 	"github.com/kipsilabs/postie/internal/pool"
 	"github.com/kipsilabs/postie/internal/poster"
 	"github.com/kipsilabs/postie/internal/transfercleaner"
@@ -131,7 +134,25 @@ type Runtime struct {
 	store         *transferstore.Store
 	manifestDir   string
 	verifyService *verification.Service
+
+	// par2WorkDir is where generated PAR2 files land when temp_dir is set;
+	// the sweeper garbage-collects orphans there. Empty when PAR2 files are
+	// written next to the sources (never swept: the dir is not ours).
+	par2WorkDir string
+
+	// par2InUse counts, per path, the running jobs whose generated PAR2 files
+	// must not be swept yet.
+	par2Mu    sync.Mutex
+	par2InUse map[string]int
 }
+
+// Par2 work-dir sweep policy: a set is an orphan when no transfer references it,
+// no running job created it, and it has been untouched for par2SweepGrace.
+const (
+	par2SweepGrace        = 24 * time.Hour
+	par2SweepInitialDelay = 5 * time.Minute
+	par2SweepInterval     = time.Hour
+)
 
 // NewRuntime builds the shared transfer runtime from cfg. poolManager may be
 // nil; when it is (or when no upload connections are advertised) the upload
@@ -143,12 +164,14 @@ func NewRuntime(ctx context.Context, cfg config.Config, poolManager *pool.Manage
 	maxJobs := 1
 	var uploadEngine *poster.Engine
 	var verifyService *verification.Service
+	var par2WorkDir string
 
 	if cfg != nil {
 		par2Cfg, err := cfg.GetPar2Config(ctx)
 		if err != nil {
 			return nil, err
 		}
+		par2WorkDir = par2.WorkDir(par2Cfg)
 		if par2Cfg != nil && par2Cfg.MaxConcurrentJobs > 0 {
 			maxJobs = par2Cfg.MaxConcurrentJobs
 		}
@@ -212,7 +235,71 @@ func NewRuntime(ctx context.Context, cfg config.Config, poolManager *pool.Manage
 		store:         store,
 		manifestDir:   manifestDir,
 		verifyService: verifyService,
+		par2WorkDir:   par2WorkDir,
+		par2InUse:     map[string]int{},
 	}, nil
+}
+
+// ReservePar2 marks PAR2 files a running job generated as in use so the
+// sweeper leaves them alone until ReleasePar2. Safe on a nil runtime.
+func (r *Runtime) ReservePar2(paths ...string) {
+	if r == nil {
+		return
+	}
+	r.par2Mu.Lock()
+	defer r.par2Mu.Unlock()
+	if r.par2InUse == nil {
+		r.par2InUse = map[string]int{}
+	}
+	for _, p := range paths {
+		r.par2InUse[p]++
+	}
+}
+
+// ReleasePar2 undoes ReservePar2 for a finished job. Safe on a nil runtime.
+func (r *Runtime) ReleasePar2(paths ...string) {
+	if r == nil {
+		return
+	}
+	r.par2Mu.Lock()
+	defer r.par2Mu.Unlock()
+	for _, p := range paths {
+		if r.par2InUse[p] <= 1 {
+			delete(r.par2InUse, p)
+			continue
+		}
+		r.par2InUse[p]--
+	}
+}
+
+// Par2InUse lists the PAR2 files currently reserved by running jobs.
+func (r *Runtime) Par2InUse() []string {
+	if r == nil {
+		return nil
+	}
+	r.par2Mu.Lock()
+	defer r.par2Mu.Unlock()
+	out := make([]string, 0, len(r.par2InUse))
+	for p := range r.par2InUse {
+		out = append(out, p)
+	}
+	return out
+}
+
+// RunPar2Sweeper removes orphaned PAR2 sets from the work dir: a few minutes
+// after startup (so resumed jobs reserve their sets first) and then hourly. Files referenced by a transfer or reserved by a
+// running job are kept. No-op when PAR2 files are written next to the sources
+// (no temp_dir), since that directory is not Postie's to sweep. Intended to be
+// started once as a goroutine.
+func (r *Runtime) RunPar2Sweeper(ctx context.Context) {
+	if r == nil || r.par2WorkDir == "" {
+		return
+	}
+	var referenced func(context.Context) ([]string, error)
+	if r.store != nil {
+		referenced = r.store.ListSourcePaths
+	}
+	par2sweep.New(r.par2WorkDir, par2SweepGrace, referenced, r.Par2InUse).Run(ctx, par2SweepInitialDelay, par2SweepInterval)
 }
 
 // uploadConnectionCapacity sums the configured connection slots across all

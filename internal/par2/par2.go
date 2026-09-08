@@ -28,14 +28,14 @@ const maxPar2Blocks = 32768
 
 // Par2Executor defines the interface for executing par2 commands.
 type Par2Executor interface {
-	Create(ctx context.Context, files []fileinfo.FileInfo) ([]string, error)
-	CreateInDirectory(ctx context.Context, files []fileinfo.FileInfo, outputDir string) ([]string, error)
+	Create(ctx context.Context, files []fileinfo.FileInfo) (Result, error)
+	CreateInDirectory(ctx context.Context, files []fileinfo.FileInfo, outputDir string) (Result, error)
 	// CreateSet bundles all input files into a single par2 set named setName.
 	// folderDir is the on-disk root of the folder being posted (e.g.
 	// "<watchRoot>/ShowS01"). Each FileDesc packet records the path of the
 	// file relative to folderDir (e.g. "extras/bonus.mkv") so downloaders
 	// such as SABnzbd can recreate the folder tree inside the job directory.
-	CreateSet(ctx context.Context, files []fileinfo.FileInfo, outputDir, setName, folderDir string) ([]string, error)
+	CreateSet(ctx context.Context, files []fileinfo.FileInfo, outputDir, setName, folderDir string) (Result, error)
 }
 
 var gf16Methods = map[string]int{
@@ -78,7 +78,7 @@ func New(articleSize uint64, cfg *config.Par2Config, jobProgress progress.JobPro
 }
 
 // checkExistingPar2Files checks if PAR2 files already exist for the given source file.
-// It always checks the source directory first, then falls back to TempDir if configured.
+// It always checks the source directory first, then falls back to the work dir if configured.
 func (p *NativeExecutor) checkExistingPar2Files(ctx context.Context, sourceFile fileinfo.FileInfo) ([]string, bool) {
 	// Always check the source directory first — this is where pre-existing PAR2 files live.
 	sourceDirPath := filepath.Dir(sourceFile.Path)
@@ -86,9 +86,9 @@ func (p *NativeExecutor) checkExistingPar2Files(ctx context.Context, sourceFile 
 		return existing, ok
 	}
 
-	// Fall back to TempDir if configured (reuse from a previous generation run).
-	if p.cfg.TempDir != "" && p.cfg.TempDir != sourceDirPath {
-		return checkExistingPar2FilesInPath(ctx, sourceFile, p.cfg.TempDir)
+	// Fall back to the work dir if configured (reuse from a previous generation run).
+	if workDir := WorkDir(p.cfg); workDir != "" && workDir != sourceDirPath {
+		return checkExistingPar2FilesInPath(ctx, sourceFile, workDir)
 	}
 
 	return nil, false
@@ -100,48 +100,31 @@ func (p *NativeExecutor) checkExistingPar2FilesInDir(ctx context.Context, source
 }
 
 // checkExistingPar2FilesInPath is the shared implementation for checking existing PAR2 files.
+// A set is only reused when its main file describes exactly this source file
+// (name, size and leading hash); anything else on disk under the same name is a
+// leftover from other data and is ignored.
 func checkExistingPar2FilesInPath(ctx context.Context, sourceFile fileinfo.FileInfo, dirPath string) ([]string, bool) {
 	baseName := filepath.Base(sourceFile.Path)
-	par2FileName := baseName + ".par2"
-	mainPar2Path := filepath.Join(dirPath, par2FileName)
+	mainPar2Path := filepath.Join(dirPath, baseName+".par2")
 
-	// Check if main PAR2 file exists
 	if _, err := os.Stat(mainPar2Path); os.IsNotExist(err) {
 		return nil, false
 	}
-
-	// Collect all existing PAR2 files (main + volume files)
-	var existingPaths []string
-	existingPaths = append(existingPaths, mainPar2Path)
-
-	// Find all volume files
-	entries, err := os.ReadDir(dirPath)
-	if err != nil {
-		slog.WarnContext(ctx, "Failed to read directory for existing par2 volumes", "error", err)
+	if !par2Describes(ctx, mainPar2Path, []par2go.InputFile{{Path: sourceFile.Path, Name: baseName}}) {
 		return nil, false
 	}
 
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		if strings.HasPrefix(name, baseName) && strings.Contains(name, ".vol") && strings.HasSuffix(name, ".par2") {
-			existingPaths = append(existingPaths, filepath.Join(dirPath, name))
-		}
-	}
-
+	existingPaths := par2SetOnDisk(ctx, dirPath, baseName)
 	slog.InfoContext(ctx, "Found existing PAR2 files, skipping generation",
 		"sourceFile", sourceFile.Path, "par2Files", len(existingPaths))
-
 	return existingPaths, true
 }
 
 // Create creates PAR2 parity files for the given input files.
-func (p *NativeExecutor) Create(ctx context.Context, files []fileinfo.FileInfo) ([]string, error) {
+func (p *NativeExecutor) Create(ctx context.Context, files []fileinfo.FileInfo) (Result, error) {
 	slog.InfoContext(ctx, "Starting par2 creation process", "executor", "NativeExecutor")
 
-	var createdPar2Paths []string
+	var res Result
 	for _, file := range files {
 		if filepath.Ext(file.Path) == ".par2" {
 			continue
@@ -149,14 +132,14 @@ func (p *NativeExecutor) Create(ctx context.Context, files []fileinfo.FileInfo) 
 
 		// Check if PAR2 files already exist for this file
 		if existingPaths, exists := p.checkExistingPar2Files(ctx, file); exists {
-			createdPar2Paths = append(createdPar2Paths, existingPaths...)
+			res.Reused = append(res.Reused, existingPaths...)
 			continue
 		}
 
 		// Determine output directory
 		var dirPath string
-		if p.cfg.TempDir != "" {
-			dirPath = p.cfg.TempDir
+		if workDir := WorkDir(p.cfg); workDir != "" {
+			dirPath = workDir
 			if err := os.MkdirAll(dirPath, 0755); err != nil {
 				slog.ErrorContext(ctx, "Failed to create temp directory", "path", dirPath, "error", err)
 				dirPath = filepath.Dir(file.Path)
@@ -167,19 +150,19 @@ func (p *NativeExecutor) Create(ctx context.Context, files []fileinfo.FileInfo) 
 
 		paths, err := p.createPar2ForFile(ctx, file, dirPath)
 		if err != nil {
-			return nil, err
+			return Result{}, err
 		}
-		createdPar2Paths = append(createdPar2Paths, paths...)
+		res.Created = append(res.Created, paths...)
 	}
 
-	return createdPar2Paths, nil
+	return res, nil
 }
 
 // CreateInDirectory creates PAR2 files with optional output directory specification.
-func (p *NativeExecutor) CreateInDirectory(ctx context.Context, files []fileinfo.FileInfo, outputDir string) ([]string, error) {
+func (p *NativeExecutor) CreateInDirectory(ctx context.Context, files []fileinfo.FileInfo, outputDir string) (Result, error) {
 	slog.InfoContext(ctx, "Starting par2 creation process", "executor", "NativeExecutor", "outputDir", outputDir)
 
-	var createdPar2Paths []string
+	var res Result
 	for _, file := range files {
 		if filepath.Ext(file.Path) == ".par2" {
 			continue
@@ -195,57 +178,58 @@ func (p *NativeExecutor) CreateInDirectory(ctx context.Context, files []fileinfo
 			} else {
 				// Check source directory first — pre-existing PAR2 files take priority.
 				if existingPaths, exists := checkExistingPar2FilesInPath(ctx, file, filepath.Dir(file.Path)); exists {
-					createdPar2Paths = append(createdPar2Paths, existingPaths...)
+					res.Reused = append(res.Reused, existingPaths...)
 					continue
 				}
 				if existingPaths, exists := p.checkExistingPar2FilesInDir(ctx, file, dirPath); exists {
-					createdPar2Paths = append(createdPar2Paths, existingPaths...)
+					res.Reused = append(res.Reused, existingPaths...)
 					continue
 				}
 			}
-		} else if p.cfg.TempDir != "" {
-			dirPath = p.cfg.TempDir
+		} else if workDir := WorkDir(p.cfg); workDir != "" {
+			// Look for a reusable set before creating the work dir, so a job that
+			// reuses source-dir PAR2 files leaves the temp dir untouched.
+			if existingPaths, exists := p.checkExistingPar2Files(ctx, file); exists {
+				res.Reused = append(res.Reused, existingPaths...)
+				continue
+			}
+			dirPath = workDir
 			if err := os.MkdirAll(dirPath, 0755); err != nil {
 				slog.ErrorContext(ctx, "Failed to create temp directory", "path", dirPath, "error", err)
 				dirPath = filepath.Dir(file.Path)
-			} else {
-				if existingPaths, exists := p.checkExistingPar2Files(ctx, file); exists {
-					createdPar2Paths = append(createdPar2Paths, existingPaths...)
-					continue
-				}
 			}
 		} else {
 			dirPath = filepath.Dir(file.Path)
 			if existingPaths, exists := p.checkExistingPar2Files(ctx, file); exists {
-				createdPar2Paths = append(createdPar2Paths, existingPaths...)
+				res.Reused = append(res.Reused, existingPaths...)
 				continue
 			}
 		}
 
 		paths, err := p.createPar2ForFile(ctx, file, dirPath)
 		if err != nil {
-			return nil, err
+			return Result{}, err
 		}
-		createdPar2Paths = append(createdPar2Paths, paths...)
+		res.Created = append(res.Created, paths...)
 	}
 
-	return createdPar2Paths, nil
+	return res, nil
 }
 
 // CreateSet bundles all input files into a single par2 set named setName.
 // folderDir is the on-disk root of the folder being posted.  Each FileDesc
 // packet records filepath.Rel(folderDir, file.Path) so SABnzbd / NZBGet
 // can recreate the exact folder tree inside the job directory on disk.
-func (p *NativeExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInfo, outputDir, setName, folderDir string) ([]string, error) {
+func (p *NativeExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInfo, outputDir, setName, folderDir string) (Result, error) {
 	if len(files) == 0 {
-		return nil, fmt.Errorf("par2: no input files for set %q", setName)
+		return Result{}, fmt.Errorf("par2: no input files for set %q", setName)
 	}
 	if setName == "" {
-		return nil, fmt.Errorf("par2: empty set name")
+		return Result{}, fmt.Errorf("par2: empty set name")
 	}
 	gf16Method, err := gf16MethodFromConfig(p.cfg.GF16Method)
 	if err != nil {
-		return nil, err
+		return Result{}, err
 	}
 
 	// Filter out any par2 files defensively — callers should not include them.
@@ -257,24 +241,26 @@ func (p *NativeExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInf
 		inputs = append(inputs, f)
 	}
 	if len(inputs) == 0 {
-		return nil, fmt.Errorf("par2: no non-par2 input files for set %q", setName)
+		return Result{}, fmt.Errorf("par2: no non-par2 input files for set %q", setName)
 	}
 
 	dirPath := outputDir
 	if dirPath == "" {
-		if p.cfg.TempDir != "" {
-			dirPath = p.cfg.TempDir
+		if workDir := WorkDir(p.cfg); workDir != "" {
+			dirPath = workDir
 		} else {
 			dirPath = filepath.Dir(inputs[0].Path)
 		}
 	}
 	if err := os.MkdirAll(dirPath, 0755); err != nil {
-		return nil, fmt.Errorf("par2: create output dir %s: %w", dirPath, err)
+		return Result{}, fmt.Errorf("par2: create output dir %s: %w", dirPath, err)
 	}
 
-	// Reuse existing set if already on disk.
-	if existing, ok := checkExistingPar2SetInPath(ctx, setName, dirPath); ok {
-		return existing, nil
+	par2Inputs := setInputNames(inputs, folderDir)
+
+	// Reuse an existing set only if it was built from exactly these files.
+	if existing, ok := checkExistingPar2SetInPath(ctx, setName, dirPath, par2Inputs); ok {
+		return Result{Reused: existing}, nil
 	}
 
 	// Slice size: smallest size that yields ≤ maxPar2Blocks slices across all
@@ -291,7 +277,7 @@ func (p *NativeExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInf
 	if parBlockSize < 128 {
 		slog.WarnContext(ctx, "Block size too small for SIMD-safe PAR2 set creation, skipping",
 			"setName", setName, "totalSize", totalSize, "blockSize", parBlockSize)
-		return nil, nil
+		return Result{}, nil
 	}
 
 	// Total input slices and recovery blocks
@@ -313,20 +299,6 @@ func (p *NativeExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInf
 	var pg progress.Progress
 	if p.jobProgress != nil {
 		pg = p.jobProgress.AddProgress(progressID, progressName, progress.ProgressTypePar2Generation, 100)
-	}
-
-	par2Inputs := make([]par2go.InputFile, len(inputs))
-	for i, f := range inputs {
-		// Compute the path relative to folderDir (e.g. "extras/bonus.mkv").
-		// SABnzbd already creates a job folder named after the NZB title, so
-		// FileDesc must NOT include the top-level folder name as a prefix.
-		name, relErr := filepath.Rel(folderDir, f.Path)
-		if relErr != nil || name == "" || name == "." {
-			name = filepath.Base(f.Path)
-		}
-		// Forward slashes only — par2go validates this and downloaders rely on it.
-		name = filepath.ToSlash(name)
-		par2Inputs[i] = par2go.InputFile{Path: f.Path, Name: name}
 	}
 
 	opts := par2go.Options{
@@ -368,16 +340,16 @@ func (p *NativeExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInf
 	if err := par2go.CreateWithNames(ctx, par2Path, par2Inputs, opts); err != nil {
 		if ctx.Err() == context.Canceled {
 			slog.InfoContext(ctx, "Par2 set creation cancelled", "setName", setName)
-			return nil, ctx.Err()
+			return Result{}, ctx.Err()
 		}
-		return nil, fmt.Errorf("failed to create par2 set %s: %w", setName, err)
+		return Result{}, fmt.Errorf("failed to create par2 set %s: %w", setName, err)
 	}
 
 	if p.jobProgress != nil {
 		p.jobProgress.FinishProgress(progressID)
 	}
 
-	return collectPar2SetFiles(ctx, dirPath, setName, par2Path), nil
+	return Result{Created: par2SetOnDisk(ctx, dirPath, setName)}, nil
 }
 
 // computeSetBlockSize picks a slice size for a multi-file par2 set such that
@@ -413,37 +385,19 @@ func (p *NativeExecutor) computeSetBlockSize(totalSize, maxFileSize uint64) uint
 }
 
 // checkExistingPar2SetInPath looks for an already-generated par2 set in
-// dirPath named "<setName>.par2" plus any companion volume files.
-func checkExistingPar2SetInPath(ctx context.Context, setName, dirPath string) ([]string, bool) {
+// dirPath and reuses it only when it describes exactly inputs.
+func checkExistingPar2SetInPath(ctx context.Context, setName, dirPath string, inputs []par2go.InputFile) ([]string, bool) {
 	main := filepath.Join(dirPath, setName+".par2")
 	if _, err := os.Stat(main); os.IsNotExist(err) {
 		return nil, false
 	}
-	paths := collectPar2SetFiles(ctx, dirPath, setName, main)
+	if !par2Describes(ctx, main, inputs) {
+		return nil, false
+	}
+	paths := par2SetOnDisk(ctx, dirPath, setName)
 	slog.InfoContext(ctx, "Found existing PAR2 set, skipping generation",
 		"setName", setName, "par2Files", len(paths))
 	return paths, true
-}
-
-// collectPar2SetFiles returns the main par2 path plus all companion volume
-// files matching "<setName>.vol*.par2" in dirPath.
-func collectPar2SetFiles(ctx context.Context, dirPath, setName, mainPath string) []string {
-	out := []string{mainPath}
-	entries, err := os.ReadDir(dirPath)
-	if err != nil {
-		slog.WarnContext(ctx, "Failed to read directory for par2 volumes", "error", err)
-		return out
-	}
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		if strings.HasPrefix(name, setName) && strings.Contains(name, ".vol") && strings.HasSuffix(name, ".par2") {
-			out = append(out, filepath.Join(dirPath, name))
-		}
-	}
-	return out
 }
 
 // computeFileBlockSize picks a SIMD-safe slice size for a single file. Returns
@@ -564,27 +518,7 @@ func (p *NativeExecutor) createPar2ForFile(ctx context.Context, file fileinfo.Fi
 	slog.InfoContext(ctx, "Par2 creation completed successfully", "file", file.Path)
 
 	// Collect all created PAR2 files (main + volumes)
-	var createdPaths []string
-	createdPaths = append(createdPaths, par2Path)
-
-	baseName := filepath.Base(file.Path)
-	entries, err := os.ReadDir(dirPath)
-	if err != nil {
-		slog.WarnContext(ctx, "Failed to read directory to find par2 volumes", "error", err)
-		return createdPaths, nil
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		if strings.HasPrefix(name, baseName) && strings.Contains(name, ".vol") && strings.HasSuffix(name, ".par2") {
-			createdPaths = append(createdPaths, filepath.Join(dirPath, name))
-		}
-	}
-
-	return createdPaths, nil
+	return par2SetOnDisk(ctx, dirPath, filepath.Base(file.Path)), nil
 }
 
 // parseRedundancyPercentage parses the redundancy config string into a percentage.

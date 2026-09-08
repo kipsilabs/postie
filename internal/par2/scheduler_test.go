@@ -25,7 +25,7 @@ func newFakeExecutor() *fakeExecutor {
 	return &fakeExecutor{release: make(chan struct{})}
 }
 
-func (f *fakeExecutor) run(ctx context.Context) ([]string, error) {
+func (f *fakeExecutor) run(ctx context.Context) (Result, error) {
 	f.calls.Add(1)
 	f.mu.Lock()
 	f.inFlight++
@@ -42,19 +42,19 @@ func (f *fakeExecutor) run(ctx context.Context) ([]string, error) {
 
 	select {
 	case <-f.release:
-		return []string{"ok"}, nil
+		return Result{Created: []string{"ok"}}, nil
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return Result{}, ctx.Err()
 	}
 }
 
-func (f *fakeExecutor) Create(ctx context.Context, _ []fileinfo.FileInfo) ([]string, error) {
+func (f *fakeExecutor) Create(ctx context.Context, _ []fileinfo.FileInfo) (Result, error) {
 	return f.run(ctx)
 }
-func (f *fakeExecutor) CreateInDirectory(ctx context.Context, _ []fileinfo.FileInfo, _ string) ([]string, error) {
+func (f *fakeExecutor) CreateInDirectory(ctx context.Context, _ []fileinfo.FileInfo, _ string) (Result, error) {
 	return f.run(ctx)
 }
-func (f *fakeExecutor) CreateSet(ctx context.Context, _ []fileinfo.FileInfo, _, _, _ string) ([]string, error) {
+func (f *fakeExecutor) CreateSet(ctx context.Context, _ []fileinfo.FileInfo, _, _, _ string) (Result, error) {
 	return f.run(ctx)
 }
 

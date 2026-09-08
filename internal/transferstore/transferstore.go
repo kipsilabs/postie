@@ -246,6 +246,27 @@ func (s *Store) ListFilesByTransfer(ctx context.Context, transferID string) ([]T
 	return out, rows.Err()
 }
 
+// ListSourcePaths returns every distinct source path still tracked by a
+// transfer, whatever its state. The PAR2 sweeper uses it to keep files that a
+// pending or in-progress transfer may still need.
+func (s *Store) ListSourcePaths(ctx context.Context) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT DISTINCT source_path FROM transfer_files")
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
 // SetVerificationState updates a file's verification state, next check time and
 // last error in one statement.
 func (s *Store) SetVerificationState(ctx context.Context, transferID, fileID, state string, nextCheckAt *time.Time, lastErr string) error {

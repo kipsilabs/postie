@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kipsilabs/postie/internal/config"
@@ -39,10 +40,22 @@ type Postie struct {
 	// the transfer's files uploaded (for the durable verification service) once
 	// posting completes.
 	recorder *transferwriter.Recorder
+	// par2Reserver keeps the PAR2 files this job posts out of the work-dir
+	// sweeper's reach until Close. Nil when there is no runtime.
+	par2Reserver par2Reserver
+	// reservedPar2 accumulates the PAR2 files reserved for this job, for release.
+	reservedMu   sync.Mutex
+	reservedPar2 []string
 	// deleteOriginal records whether this job's originals should be deleted
 	// after successful verification (persisted into the transfer's cleanup
 	// policy at completion). Set by the caller before Post.
 	deleteOriginal bool
+}
+
+// par2Reserver is the subset of Runtime used to protect in-flight PAR2 files.
+type par2Reserver interface {
+	ReservePar2(paths ...string)
+	ReleasePar2(paths ...string)
 }
 
 // SetDeleteOriginal records whether the job's original files should be deleted
@@ -142,7 +155,17 @@ func NewWithRuntime(
 		jobProgress:               jobProgress,
 		queue:                     queue,
 		recorder:                  recorder,
+		par2Reserver:              reserverFor(rt),
 	}, nil
+}
+
+// reserverFor returns rt as a par2Reserver, or nil for a nil runtime so the
+// interface itself is nil (a typed nil pointer would not compare to nil).
+func reserverFor(rt *Runtime) par2Reserver {
+	if rt == nil {
+		return nil
+	}
+	return rt
 }
 
 // removePar2AfterPost reports whether generated PAR2 files should be deleted as
@@ -155,6 +178,28 @@ func (p *Postie) removePar2AfterPost() bool {
 		return false
 	}
 	return p.par2Cfg.MaintainPar2Files == nil || !*p.par2Cfg.MaintainPar2Files
+}
+
+// trackGenerated registers the PAR2 files this job is about to post. The
+// durable recorder records only the ones Postie created as generated (so the
+// cleaner may delete them later, while reused PAR2 files stay originals). All
+// of them, reused included, are reserved so the work-dir sweeper cannot remove
+// a set between here and the end of the upload: a reused set in the work dir
+// may be an old orphan that no transfer row protects yet.
+func (p *Postie) trackGenerated(res par2.Result) {
+	all := res.All()
+	if len(all) == 0 {
+		return
+	}
+	if p.recorder != nil && len(res.Created) > 0 {
+		p.recorder.MarkGenerated(res.Created...)
+	}
+	if p.par2Reserver != nil {
+		p.par2Reserver.ReservePar2(all...)
+	}
+	p.reservedMu.Lock()
+	p.reservedPar2 = append(p.reservedPar2, all...)
+	p.reservedMu.Unlock()
 }
 
 // completeTransferUpload marks the transfer's files uploaded so the durable
@@ -176,15 +221,20 @@ func (p *Postie) Close() {
 	if p.jobProgress != nil {
 		p.jobProgress.Close()
 	}
+	if p.par2Reserver != nil {
+		p.reservedMu.Lock()
+		paths := p.reservedPar2
+		p.reservedPar2 = nil
+		p.reservedMu.Unlock()
+		p.par2Reserver.ReleasePar2(paths...)
+	}
 }
 
 // CleanupPar2Files removes PAR2 files for the given source file
 // This method can be called when a job fails permanently to clean up orphaned PAR2 files
 func (p *Postie) CleanupPar2Files(ctx context.Context, sourceFile fileinfo.FileInfo) {
-	var dirPath string
-	if p.par2Cfg != nil && p.par2Cfg.TempDir != "" {
-		dirPath = p.par2Cfg.TempDir
-	} else {
+	dirPath := par2.WorkDir(p.par2Cfg)
+	if dirPath == "" {
 		dirPath = filepath.Dir(sourceFile.Path)
 	}
 
@@ -325,7 +375,7 @@ func (p *Postie) postInParallel(
 	outputDir string,
 ) (string, error) {
 	var (
-		createdPar2Paths []string
+		par2Res          par2.Result
 		err              error
 		postingSucceeded bool
 	)
@@ -337,7 +387,7 @@ func (p *Postie) postInParallel(
 		}
 
 		if p.removePar2AfterPost() {
-			for _, path := range createdPar2Paths {
+			for _, path := range par2Res.Created {
 				safeRemoveFile(ctx, path)
 			}
 		}
@@ -360,7 +410,7 @@ func (p *Postie) postInParallel(
 		}
 		// If par2OutputDir is empty, CreateInDirectory will use default behavior (temp/source dir)
 
-		createdPar2Paths, err = p.par2runner.CreateInDirectory(ctx, []fileinfo.FileInfo{f}, par2OutputDir)
+		par2Res, err = p.par2runner.CreateInDirectory(ctx, []fileinfo.FileInfo{f}, par2OutputDir)
 		if err != nil {
 			if !errors.Is(err, context.Canceled) {
 				slog.ErrorContext(ctx, "Error during par2 creation. Upload will continue without par2.", "error", err)
@@ -368,12 +418,14 @@ func (p *Postie) postInParallel(
 
 			return nil
 		}
+		p.trackGenerated(par2Res)
 
-		if err := p.poster.Post(ctx, createdPar2Paths, rootDir, nzbGen); err != nil {
+		par2Paths := par2Res.All()
+		if err := p.poster.Post(ctx, par2Paths, rootDir, nzbGen); err != nil {
 			if !errors.Is(err, context.Canceled) {
-				slog.ErrorContext(ctx, fmt.Sprintf("Error during upload of par2 files: %s. Upload will continue without par2.", createdPar2Paths), "error", err)
+				slog.ErrorContext(ctx, fmt.Sprintf("Error during upload of par2 files: %s. Upload will continue without par2.", par2Paths), "error", err)
 			}
-			dropPar2FromNZB(nzbGen, createdPar2Paths)
+			dropPar2FromNZB(nzbGen, par2Paths)
 
 			return nil
 		}
@@ -432,7 +484,7 @@ func (p *Postie) post(
 	outputDir string,
 ) (string, error) {
 	var (
-		createdPar2Paths []string
+		par2Res          par2.Result
 		err              error
 		postingSucceeded bool
 	)
@@ -445,7 +497,7 @@ func (p *Postie) post(
 		}
 
 		if p.removePar2AfterPost() {
-			for _, path := range createdPar2Paths {
+			for _, path := range par2Res.Created {
 				safeRemoveFile(ctx, path)
 			}
 		}
@@ -467,7 +519,7 @@ func (p *Postie) post(
 		}
 		// If par2OutputDir is empty, CreateInDirectory will use default behavior (temp/source dir)
 
-		createdPar2Paths, err = p.par2runner.CreateInDirectory(ctx, []fileinfo.FileInfo{f}, par2OutputDir)
+		par2Res, err = p.par2runner.CreateInDirectory(ctx, []fileinfo.FileInfo{f}, par2OutputDir)
 		if err != nil {
 			if !errors.Is(err, context.Canceled) {
 				slog.ErrorContext(ctx, "Error during par2 creation. Upload will continue without par2.", "error", err)
@@ -475,8 +527,9 @@ func (p *Postie) post(
 
 			return "", err
 		}
+		p.trackGenerated(par2Res)
 
-		filesPath = append(filesPath, createdPar2Paths...)
+		filesPath = append(filesPath, par2Res.All()...)
 	}
 
 	var deferredErr *poster.DeferredCheckError
@@ -549,7 +602,7 @@ func (p *Postie) postFolder(ctx context.Context, files []fileinfo.FileInfo, root
 	slog.InfoContext(ctx, "Posting folder as single NZB", "folder", folderName, "files", len(files))
 
 	var (
-		createdPar2Paths []string
+		par2Res          par2.Result
 		err              error
 		postingSucceeded bool
 	)
@@ -562,7 +615,7 @@ func (p *Postie) postFolder(ctx context.Context, files []fileinfo.FileInfo, root
 		}
 
 		if p.removePar2AfterPost() {
-			for _, path := range createdPar2Paths {
+			for _, path := range par2Res.Created {
 				safeRemoveFile(ctx, path)
 			}
 		}
@@ -605,14 +658,15 @@ func (p *Postie) postFolder(ctx context.Context, files []fileinfo.FileInfo, root
 				// folderDir is the on-disk root of the folder; FileDesc paths are computed
 				// relative to it so SABnzbd recreates the tree inside the job folder.
 				folderDir := filepath.Join(rootDir, folderName)
-				createdPar2Paths, err = p.par2runner.CreateSet(ctx, files, par2OutputDir, folderName, folderDir)
+				par2Res, err = p.par2runner.CreateSet(ctx, files, par2OutputDir, folderName, folderDir)
 				if err != nil {
 					if !errors.Is(err, context.Canceled) {
 						slog.ErrorContext(ctx, "Error during par2 creation. Upload will continue without par2.", "error", err)
 					}
 					// Continue without PAR2 files
 				} else {
-					allFilePaths = append(allFilePaths, createdPar2Paths...)
+					p.trackGenerated(par2Res)
+					allFilePaths = append(allFilePaths, par2Res.All()...)
 					// par2 set files live at the folder root — basenames in NZB subjects.
 				}
 			}
@@ -674,21 +728,23 @@ func (p *Postie) postFolder(ctx context.Context, files []fileinfo.FileInfo, root
 			}
 
 			folderDir := filepath.Join(rootDir, folderName)
-			createdPar2Paths, err = p.par2runner.CreateSet(ctx, files, par2OutputDir, folderName, folderDir)
+			par2Res, err = p.par2runner.CreateSet(ctx, files, par2OutputDir, folderName, folderDir)
 			if err != nil {
 				if !errors.Is(err, context.Canceled) {
 					slog.ErrorContext(ctx, "Error during par2 creation. Upload will continue without par2.", "error", err)
 				}
 				return nil
 			}
+			p.trackGenerated(par2Res)
 
 			// par2 set files live at the folder root — basenames in NZB subjects.
+			par2Paths := par2Res.All()
 			par2RelPaths := map[string]string{}
-			if err := p.poster.PostWithRelativePaths(ctx, createdPar2Paths, rootDir, nzbGen, par2RelPaths); err != nil {
+			if err := p.poster.PostWithRelativePaths(ctx, par2Paths, rootDir, nzbGen, par2RelPaths); err != nil {
 				if !errors.Is(err, context.Canceled) {
 					slog.ErrorContext(ctx, "Error during upload of par2 files. Upload will continue without par2.", "error", err)
 				}
-				dropPar2FromNZB(nzbGen, createdPar2Paths)
+				dropPar2FromNZB(nzbGen, par2Paths)
 				return nil
 			}
 			return nil
