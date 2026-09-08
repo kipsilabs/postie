@@ -34,12 +34,12 @@ func NewScheduler(maxConcurrentJobs int) *Scheduler {
 // slot. If ctx is cancelled while waiting for a slot, Run returns ctx.Err()
 // without invoking fn. fn itself should honour ctx so that active work can be
 // cancelled too.
-func (s *Scheduler) Run(ctx context.Context, fn func() ([]string, error)) ([]string, error) {
+func (s *Scheduler) Run(ctx context.Context, fn func() (Result, error)) (Result, error) {
 	s.queued.Add(1)
 	select {
 	case <-ctx.Done():
 		s.queued.Add(-1)
-		return nil, ctx.Err()
+		return Result{}, ctx.Err()
 	case s.sem <- struct{}{}:
 		s.queued.Add(-1)
 	}
@@ -79,20 +79,20 @@ func NewScheduledExecutor(inner Par2Executor, sched *Scheduler) Par2Executor {
 	return &ScheduledExecutor{inner: inner, sched: sched}
 }
 
-func (e *ScheduledExecutor) Create(ctx context.Context, files []fileinfo.FileInfo) ([]string, error) {
-	return e.sched.Run(ctx, func() ([]string, error) {
+func (e *ScheduledExecutor) Create(ctx context.Context, files []fileinfo.FileInfo) (Result, error) {
+	return e.sched.Run(ctx, func() (Result, error) {
 		return e.inner.Create(ctx, files)
 	})
 }
 
-func (e *ScheduledExecutor) CreateInDirectory(ctx context.Context, files []fileinfo.FileInfo, outputDir string) ([]string, error) {
-	return e.sched.Run(ctx, func() ([]string, error) {
+func (e *ScheduledExecutor) CreateInDirectory(ctx context.Context, files []fileinfo.FileInfo, outputDir string) (Result, error) {
+	return e.sched.Run(ctx, func() (Result, error) {
 		return e.inner.CreateInDirectory(ctx, files, outputDir)
 	})
 }
 
-func (e *ScheduledExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInfo, outputDir, setName, folderDir string) ([]string, error) {
-	return e.sched.Run(ctx, func() ([]string, error) {
+func (e *ScheduledExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInfo, outputDir, setName, folderDir string) (Result, error) {
+	return e.sched.Run(ctx, func() (Result, error) {
 		return e.inner.CreateSet(ctx, files, outputDir, setName, folderDir)
 	})
 }

@@ -179,3 +179,36 @@ func TestCheckExistingPar2Set_RejectsStaleSet(t *testing.T) {
 		t.Fatalf("set for changed content must not be reused, got %v", paths)
 	}
 }
+
+// Callers must be able to tell PAR2 files Postie wrote (which it may delete
+// later) from pre-existing ones it merely reused (kipsilabs/postie#274).
+func TestResult_DistinguishesReusedFromCreated(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	src := filepath.Join(dir, "video.mkv")
+	createTestFile(t, src, 50000)
+	exec := New(10000, &config.Par2Config{Redundancy: "10"}, nil)
+	files := []fileinfo.FileInfo{{Path: src, Size: 50000}}
+
+	res, err := exec.CreateInDirectory(ctx, files, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Created) == 0 || len(res.Reused) != 0 {
+		t.Fatalf("fresh generation: Created=%v Reused=%v", res.Created, res.Reused)
+	}
+
+	res, err = exec.CreateInDirectory(ctx, files, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Reused) == 0 || len(res.Created) != 0 {
+		t.Fatalf("second run must reuse: Created=%v Reused=%v", res.Created, res.Reused)
+	}
+	if got := res.All(); len(got) != len(res.Reused) {
+		t.Fatalf("All() = %v", got)
+	}
+}
+
+// all flattens a Result for tests that only care about the posted paths.
+func all(r Result, err error) ([]string, error) { return r.All(), err }

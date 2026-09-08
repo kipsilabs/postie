@@ -324,7 +324,7 @@ func TestCreate(t *testing.T) {
 			{Path: testFile, Size: 100000},
 		}
 
-		createdFiles, err := executor.Create(context.Background(), files)
+		createdFiles, err := all(executor.Create(context.Background(), files))
 		if err != nil {
 			t.Fatalf("Create failed: %v", err)
 		}
@@ -378,7 +378,7 @@ func TestCreate(t *testing.T) {
 			{Path: filepath.Join(tempDir, "existing.par2"), Size: 1000},
 		}
 
-		createdFiles, err := executor.Create(context.Background(), files)
+		createdFiles, err := all(executor.Create(context.Background(), files))
 		if err != nil {
 			t.Fatalf("Create failed: %v", err)
 		}
@@ -413,10 +413,14 @@ func TestCreate(t *testing.T) {
 			{Path: testFile, Size: 50000},
 		}
 
-		createdFiles, err := executor.Create(context.Background(), files)
+		res, err := executor.Create(context.Background(), files)
 		if err != nil {
 			t.Fatalf("Create failed: %v", err)
 		}
+		if len(res.Created) != 0 || len(res.Reused) == 0 {
+			t.Fatalf("pre-existing PAR2 must be reported as reused, got Created=%v Reused=%v", res.Created, res.Reused)
+		}
+		createdFiles := res.All()
 
 		// Should return existing files
 		if len(createdFiles) < 2 {
@@ -462,7 +466,7 @@ func TestCreate(t *testing.T) {
 			{Path: testFile, Size: 100000},
 		}
 
-		createdFiles, err := executor.Create(context.Background(), files)
+		createdFiles, err := all(executor.Create(context.Background(), files))
 		if err != nil {
 			t.Fatalf("Create failed: %v", err)
 		}
@@ -505,10 +509,14 @@ func TestCreate(t *testing.T) {
 			{Path: testFile, Size: 50000},
 		}
 
-		createdFiles, err := executor.Create(context.Background(), files)
+		res, err := executor.Create(context.Background(), files)
 		if err != nil {
 			t.Fatalf("Create failed: %v", err)
 		}
+		if len(res.Created) != 0 || len(res.Reused) == 0 {
+			t.Fatalf("pre-existing PAR2 must be reported as reused, got Created=%v Reused=%v", res.Created, res.Reused)
+		}
+		createdFiles := res.All()
 
 		// Should return existing files from source dir, not generate new ones in TempDir
 		if len(createdFiles) < 2 {
@@ -564,7 +572,7 @@ func TestCreate(t *testing.T) {
 			{Path: testFile, Size: 100000},
 		}
 
-		_, err := executor.Create(ctx, files)
+		_, err := all(executor.Create(ctx, files))
 		if err == nil {
 			t.Error("Expected error from cancelled context")
 		}
@@ -592,7 +600,7 @@ func TestCreateInDirectory(t *testing.T) {
 			{Path: testFile, Size: 100000},
 		}
 
-		createdFiles, err := executor.CreateInDirectory(context.Background(), files, outputDir)
+		createdFiles, err := all(executor.CreateInDirectory(context.Background(), files, outputDir))
 		if err != nil {
 			t.Fatalf("CreateInDirectory failed: %v", err)
 		}
@@ -639,7 +647,7 @@ func TestCreateInDirectory(t *testing.T) {
 			{Path: testFile, Size: 100000},
 		}
 
-		createdFiles, err := executor.CreateInDirectory(context.Background(), files, "")
+		createdFiles, err := all(executor.CreateInDirectory(context.Background(), files, ""))
 		if err != nil {
 			t.Fatalf("CreateInDirectory failed: %v", err)
 		}
@@ -678,10 +686,14 @@ func TestCreateInDirectory(t *testing.T) {
 			{Path: testFile, Size: 50000},
 		}
 
-		createdFiles, err := executor.CreateInDirectory(context.Background(), files, outputDir)
+		res, err := executor.CreateInDirectory(context.Background(), files, outputDir)
 		if err != nil {
 			t.Fatalf("CreateInDirectory failed: %v", err)
 		}
+		if len(res.Created) != 0 || len(res.Reused) == 0 {
+			t.Fatalf("pre-existing PAR2 must be reported as reused, got Created=%v Reused=%v", res.Created, res.Reused)
+		}
+		createdFiles := res.All()
 
 		if len(createdFiles) < 2 {
 			t.Fatalf("Expected at least 2 existing PAR2 files, got %d", len(createdFiles))
@@ -731,10 +743,14 @@ func TestCreateInDirectory(t *testing.T) {
 		}
 
 		// Call with empty outputDir — should detect par2 in source dir, not regenerate in TempDir
-		createdFiles, err := executor.CreateInDirectory(context.Background(), files, "")
+		res, err := executor.CreateInDirectory(context.Background(), files, "")
 		if err != nil {
 			t.Fatalf("CreateInDirectory failed: %v", err)
 		}
+		if len(res.Created) != 0 || len(res.Reused) == 0 {
+			t.Fatalf("pre-existing PAR2 must be reported as reused, got Created=%v Reused=%v", res.Created, res.Reused)
+		}
+		createdFiles := res.All()
 
 		if len(createdFiles) < 2 {
 			t.Fatalf("Expected at least 2 existing PAR2 files, got %d", len(createdFiles))
@@ -791,10 +807,14 @@ func TestCreateInDirectory(t *testing.T) {
 		}
 
 		// Call with outputDir — should detect par2 in source dir, not regenerate in outputDir
-		createdFiles, err := executor.CreateInDirectory(context.Background(), files, outputDir)
+		res, err := executor.CreateInDirectory(context.Background(), files, outputDir)
 		if err != nil {
 			t.Fatalf("CreateInDirectory failed: %v", err)
 		}
+		if len(res.Created) != 0 || len(res.Reused) == 0 {
+			t.Fatalf("pre-existing PAR2 must be reported as reused, got Created=%v Reused=%v", res.Created, res.Reused)
+		}
+		createdFiles := res.All()
 
 		if len(createdFiles) < 2 {
 			t.Fatalf("Expected at least 2 existing PAR2 files, got %d", len(createdFiles))
@@ -850,7 +870,7 @@ func TestCreateInDirectory(t *testing.T) {
 			{Path: testFile, Size: 100000},
 		}
 
-		createdFiles, err := executor.CreateInDirectory(context.Background(), files, nestedOutputDir)
+		createdFiles, err := all(executor.CreateInDirectory(context.Background(), files, nestedOutputDir))
 		if err != nil {
 			t.Fatalf("CreateInDirectory failed: %v", err)
 		}
@@ -898,7 +918,7 @@ func TestCreateInDirectory(t *testing.T) {
 			{Path: testFile3, Size: 50000},
 		}
 
-		createdFiles, err := executor.CreateInDirectory(context.Background(), files, outputDir)
+		createdFiles, err := all(executor.CreateInDirectory(context.Background(), files, outputDir))
 		if err != nil {
 			t.Fatalf("CreateInDirectory failed: %v", err)
 		}

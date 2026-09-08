@@ -95,10 +95,14 @@ func TestIntegration_NativeExecutor_SkipsWhenPar2FilesExistInSourceDir(t *testin
 	executor := New(750_000, cfg, nil)
 
 	files := []fileinfo.FileInfo{{Path: sourcePath, Size: 1024 * 1024}}
-	result, err := executor.Create(context.Background(), files)
+	res, err := executor.Create(context.Background(), files)
 	if err != nil {
 		t.Fatalf("Create: unexpected error: %v", err)
 	}
+	if len(res.Created) != 0 || len(res.Reused) == 0 {
+		t.Fatalf("pre-existing PAR2 must be reported as reused, got Created=%v Reused=%v", res.Created, res.Reused)
+	}
+	result := res.All()
 
 	// Must return at least the two pre-existing files.
 	if len(result) < 2 {
@@ -154,10 +158,14 @@ func TestIntegration_NativeExecutor_SkipsWhenPar2FilesExistInTempDir(t *testing.
 	executor := New(750_000, cfg, nil)
 
 	files := []fileinfo.FileInfo{{Path: sourcePath, Size: 512 * 1024}}
-	result, err := executor.Create(context.Background(), files)
+	res, err := executor.Create(context.Background(), files)
 	if err != nil {
 		t.Fatalf("Create: unexpected error: %v", err)
 	}
+	if len(res.Created) != 0 || len(res.Reused) == 0 {
+		t.Fatalf("pre-existing PAR2 must be reported as reused, got Created=%v Reused=%v", res.Created, res.Reused)
+	}
+	result := res.All()
 
 	if len(result) == 0 {
 		t.Fatal("expected PAR2 paths to be returned (from TempDir), got empty result")
@@ -193,7 +201,7 @@ func TestIntegration_NativeExecutor_RegeneratesWhenNoPar2FilesExist(t *testing.T
 	executor := New(10_000, cfg, nil)
 
 	files := []fileinfo.FileInfo{{Path: sourcePath, Size: 100_000}}
-	result, err := executor.Create(context.Background(), files)
+	result, err := all(executor.Create(context.Background(), files))
 	if err != nil {
 		t.Fatalf("Create: unexpected error: %v", err)
 	}
@@ -226,10 +234,14 @@ func TestIntegration_BinaryExecutor_SkipsWhenPar2FilesExistInSourceDir(t *testin
 	executor := NewBinaryExecutor(750_000, cfg, nil)
 
 	files := []fileinfo.FileInfo{{Path: sourcePath, Size: 2 * 1024 * 1024}}
-	result, err := executor.CreateInDirectory(context.Background(), files, "")
+	res, err := executor.CreateInDirectory(context.Background(), files, "")
 	if err != nil {
 		t.Fatalf("CreateInDirectory: unexpected error: %v", err)
 	}
+	if len(res.Created) != 0 || len(res.Reused) == 0 {
+		t.Fatalf("pre-existing PAR2 must be reported as reused, got Created=%v Reused=%v", res.Created, res.Reused)
+	}
+	result := res.All()
 	if len(result) == 0 {
 		t.Fatal("expected existing PAR2 paths returned, got empty result")
 	}
@@ -271,7 +283,7 @@ func TestIntegration_NativeExecutor_HandlesVerySmallFiles_512Bytes(t *testing.T)
 				t.Errorf("executor panicked on 512-byte file: %v", rec)
 			}
 		}()
-		return executor.Create(context.Background(), files)
+		return all(executor.Create(context.Background(), files))
 	}()
 
 	if err != nil {
@@ -303,7 +315,7 @@ func TestIntegration_NativeExecutor_HandlesVerySmallFiles_10Bytes(t *testing.T) 
 				t.Errorf("executor panicked on 10-byte file: %v", rec)
 			}
 		}()
-		return executor.Create(context.Background(), files)
+		return all(executor.Create(context.Background(), files))
 	}()
 
 	// A 10-byte file is too small for a meaningful PAR2 block; expect either
@@ -381,7 +393,7 @@ func TestIntegration_NativeExecutor_SkipsInputPar2Files(t *testing.T) {
 		{Path: par2Path, Size: 500},
 	}
 
-	_, err := executor.Create(context.Background(), files)
+	_, err := all(executor.Create(context.Background(), files))
 	if err != nil {
 		t.Fatalf("Create: unexpected error: %v", err)
 	}
@@ -447,7 +459,7 @@ func TestIntegration_NativeExecutor_CreateSet_EmbedsRelativePaths(t *testing.T) 
 	// folderDir is the on-disk root of the folder being posted.
 	// FileDesc names must be relative to this dir (no top-level prefix).
 	folderDir := pkgDir
-	created, err := executor.CreateSet(context.Background(), files, outDir, "folder1-testpkg", folderDir)
+	created, err := all(executor.CreateSet(context.Background(), files, outDir, "folder1-testpkg", folderDir))
 	if err != nil {
 		t.Fatalf("CreateSet: %v", err)
 	}
@@ -575,7 +587,7 @@ func TestIntegration_NativeExecutor_PinnedLookupKernel(t *testing.T) {
 	executor := New(10_000, cfg, nil)
 
 	files := []fileinfo.FileInfo{{Path: sourcePath, Size: 100_000}}
-	result, err := executor.Create(context.Background(), files)
+	result, err := all(executor.Create(context.Background(), files))
 	if err != nil {
 		t.Fatalf("Create: unexpected error: %v", err)
 	}
@@ -600,7 +612,7 @@ func TestIntegration_NativeExecutor_RejectsUnknownGF16Method(t *testing.T) {
 	}
 	executor := New(10_000, cfg, nil)
 
-	_, err := executor.Create(context.Background(), []fileinfo.FileInfo{{Path: sourcePath, Size: 100_000}})
+	_, err := all(executor.Create(context.Background(), []fileinfo.FileInfo{{Path: sourcePath, Size: 100_000}}))
 	if err == nil {
 		t.Fatal("Create: expected error for gf16_method=bogus, got nil")
 	}

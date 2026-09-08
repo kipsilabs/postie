@@ -9,6 +9,7 @@ import (
 	"github.com/kipsilabs/postie/internal/article"
 	"github.com/kipsilabs/postie/internal/config"
 	"github.com/kipsilabs/postie/internal/nzb"
+	"github.com/kipsilabs/postie/internal/par2"
 	"github.com/kipsilabs/postie/internal/poster"
 	"github.com/kipsilabs/postie/pkg/fileinfo"
 )
@@ -58,30 +59,30 @@ type mockPar2Executor struct {
 	par2FileNames []string
 }
 
-func (m *mockPar2Executor) Create(_ context.Context, _ []fileinfo.FileInfo) ([]string, error) {
-	return nil, nil
+func (m *mockPar2Executor) Create(_ context.Context, _ []fileinfo.FileInfo) (par2.Result, error) {
+	return par2.Result{}, nil
 }
 
-func (m *mockPar2Executor) CreateInDirectory(_ context.Context, _ []fileinfo.FileInfo, outputDir string) ([]string, error) {
+func (m *mockPar2Executor) CreateInDirectory(_ context.Context, _ []fileinfo.FileInfo, outputDir string) (par2.Result, error) {
 	m.recordedOutputDir = outputDir
 	if outputDir == "" || len(m.par2FileNames) == 0 {
-		return nil, nil
+		return par2.Result{}, nil
 	}
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return nil, err
+		return par2.Result{}, err
 	}
 	var created []string
 	for _, name := range m.par2FileNames {
 		p := filepath.Join(outputDir, name)
 		if err := os.WriteFile(p, []byte("dummy"), 0644); err != nil {
-			return nil, err
+			return par2.Result{}, err
 		}
 		created = append(created, p)
 	}
-	return created, nil
+	return par2.Result{Created: created}, nil
 }
 
-func (m *mockPar2Executor) CreateSet(ctx context.Context, files []fileinfo.FileInfo, outputDir, _, _ string) ([]string, error) {
+func (m *mockPar2Executor) CreateSet(ctx context.Context, files []fileinfo.FileInfo, outputDir, _, _ string) (par2.Result, error) {
 	return m.CreateInDirectory(ctx, files, outputDir)
 }
 

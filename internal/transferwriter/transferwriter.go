@@ -12,11 +12,11 @@ import (
 	"errors"
 	"io"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/kipsilabs/postie/internal/article"
 	"github.com/kipsilabs/postie/internal/manifest"
-	"github.com/kipsilabs/postie/internal/par2"
 	"github.com/kipsilabs/postie/internal/transferstore"
 )
 
@@ -26,12 +26,28 @@ type Recorder struct {
 	transferID string
 	baseDir    string
 	store      *transferstore.Store
+
+	mu        sync.Mutex
+	generated map[string]struct{}
 }
 
 // New creates a Recorder for transferID that writes manifests under baseDir and
 // persists rows through store.
 func New(transferID, baseDir string, store *transferstore.Store) *Recorder {
-	return &Recorder{transferID: transferID, baseDir: baseDir, store: store}
+	return &Recorder{transferID: transferID, baseDir: baseDir, store: store, generated: map[string]struct{}{}}
+}
+
+// MarkGenerated records that Postie itself wrote paths (PAR2 files) for this
+// transfer. Only such files are recorded with the generated_par2 role, which
+// lets the transfer cleaner delete them once verified. Any other file, PAR2
+// or not, is an original the user placed there and is treated as such. Call
+// it before the files' articles are recorded.
+func (r *Recorder) MarkGenerated(paths ...string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, p := range paths {
+		r.generated[p] = struct{}{}
+	}
 }
 
 // fileID derives a stable identifier for a source path so re-recording the same
@@ -41,9 +57,11 @@ func fileID(sourcePath string) string {
 	return hex.EncodeToString(sum[:8])
 }
 
-// roleFor classifies a file by its on-disk path.
-func roleFor(sourcePath string) manifest.FileRole {
-	if par2.IsPar2File(sourcePath) {
+// roleFor classifies a file by whether Postie generated it (see MarkGenerated).
+func (r *Recorder) roleFor(sourcePath string) manifest.FileRole {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.generated[sourcePath]; ok {
 		return manifest.RoleGeneratedPar2
 	}
 	return manifest.RoleOriginal
@@ -55,7 +73,7 @@ func roleFor(sourcePath string) manifest.FileRole {
 // posted so the manifest is durable first.
 func (r *Recorder) RecordFile(ctx context.Context, sourcePath string, articles []*article.Article) error {
 	fid := fileID(sourcePath)
-	role := roleFor(sourcePath)
+	role := r.roleFor(sourcePath)
 	manifestPath := manifest.FilePath(r.baseDir, r.transferID, fid)
 
 	w, err := manifest.NewWriter(manifestPath)

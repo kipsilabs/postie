@@ -37,7 +37,7 @@ func NewBinaryExecutor(articleSize uint64, cfg *config.Par2Config, jobProgress p
 }
 
 // Create creates PAR2 parity files using the parpar binary.
-func (b *BinaryExecutor) Create(ctx context.Context, files []fileinfo.FileInfo) ([]string, error) {
+func (b *BinaryExecutor) Create(ctx context.Context, files []fileinfo.FileInfo) (Result, error) {
 	return b.CreateInDirectory(ctx, files, "")
 }
 
@@ -46,12 +46,12 @@ func (b *BinaryExecutor) Create(ctx context.Context, files []fileinfo.FileInfo) 
 // folderDir as --filepath-base so parpar records each file's path relative
 // to folderDir in the FileDesc packet, letting SABnzbd / NZBGet recreate
 // the folder tree inside the job directory on disk.
-func (b *BinaryExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInfo, outputDir, setName, folderDir string) ([]string, error) {
+func (b *BinaryExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInfo, outputDir, setName, folderDir string) (Result, error) {
 	if len(files) == 0 {
-		return nil, fmt.Errorf("par2: no input files for set %q", setName)
+		return Result{}, fmt.Errorf("par2: no input files for set %q", setName)
 	}
 	if setName == "" {
-		return nil, fmt.Errorf("par2: empty set name")
+		return Result{}, fmt.Errorf("par2: empty set name")
 	}
 
 	inputs := make([]fileinfo.FileInfo, 0, len(files))
@@ -62,7 +62,7 @@ func (b *BinaryExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInf
 		inputs = append(inputs, f)
 	}
 	if len(inputs) == 0 {
-		return nil, fmt.Errorf("par2: no non-par2 input files for set %q", setName)
+		return Result{}, fmt.Errorf("par2: no non-par2 input files for set %q", setName)
 	}
 
 	dirPath := outputDir
@@ -74,12 +74,12 @@ func (b *BinaryExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInf
 		}
 	}
 	if err := os.MkdirAll(dirPath, 0755); err != nil {
-		return nil, fmt.Errorf("par2: create output dir %s: %w", dirPath, err)
+		return Result{}, fmt.Errorf("par2: create output dir %s: %w", dirPath, err)
 	}
 
 	// Reuse an existing set only if it was built from exactly these files.
 	if existing, ok := checkExistingPar2SetInPath(ctx, setName, dirPath, setInputNames(inputs, folderDir)); ok {
-		return existing, nil
+		return Result{Reused: existing}, nil
 	}
 
 	totalSize := uint64(0)
@@ -97,7 +97,7 @@ func (b *BinaryExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInf
 	if blockSize < 4 {
 		slog.WarnContext(ctx, "Block size too small for PAR2 set creation, skipping",
 			"setName", setName, "totalSize", totalSize)
-		return nil, nil
+		return Result{}, nil
 	}
 	totalSlices := 0
 	for _, f := range inputs {
@@ -144,12 +144,12 @@ func (b *BinaryExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInf
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, fmt.Errorf("parpar stdout pipe: %w", err)
+		return Result{}, fmt.Errorf("parpar stdout pipe: %w", err)
 	}
 	var stderrBuf bytes.Buffer
 	cmd.Stderr = &stderrBuf
 	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("parpar start for set %s: %w", setName, err)
+		return Result{}, fmt.Errorf("parpar start for set %s: %w", setName, err)
 	}
 
 	var stdoutBuf bytes.Buffer
@@ -174,7 +174,7 @@ func (b *BinaryExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInf
 	if err := cmd.Wait(); err != nil {
 		if ctx.Err() != nil {
 			slog.InfoContext(ctx, "Parpar set cancelled", "setName", setName)
-			return nil, ctx.Err()
+			return Result{}, ctx.Err()
 		}
 		combined := strings.TrimSpace(stdoutBuf.String())
 		if s := strings.TrimSpace(stderrBuf.String()); s != "" {
@@ -183,7 +183,7 @@ func (b *BinaryExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInf
 			}
 			combined += s
 		}
-		return nil, fmt.Errorf("parpar failed for set %s: %w\noutput: %s", setName, err, combined)
+		return Result{}, fmt.Errorf("parpar failed for set %s: %w\noutput: %s", setName, err, combined)
 	}
 
 	if pg != nil && b.jobProgress != nil {
@@ -193,12 +193,12 @@ func (b *BinaryExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInf
 		b.jobProgress.FinishProgress(progressID)
 	}
 
-	return par2SetOnDisk(ctx, dirPath, setName), nil
+	return Result{Created: par2SetOnDisk(ctx, dirPath, setName)}, nil
 }
 
 // CreateInDirectory creates PAR2 files in the specified output directory using the parpar binary.
-func (b *BinaryExecutor) CreateInDirectory(ctx context.Context, files []fileinfo.FileInfo, outputDir string) ([]string, error) {
-	var all []string
+func (b *BinaryExecutor) CreateInDirectory(ctx context.Context, files []fileinfo.FileInfo, outputDir string) (Result, error) {
+	var res Result
 	for _, file := range files {
 		if filepath.Ext(file.Path) == ".par2" {
 			continue
@@ -208,21 +208,21 @@ func (b *BinaryExecutor) CreateInDirectory(ctx context.Context, files []fileinfo
 		sourceDir := filepath.Dir(file.Path)
 		if sourceDir != dirPath {
 			if existing, ok := checkExistingPar2FilesInPath(ctx, file, sourceDir); ok {
-				all = append(all, existing...)
+				res.Reused = append(res.Reused, existing...)
 				continue
 			}
 		}
 		if existing, ok := checkExistingPar2FilesInPath(ctx, file, dirPath); ok {
-			all = append(all, existing...)
+			res.Reused = append(res.Reused, existing...)
 			continue
 		}
 		paths, err := b.runParpar(ctx, file, dirPath)
 		if err != nil {
-			return nil, err
+			return Result{}, err
 		}
-		all = append(all, paths...)
+		res.Created = append(res.Created, paths...)
 	}
-	return all, nil
+	return res, nil
 }
 
 func (b *BinaryExecutor) resolveDir(file fileinfo.FileInfo, outputDir string) string {

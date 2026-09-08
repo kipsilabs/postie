@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/javi11/par2go"
@@ -44,6 +45,21 @@ var (
 	par2Magic        = [8]byte{'P', 'A', 'R', '2', 0, 'P', 'K', 'T'}
 	par2TypeFileDesc = [16]byte{'P', 'A', 'R', ' ', '2', '.', '0', 0, 'F', 'i', 'l', 'e', 'D', 'e', 's', 'c'}
 )
+
+// Result is the outcome of a PAR2 request. Created lists the files this call
+// wrote, which Postie owns and may delete once they are no longer needed.
+// Reused lists PAR2 files that already existed on disk (the user's own, or a
+// verified leftover from an earlier run); they are posted alongside the
+// sources but are never Postie's to delete.
+type Result struct {
+	Created []string
+	Reused  []string
+}
+
+// All returns every PAR2 file to post, reused first.
+func (r Result) All() []string {
+	return slices.Concat(r.Reused, r.Created)
+}
 
 // fileDesc is the identity a PAR2 File Description packet records for one
 // input file: its name inside the set, its length and the MD5 of its first

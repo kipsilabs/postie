@@ -86,20 +86,37 @@ func TestRecorder_WritesManifestAndRow(t *testing.T) {
 	}
 }
 
-func TestRecorder_InfersPar2Role(t *testing.T) {
+// A PAR2 file is only "generated" when Postie says it created it. A PAR2 file
+// the user placed next to the sources and that Postie merely reused must be
+// recorded as an original, or the cleaner deletes the user's own files
+// (kipsilabs/postie#274).
+func TestRecorder_RoleComesFromMarkGenerated(t *testing.T) {
 	store := newTestStore(t)
 	rec := New("tid-2", t.TempDir(), store)
 	ctx := context.Background()
 
-	if err := rec.RecordFile(ctx, "/data/movie.vol00+1.par2", []*article.Article{
-		{MessageID: "x@p", Offset: 0, Size: 5},
-	}); err != nil {
-		t.Fatalf("RecordFile: %v", err)
+	rec.MarkGenerated("/tmp/movie.mkv.par2", "/tmp/movie.mkv.vol00+01.par2")
+
+	cases := map[string]manifest.FileRole{
+		"/tmp/movie.mkv.par2":          manifest.RoleGeneratedPar2,
+		"/tmp/movie.mkv.vol00+01.par2": manifest.RoleGeneratedPar2,
+		"/data/movie.vol00+1.par2":     manifest.RoleOriginal, // user-supplied, reused
+		"/data/movie.mkv":              manifest.RoleOriginal,
+	}
+	for path := range cases {
+		if err := rec.RecordFile(ctx, path, []*article.Article{{MessageID: "x@p", Offset: 0, Size: 5}}); err != nil {
+			t.Fatalf("RecordFile(%s): %v", path, err)
+		}
 	}
 
 	files, _ := store.ListFilesByTransfer(ctx, "tid-2")
-	if len(files) != 1 || files[0].FileRole != string(manifest.RoleGeneratedPar2) {
-		t.Errorf("expected generated_par2 role, got %+v", files)
+	if len(files) != len(cases) {
+		t.Fatalf("expected %d rows, got %d", len(cases), len(files))
+	}
+	for _, f := range files {
+		if want := cases[f.SourcePath]; f.FileRole != string(want) {
+			t.Errorf("%s: role = %q, want %q", f.SourcePath, f.FileRole, want)
+		}
 	}
 }
 
