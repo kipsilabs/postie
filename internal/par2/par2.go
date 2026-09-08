@@ -78,7 +78,7 @@ func New(articleSize uint64, cfg *config.Par2Config, jobProgress progress.JobPro
 }
 
 // checkExistingPar2Files checks if PAR2 files already exist for the given source file.
-// It always checks the source directory first, then falls back to TempDir if configured.
+// It always checks the source directory first, then falls back to the work dir if configured.
 func (p *NativeExecutor) checkExistingPar2Files(ctx context.Context, sourceFile fileinfo.FileInfo) ([]string, bool) {
 	// Always check the source directory first — this is where pre-existing PAR2 files live.
 	sourceDirPath := filepath.Dir(sourceFile.Path)
@@ -86,9 +86,9 @@ func (p *NativeExecutor) checkExistingPar2Files(ctx context.Context, sourceFile 
 		return existing, ok
 	}
 
-	// Fall back to TempDir if configured (reuse from a previous generation run).
-	if p.cfg.TempDir != "" && p.cfg.TempDir != sourceDirPath {
-		return checkExistingPar2FilesInPath(ctx, sourceFile, p.cfg.TempDir)
+	// Fall back to the work dir if configured (reuse from a previous generation run).
+	if workDir := WorkDir(p.cfg); workDir != "" && workDir != sourceDirPath {
+		return checkExistingPar2FilesInPath(ctx, sourceFile, workDir)
 	}
 
 	return nil, false
@@ -138,8 +138,8 @@ func (p *NativeExecutor) Create(ctx context.Context, files []fileinfo.FileInfo) 
 
 		// Determine output directory
 		var dirPath string
-		if p.cfg.TempDir != "" {
-			dirPath = p.cfg.TempDir
+		if workDir := WorkDir(p.cfg); workDir != "" {
+			dirPath = workDir
 			if err := os.MkdirAll(dirPath, 0755); err != nil {
 				slog.ErrorContext(ctx, "Failed to create temp directory", "path", dirPath, "error", err)
 				dirPath = filepath.Dir(file.Path)
@@ -186,16 +186,17 @@ func (p *NativeExecutor) CreateInDirectory(ctx context.Context, files []fileinfo
 					continue
 				}
 			}
-		} else if p.cfg.TempDir != "" {
-			dirPath = p.cfg.TempDir
+		} else if workDir := WorkDir(p.cfg); workDir != "" {
+			// Look for a reusable set before creating the work dir, so a job that
+			// reuses source-dir PAR2 files leaves the temp dir untouched.
+			if existingPaths, exists := p.checkExistingPar2Files(ctx, file); exists {
+				res.Reused = append(res.Reused, existingPaths...)
+				continue
+			}
+			dirPath = workDir
 			if err := os.MkdirAll(dirPath, 0755); err != nil {
 				slog.ErrorContext(ctx, "Failed to create temp directory", "path", dirPath, "error", err)
 				dirPath = filepath.Dir(file.Path)
-			} else {
-				if existingPaths, exists := p.checkExistingPar2Files(ctx, file); exists {
-					res.Reused = append(res.Reused, existingPaths...)
-					continue
-				}
 			}
 		} else {
 			dirPath = filepath.Dir(file.Path)
@@ -245,8 +246,8 @@ func (p *NativeExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInf
 
 	dirPath := outputDir
 	if dirPath == "" {
-		if p.cfg.TempDir != "" {
-			dirPath = p.cfg.TempDir
+		if workDir := WorkDir(p.cfg); workDir != "" {
+			dirPath = workDir
 		} else {
 			dirPath = filepath.Dir(inputs[0].Path)
 		}

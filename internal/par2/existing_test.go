@@ -124,7 +124,11 @@ func TestCheckExistingPar2Files_RejectsPar2ForDifferentContent(t *testing.T) {
 	if err := os.WriteFile(stale, make([]byte, 50000), 0644); err != nil {
 		t.Fatal(err)
 	}
-	writeRealPar2Files(t, tempDir, stale, 1)
+	workDir := filepath.Join(tempDir, WorkSubdir)
+	if err := os.MkdirAll(workDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	writeRealPar2Files(t, workDir, stale, 1)
 
 	src := filepath.Join(sourceDir, "archive.rar")
 	createTestFile(t, src, 50000)
@@ -137,7 +141,7 @@ func TestCheckExistingPar2Files_RejectsPar2ForDifferentContent(t *testing.T) {
 	}
 
 	// A set that really describes the source is reused.
-	writeRealPar2Files(t, tempDir, src, 1)
+	writeRealPar2Files(t, workDir, src, 1)
 	paths, ok := exec.checkExistingPar2Files(ctx, file)
 	if !ok || len(paths) != 2 {
 		t.Fatalf("matching PAR2 should be reused, ok=%v paths=%v", ok, paths)
@@ -212,3 +216,18 @@ func TestResult_DistinguishesReusedFromCreated(t *testing.T) {
 
 // all flattens a Result for tests that only care about the posted paths.
 func all(r Result, err error) ([]string, error) { return r.All(), err }
+
+// Generated PAR2 files live in a Postie-owned subdirectory of temp_dir so the
+// sweeper can safely remove orphans without touching anything else.
+func TestWorkDir(t *testing.T) {
+	if got := WorkDir(&config.Par2Config{}); got != "" {
+		t.Errorf("empty temp_dir: WorkDir = %q, want empty (PAR2 next to sources)", got)
+	}
+	if got := WorkDir(nil); got != "" {
+		t.Errorf("nil cfg: WorkDir = %q", got)
+	}
+	want := filepath.Join("/tmp", WorkSubdir)
+	if got := WorkDir(&config.Par2Config{TempDir: "/tmp"}); got != want {
+		t.Errorf("WorkDir = %q, want %q", got, want)
+	}
+}

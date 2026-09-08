@@ -148,8 +148,12 @@ func TestIntegration_NativeExecutor_SkipsWhenPar2FilesExistInTempDir(t *testing.
 	tempDir := t.TempDir()
 
 	sourcePath := createIntegrationTestFile(t, sourceDir, "archive.rar", 512*1024)
-	// PAR2 files live only in tempDir, not in sourceDir.
-	mainPar2, _ := createRealPar2Files(t, tempDir, sourcePath)
+	// PAR2 files live only in the temp work dir, not in sourceDir.
+	workDir := filepath.Join(tempDir, WorkSubdir)
+	if err := os.MkdirAll(workDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	mainPar2, _ := createRealPar2Files(t, workDir, sourcePath)
 
 	cfg := &config.Par2Config{
 		Redundancy: "10",

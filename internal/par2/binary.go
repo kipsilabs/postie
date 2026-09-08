@@ -67,8 +67,8 @@ func (b *BinaryExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInf
 
 	dirPath := outputDir
 	if dirPath == "" {
-		if b.cfg.TempDir != "" {
-			dirPath = b.cfg.TempDir
+		if workDir := WorkDir(b.cfg); workDir != "" {
+			dirPath = workDir
 		} else {
 			dirPath = filepath.Dir(inputs[0].Path)
 		}
@@ -230,9 +230,9 @@ func (b *BinaryExecutor) resolveDir(file fileinfo.FileInfo, outputDir string) st
 		if err := os.MkdirAll(outputDir, 0755); err == nil {
 			return outputDir
 		}
-	} else if b.cfg.TempDir != "" {
-		if err := os.MkdirAll(b.cfg.TempDir, 0755); err == nil {
-			return b.cfg.TempDir
+	} else if workDir := WorkDir(b.cfg); workDir != "" {
+		if err := os.MkdirAll(workDir, 0755); err == nil {
+			return workDir
 		}
 	}
 	return filepath.Dir(file.Path)

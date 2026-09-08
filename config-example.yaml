@@ -47,7 +47,8 @@ post_check:
 par2:
   enabled: true
   redundancy: '10%'
-  # Directory where PAR2 files are temporarily created (uses system temp by default)
+  # Directory where PAR2 files are temporarily created (uses system temp by default).
+  # Postie writes into a postie-par2/ subfolder there and sweeps orphaned sets older than 24h.
   temp_dir: ''
   # Whether to keep PAR2 files after successful upload (false = cleanup after success)
   maintain_par2_files: false

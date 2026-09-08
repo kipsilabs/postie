@@ -657,7 +657,7 @@ func TestCreateInDirectory(t *testing.T) {
 		}
 
 		// Should be created in configTempDir
-		expectedPar2File := filepath.Join(configTempDir, "testfile.bin.par2")
+		expectedPar2File := filepath.Join(configTempDir, WorkSubdir, "testfile.bin.par2")
 		if _, err := os.Stat(expectedPar2File); os.IsNotExist(err) {
 			t.Fatalf("Expected PAR2 file %s was not created in config temp directory", expectedPar2File)
 		}

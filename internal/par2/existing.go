@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/javi11/par2go"
+	"github.com/kipsilabs/postie/internal/config"
 	"github.com/kipsilabs/postie/pkg/fileinfo"
 )
 
@@ -45,6 +46,20 @@ var (
 	par2Magic        = [8]byte{'P', 'A', 'R', '2', 0, 'P', 'K', 'T'}
 	par2TypeFileDesc = [16]byte{'P', 'A', 'R', ' ', '2', '.', '0', 0, 'F', 'i', 'l', 'e', 'D', 'e', 's', 'c'}
 )
+
+// WorkSubdir is the directory Postie creates inside par2.temp_dir for the PAR2
+// files it generates. Keeping them out of the temp root lets the sweeper
+// remove orphans without touching anything that is not Postie's.
+const WorkSubdir = "postie-par2"
+
+// WorkDir returns where generated PAR2 files go when temp_dir is configured,
+// or "" when they are written next to the source files.
+func WorkDir(cfg *config.Par2Config) string {
+	if cfg == nil || cfg.TempDir == "" {
+		return ""
+	}
+	return filepath.Join(cfg.TempDir, WorkSubdir)
+}
 
 // Result is the outcome of a PAR2 request. Created lists the files this call
 // wrote, which Postie owns and may delete once they are no longer needed.

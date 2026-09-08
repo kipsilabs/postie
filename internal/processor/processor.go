@@ -183,6 +183,7 @@ func (p *Processor) Start(ctx context.Context) error {
 	p.startVerificationOnce.Do(func() {
 		if p.transferRuntime != nil {
 			go p.transferRuntime.RunVerification(ctx)
+			go p.transferRuntime.RunPar2Sweeper(ctx)
 		}
 	})
 
