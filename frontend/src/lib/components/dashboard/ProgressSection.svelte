@@ -13,7 +13,8 @@ import { t } from "$lib/i18n";
 import { isUploading, runningJobs } from "$lib/stores/app";
 import { toastStore } from "$lib/stores/toast";
 import { formatSpeed, formatTime, formatFileSize } from "$lib/utils";
-import { ChartPie, CheckCircle, Play, X, Upload, Package, Check } from "lucide-svelte";
+import { fade, fly, listFlip } from "$lib/motion";
+import { CheckCircle, Play, X, Upload, Package, Check } from "lucide-svelte";
 import { onMount, onDestroy } from "svelte";
 
 let isPaused = $state(false);
@@ -100,48 +101,26 @@ function getProgressIcon(type: string) {
   }
 }
 
-// Function to get color for progress type
-function getProgressColor(type: string) {
-  switch (type) {
-    case "uploading":
-      return "text-info bg-info/10";
-    case "par2_generation":
-      return "text-success bg-success/10";
-    case "checking":
-      return "text-warning bg-warning/10";
-    default:
-      return "text-primary bg-primary/10";
-  }
-}
-
 // Returns the status dot color, text color, and label for a progress task
-function getTaskStatus(progressState: any): { dotClass: string; textClass: string; label: string } {
+function getTaskStatus(progressState: any): { dotClass: string; label: string; active: boolean } {
   if (progressState?.IsPaused) {
-    return {
-      dotClass: "bg-warning animate-pulse",
-      textClass: "text-warning",
-      label: $t("dashboard.progress.task_status.paused"),
-    };
+    return { dotClass: "bg-warning", label: $t("dashboard.progress.task_status.paused"), active: false };
   }
   if (progressState?.IsStarted) {
-    return {
-      dotClass: "bg-success animate-pulse",
-      textClass: "text-success",
-      label: $t("dashboard.progress.task_status.in_progress"),
-    };
+    return { dotClass: "bg-success", label: $t("dashboard.progress.task_status.in_progress"), active: true };
   }
   if (progressState?.IsWaiting) {
     return {
-      dotClass: "bg-info animate-pulse",
-      textClass: "text-info",
+      dotClass: "bg-info",
       label: `${$t("dashboard.progress.task_status.waiting")} ${Math.ceil(progressState.WaitSecondsRemaining)}s`,
+      active: true,
     };
   }
-  return {
-    dotClass: "bg-warning",
-    textClass: "text-warning",
-    label: $t("dashboard.progress.task_status.pending"),
-  };
+  return { dotClass: "bg-base-content/40", label: $t("dashboard.progress.task_status.pending"), active: false };
+}
+
+function ratio(progressState: any): number {
+  return Math.min(1, Math.max(0, progressState?.CurrentPercent || 0));
 }
 
 async function cancelJob(jobID: string) {
@@ -186,185 +165,105 @@ function cancelUpload(jobID: string) {
 }
 </script>
 
-<div class="space-y-6">
-  <!-- Header -->
-  <div class="flex items-center gap-3 mb-6">
-    <div class="p-2 rounded-lg bg-gradient-to-br from-success to-info">
-      <ChartPie class="w-6 h-6 text-white" />
-    </div>
-    <div>
-      <h2 class="text-xl font-semibold">
-        {$t("dashboard.progress.title")}
-      </h2>
-      <div class="flex items-center gap-3 mt-1">
-        <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-base-300/50">
-          <div
-            class="w-2 h-2 rounded-full transition-all duration-300 {$isUploading
-              ? isPaused ? 'bg-warning animate-pulse shadow-lg shadow-warning/50' : 'bg-primary animate-pulse shadow-lg shadow-primary/50'
-              : 'bg-base-content/40'}"
-          ></div>
-          <span class="text-sm font-medium text-base-content/80">
-            {$isUploading 
-              ? isPaused 
-                ? $t("dashboard.progress.status.paused") 
-                : $t("dashboard.progress.status.active") 
-              : $t("dashboard.progress.status.idle")}
-          </span>
-        </div>
-      </div>
+<section>
+  <div class="flex items-center justify-between mb-2">
+    <div class="section-label !m-0">{$t("dashboard.progress.title")}</div>
+    <div class="flex items-center gap-1.5 text-xs text-base-content/60">
+      <span
+        class="size-1.5 rounded-full {$isUploading ? (isPaused ? 'bg-warning' : 'bg-primary animate-pulse-soft') : 'bg-base-content/30'}"
+      ></span>
+      {$isUploading
+        ? isPaused
+          ? $t("dashboard.progress.status.paused")
+          : $t("dashboard.progress.status.active")
+        : $t("dashboard.progress.status.idle")}
     </div>
   </div>
 
   {#if $isUploading}
-    <!-- Running Jobs with Progress -->
-    {#each [...$runningJobs].sort((a, b) => (a.fileName ?? '').localeCompare(b.fileName ?? '')) as job (job.id)}
-      <div class="card bg-base-100 shadow-xl p-6 hover:shadow-2xl transition-all duration-200">
-        <div class="space-y-6">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-3">
-              <div class="p-2 rounded-full bg-primary/10">
-                <Play class="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <h3 class="text-lg font-semibold text-base-content">
-                  {job.fileName}
-                </h3>
+    <div class="space-y-3">
+      {#each [...$runningJobs].sort((a, b) => (a.fileName ?? '').localeCompare(b.fileName ?? '')) as job (job.id)}
+        <div class="settings-group" in:fly out:fade animate:listFlip>
+          <!-- Job header -->
+          <div class="settings-row">
+            <div class="min-w-0">
+              <div class="settings-row-title truncate" title={job.path}>{job.fileName}</div>
+              <div class="settings-row-desc tabular-nums truncate">
+                {$t('dashboard.progress.file_size')}: {formatFileSize(job.size)}
+                <span aria-hidden="true">·</span>
+                {$t('dashboard.progress.path')}: <span title={job.path}>{job.path.split('/').pop()}</span>
               </div>
             </div>
             <button
               type="button"
               onclick={() => cancelUpload(job.id)}
-              class="btn btn-outline btn-sm flex items-center gap-2"
+              class="btn btn-ghost btn-sm text-error shrink-0"
+              title={$t("dashboard.progress.cancel_upload")}
             >
               <X class="w-4 h-4" />
-              {$t("dashboard.progress.cancel_upload")}
+              <span class="hidden sm:inline">{$t("dashboard.progress.cancel_upload")}</span>
             </button>
           </div>
 
-          <!-- Individual Progress Indicators -->
-          {#if job.progress.length > 0}
-            <div class="space-y-4">
-              <h4 class="text-md font-medium text-base-content">{$t('dashboard.progress.active_tasks')}</h4>
-              {#each job.progress as progressState}
-                {@const IconComponent = getProgressIcon(progressState?.Type)}
-                <div class="bg-base-100 rounded-xl border border-base-300 p-4">
-                  <div class="flex items-center justify-between mb-3">
-                    <div class="flex items-center gap-3">
-                      <div class="p-2 rounded-full {getProgressColor(progressState?.Type)}">
-                        <IconComponent class="w-4 h-4" />
-                      </div>
-                      <div>
-                        <div class="flex items-center gap-2">
-                          <p class="text-sm font-medium text-base-content">
-                            {progressState?.Description || progressState?.Type}
-                          </p>
-                          <!-- Status indicator based on IsStarted, IsPaused, IsWaiting -->
-                          <div class="flex items-center gap-1">
-                            <div class="w-2 h-2 rounded-full {getTaskStatus(progressState).dotClass}"></div>
-                            <span class="text-xs font-medium {getTaskStatus(progressState).textClass}">
-                              {getTaskStatus(progressState).label}
-                            </span>
-                          </div>
-                        </div>
-                        <p class="text-xs text-base-content/60 capitalize">
-                          {progressState?.Type.replace('_', ' ')}
-                        </p>
-                      </div>
-                    </div>
-                    <div class="text-right">
-                      <span class="text-sm font-semibold {progressState?.IsPaused ? 'text-warning bg-warning/10' : 'text-primary bg-primary/10'} px-2 py-1 rounded-md">
-                        {Math.round(progressState?.CurrentPercent * 100 || 0)}%
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div
-                    class="w-full bg-base-300 rounded-full h-2 mb-3"
-                    role="progressbar"
-                    aria-valuenow={Math.round(progressState?.CurrentPercent * 100 || 0)}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-label={progressState?.Description || progressState?.Type}
-                  >
-                    <div
-                      class="{progressState?.IsPaused ? 'bg-warning' : 'bg-primary'} h-2 rounded-full transition-all duration-300"
-                      style="width: {progressState?.CurrentPercent * 100 || 0}%"
-                    ></div>
-                  </div>
-
-                  <!-- Progress Stats (dimmed when paused) -->
-                  <div class="grid grid-cols-2 gap-4 text-xs transition-opacity duration-300 {progressState?.IsPaused ? 'opacity-40' : 'text-base-content/70'}">
-                    <div>
-                      <span class="block text-base-content/70">{$t('dashboard.progress.elapsed')}</span>
-                      <span class="font-medium text-base-content">{formatTime((progressState?.SecondsSince || 0) * 1000)}</span>
-                    </div>
-                    <div>
-                      <span class="block text-base-content/70">{$t('dashboard.progress.remaining')}</span>
-                      <span class="font-medium text-base-content">{formatTime((progressState?.SecondsLeft || 0) * 1000)}</span>
-                    </div>
-
-                    <!-- Show speed for upload tasks (only when not paused) -->
-                    {#if !progressState?.IsPaused && (progressState.Type === "uploading" || progressState.Type === "checking") && progressState?.KBsPerSecond}
-                      <div>
-                        <span class="block text-base-content/70">{$t('dashboard.progress.speed')}</span>
-                        <span class="font-medium text-base-content">{formatSpeed((progressState.KBsPerSecond || 0) * 1024)}</span>
-                      </div>
-                    {/if}
-
-                    <!-- Hide current/total for par2 generation -->
-                    {#if progressState.Type !== "par2_generation"}
-                      <div>
-                        <span class="block text-base-content/70">{$t('dashboard.progress.current')}</span>
-                        <span class="font-medium text-base-content">
-                            {formatFileSize(progressState.CurrentBytes)}
-                        </span>
-                      </div>
-                      <div>
-                        <span class="block text-base-content/70">{$t('dashboard.progress.total')}</span>
-                        <span class="font-medium text-base-content">
-                            {formatFileSize(progressState.Max)}
-                        </span>
-                      </div>
-                    {/if}
-                  </div>
+          <!-- Active tasks -->
+          {#each job.progress as progressState}
+            {@const IconComponent = getProgressIcon(progressState?.Type)}
+            {@const status = getTaskStatus(progressState)}
+            {@const pct = ratio(progressState)}
+            <div class="settings-row !block" in:fade>
+              <div class="flex items-center justify-between gap-3">
+                <div class="flex items-center gap-2 min-w-0">
+                  <IconComponent class="w-4 h-4 shrink-0 text-base-content/60" />
+                  <span class="text-sm font-medium truncate">{progressState?.Description || progressState?.Type}</span>
+                  <span class="inline-flex items-center gap-1.5 text-xs text-base-content/60 shrink-0">
+                    <span class="size-1.5 rounded-full {status.dotClass} {status.active ? 'animate-pulse-soft' : ''}"></span>
+                    {status.label}
+                  </span>
                 </div>
-              {/each}
-            </div>
-          {/if}
+                <span class="text-sm tabular-nums shrink-0 {progressState?.IsPaused ? 'text-warning-ink' : 'text-base-content'}">
+                  {Math.round(pct * 100)}%
+                </span>
+              </div>
 
-          <!-- Job Information -->
-          <div class="bg-base-200/50 rounded-xl p-4 space-y-3">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div class="flex justify-between items-center">
-                <span class="text-sm text-base-content/70">{$t('dashboard.progress.file_size')}</span>
-                <span class="text-sm font-medium text-base-content">
-                  {formatFileSize(job.size)}
-                </span>
+              <div
+                class="progress-track mt-2"
+                style="height: 0.25rem"
+                role="progressbar"
+                aria-valuenow={Math.round(pct * 100)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={progressState?.Description || progressState?.Type}
+              >
+                <div
+                  class="progress-fill"
+                  style="transform: scaleX({pct}); {progressState?.IsPaused ? 'background-color: var(--color-warning)' : ''}"
+                ></div>
               </div>
-              <div class="flex justify-between items-center">
-                <span class="text-sm text-base-content/70">{$t('dashboard.progress.path')}</span>
-                <span class="text-sm font-medium text-base-content truncate" title="{job.path}">
-                  {job.path.split('/').pop()}
-                </span>
+
+              <!-- Secondary stats (dimmed when paused) -->
+              <div class="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-xs tabular-nums text-base-content/60 transition-opacity {progressState?.IsPaused ? 'opacity-50' : ''}">
+                <span>{$t('dashboard.progress.elapsed')} {formatTime((progressState?.SecondsSince || 0) * 1000)}</span>
+                <span>{$t('dashboard.progress.remaining')} {formatTime((progressState?.SecondsLeft || 0) * 1000)}</span>
+                {#if !progressState?.IsPaused && (progressState.Type === "uploading" || progressState.Type === "checking") && progressState?.KBsPerSecond}
+                  <span>{$t('dashboard.progress.speed')} {formatSpeed((progressState.KBsPerSecond || 0) * 1024)}</span>
+                {/if}
+                {#if progressState.Type !== "par2_generation"}
+                  <span>{formatFileSize(progressState.CurrentBytes)} / {formatFileSize(progressState.Max)}</span>
+                {/if}
               </div>
             </div>
-          </div>
+          {/each}
         </div>
-      </div>
-    {/each}
-
+      {/each}
+    </div>
   {:else}
-    <!-- Empty State -->
-    <div class="text-center py-12">
-      <div class="w-16 h-16 mx-auto mb-4 p-4 rounded-full bg-base-300">
-        <CheckCircle class="w-8 h-8 text-base-content/50" />
+    <!-- Empty state -->
+    <div class="settings-group" in:fade>
+      <div class="flex flex-col items-center text-center py-8 px-4 gap-1">
+        <CheckCircle class="w-7 h-7 text-base-content/30 mb-1" />
+        <h3 class="text-sm font-medium">{$t("dashboard.progress.no_upload_title")}</h3>
+        <p class="text-sm text-base-content/60">{$t("dashboard.progress.no_upload_description")}</p>
       </div>
-      <h3 class="text-lg font-medium text-base-content mb-2">
-        {$t("dashboard.progress.no_upload_title")}
-      </h3>
-      <p class="text-base-content/70">
-        {$t("dashboard.progress.no_upload_description")}
-      </p>
     </div>
   {/if}
-</div>
+</section>

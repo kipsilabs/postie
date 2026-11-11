@@ -1,26 +1,27 @@
 <script lang="ts">
+import { segmentedKeys } from "$lib/actions/segmentedKeys";
 import apiClient from "$lib/api/client";
 import { t } from "$lib/i18n";
 import { toastStore } from "$lib/stores/toast";
-import { formatDate, formatDuration, formatFileSize, getStatusBadgeClass, getStatusIconClass } from "$lib/utils";
+import { fade, fly, listFlip } from "$lib/motion";
+import { formatDate, formatDuration, formatFileSize } from "$lib/utils";
 import type { backend } from "$lib/wailsjs/go/models";
 import {
-	AlertCircle,
 	ArrowDown,
 	ArrowUp,
 	ArrowUpDown,
-	CheckCircle,
-	ChevronLeft,
-	ChevronRight,
 	Clock,
-	Download,
-	List,
-	Play,
+	Inbox,
 	RotateCcw,
 	Search,
 	Trash2,
-	Upload,
+	X,
 } from "lucide-svelte";
+import ConfirmDialog from "./ConfirmDialog.svelte";
+import QueueItemActions from "./QueueItemActions.svelte";
+import QueuePagination from "./QueuePagination.svelte";
+import StatusLabel from "./StatusLabel.svelte";
+import VerificationBadge from "./VerificationBadge.svelte";
 import { onDestroy, onMount } from "svelte";
 
 let paginatedResult = $state<backend.PaginatedQueueResult | null>(null);
@@ -220,19 +221,6 @@ async function changePriority(id: string, newPriority: number) {
 	}
 }
 
-function getStatusIcon(status: string) {
-	switch (status) {
-		case "pending":
-			return Clock;
-		case "complete":
-			return CheckCircle;
-		case "error":
-			return AlertCircle;
-		default:
-			return Clock;
-	}
-}
-
 function goToPage(page: number) {
 	if (page >= 1 && page <= totalPages) {
 		currentPage = page;
@@ -329,208 +317,138 @@ let SizeIcon = $derived(getSortIcon("size"));
 let StatusSortIcon = $derived(getSortIcon("status"));
 let PriorityIcon = $derived(getSortIcon("priority"));
 let CreatedIcon = $derived(getSortIcon("created"));
+
+const statusFilters = [
+	{ value: "", label: "dashboard.queue.filter_all" },
+	{ value: "pending", label: "dashboard.queue.filter_pending" },
+	{ value: "complete", label: "dashboard.queue.filter_complete" },
+	{ value: "error", label: "dashboard.queue.filter_error" },
+] as const;
+let filterIndex = $derived(Math.max(0, statusFilters.findIndex((f) => f.value === statusFilter)));
+
+function durationOf(item: backend.QueueItem): string {
+	const end = item.completedAt ?? (item.status === "error" ? item.updatedAt : null);
+	if (!end) return "";
+	return formatDuration(new Date(end).getTime() - new Date(item.createdAt).getTime());
+}
+
+function truncate(message: string, max: number): string {
+	return message.length > max ? `${message.substring(0, max)}…` : message;
+}
 </script>
 
-<div class="space-y-6">
+{#snippet sortHeader(column: string, label: string, Icon: typeof ArrowUpDown)}
+  <button
+    type="button"
+    class="inline-flex items-center gap-1 select-none hover:text-base-content transition-colors"
+    onclick={() => toggleSort(column)}
+  >
+    {label}
+    <Icon class="w-3.5 h-3.5 {sortBy === column ? 'text-primary' : 'opacity-40'}" />
+  </button>
+{/snippet}
+
+<section class="relative">
   <!-- Header -->
-  <div class="flex items-center gap-3 mb-4">
-    <div class="p-2 rounded-lg bg-gradient-to-br from-secondary to-accent">
-      <List class="w-6 h-6 text-secondary-content" />
-    </div>
-    <div class="flex-1 min-w-0">
-      <h2 class="text-xl font-semibold">
-        {$t("dashboard.queue.title")}
-      </h2>
-      <div class="flex items-center gap-2 mt-1">
-        <div class="badge badge-info">
-          <span class="text-sm font-medium">
-            {totalItems} {$t("dashboard.queue.items")}
-          </span>
-        </div>
-      </div>
-    </div>
+  <div class="flex items-baseline gap-2 mb-2">
+    <div class="section-label !m-0">{$t("dashboard.queue.title")}</div>
+    <span class="text-xs text-base-content/65 tabular-nums">{totalItems} {$t("dashboard.queue.items")}</span>
   </div>
 
   {#if !initialLoad}
-    <!-- Filter Tabs + Search + Controls row -->
-    <div class="flex flex-wrap items-center gap-3">
-      <!-- Status filter tabs -->
-      <div class="join">
-        <button
-          type="button"
-          class="btn btn-sm join-item {statusFilter === '' ? 'btn-primary' : 'btn-ghost'}"
-          onclick={() => setStatusFilter('')}
-        >
-          {$t("dashboard.queue.filter_all")}
-        </button>
-        <button
-          type="button"
-          class="btn btn-sm join-item {statusFilter === 'pending' ? 'btn-primary' : 'btn-ghost'}"
-          onclick={() => setStatusFilter('pending')}
-        >
-          {$t("dashboard.queue.filter_pending")}
-        </button>
-        <button
-          type="button"
-          class="btn btn-sm join-item {statusFilter === 'complete' ? 'btn-primary' : 'btn-ghost'}"
-          onclick={() => setStatusFilter('complete')}
-        >
-          {$t("dashboard.queue.filter_complete")}
-        </button>
-        <button
-          type="button"
-          class="btn btn-sm join-item {statusFilter === 'error' ? 'btn-error' : 'btn-ghost'}"
-          onclick={() => setStatusFilter('error')}
-        >
-          {$t("dashboard.queue.filter_error")}
-        </button>
+    <!-- Filter + Search + Controls row -->
+    <div class="flex flex-wrap items-center gap-2 mb-3" in:fade>
+      <div class="segmented" role="radiogroup" use:segmentedKeys style="--n: {statusFilters.length}; --i: {filterIndex}">
+        <span class="segmented-thumb" aria-hidden="true"></span>
+        {#each statusFilters as filter (filter.value)}
+          <button
+            type="button"
+            role="radio"
+            class="segmented-item !px-3 !text-[0.8125rem]"
+            aria-checked={statusFilter === filter.value}
+            tabindex={statusFilter === filter.value ? 0 : -1}
+            onclick={() => setStatusFilter(filter.value)}
+          >
+            {$t(filter.label)}
+          </button>
+        {/each}
       </div>
 
-      <!-- Search input -->
       <div class="relative">
         <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-base-content/50 pointer-events-none" />
         <input
           type="search"
-          class="input input-bordered input-sm pl-8 w-44"
+          class="input input-sm pl-8 w-44"
           placeholder={$t("dashboard.queue.search_placeholder")}
           bind:value={searchQuery}
         />
       </div>
       {#if searchQuery.trim()}
-        <span class="text-xs text-base-content/50 italic">
+        <span class="text-xs text-base-content/65 tabular-nums" in:fade>
           {filteredItems.length}/{queueItems.length} — {$t("dashboard.queue.search_within_page")}
         </span>
       {/if}
 
-      <!-- Items per page -->
       <div class="flex items-center gap-2 ml-auto">
-        <label for="items-per-page" class="text-sm text-base-content/70 hidden sm:block">
-          {$t("dashboard.queue.items_per_page")}:
+        {#if totalItems > 0}
+          <button class="btn btn-xs btn-ghost gap-1" onclick={retryAllFailed} title={$t("dashboard.queue.retry_all_failed")}>
+            <RotateCcw class="w-3.5 h-3.5" />
+            {$t("dashboard.queue.retry_all_failed")}
+          </button>
+          <button class="btn btn-xs btn-ghost gap-1" onclick={clearCompleted} title={$t("dashboard.header.clear_completed")}>
+            <Trash2 class="w-3.5 h-3.5" />
+            {$t("dashboard.header.clear_completed")}
+          </button>
+        {/if}
+        <label for="items-per-page" class="text-xs text-base-content/60 hidden sm:block">
+          {$t("dashboard.queue.items_per_page")}
         </label>
-        <select
-          id="items-per-page"
-          class="select select-bordered select-sm"
-          value={itemsPerPage}
-          onchange={changeItemsPerPage}
-        >
+        <select id="items-per-page" class="select select-sm w-auto" value={itemsPerPage} onchange={changeItemsPerPage}>
           <option value={5}>5</option>
           <option value={10}>10</option>
           <option value={25}>25</option>
           <option value={50}>50</option>
         </select>
       </div>
-
-      <!-- Bulk Actions -->
-      {#if totalItems > 0}
-        <div class="flex items-center gap-2">
-          {#if selectedIds.size > 0}
-            <button
-              class="btn btn-xs btn-error gap-1"
-              onclick={batchDeleteSelected}
-            >
-              <Trash2 class="w-3 h-3" />
-              {$t("dashboard.queue.delete_selected", { values: { count: selectedIds.size } })}
-            </button>
-          {/if}
-          <button
-            class="btn btn-xs btn-warning gap-1"
-            onclick={retryAllFailed}
-            title={$t("dashboard.queue.retry_all_failed")}
-          >
-            <RotateCcw class="w-3 h-3" />
-            {$t("dashboard.queue.retry_all_failed")}
-          </button>
-          <button
-            class="btn btn-xs btn-ghost gap-1"
-            onclick={clearCompleted}
-            title={$t("dashboard.header.clear_completed")}
-          >
-            <Trash2 class="w-3 h-3" />
-            {$t("dashboard.header.clear_completed")}
-          </button>
-        </div>
-      {/if}
     </div>
   {/if}
 
   {#if initialLoad}
-    <!-- Loading Skeleton -->
-    <div class="card bg-base-100 shadow-xl border border-base-300 overflow-hidden">
+    <!-- Loading skeleton -->
+    <div class="settings-group">
       <div class="p-4 space-y-3">
-        {#each Array(5) as _}
+        {#each Array(5) as _, i (i)}
           <div class="flex items-center gap-4">
             <div class="skeleton h-4 w-48"></div>
             <div class="skeleton h-4 w-16"></div>
-            <div class="skeleton h-6 w-20 rounded-full"></div>
-            <div class="skeleton h-4 w-12"></div>
-            <div class="skeleton h-4 w-24"></div>
+            <div class="skeleton h-4 w-20"></div>
             <div class="flex-1"></div>
-            <div class="skeleton h-8 w-8 rounded"></div>
+            <div class="skeleton h-5 w-5 rounded"></div>
           </div>
         {/each}
       </div>
     </div>
   {:else if totalItems === 0}
-    <!-- Empty State -->
-    <div class="text-center py-12">
-      <div class="w-16 h-16 mx-auto mb-4 p-4 rounded-full bg-base-200">
-        <Upload class="w-8 h-8 text-base-content/50" />
+    <!-- Empty state -->
+    <div class="settings-group" in:fade>
+      <div class="flex flex-col items-center text-center py-12 px-4 gap-1">
+        <Inbox class="w-8 h-8 text-base-content/30 mb-2" />
+        <h3 class="text-sm font-medium">{$t("dashboard.queue.no_items")}</h3>
+        <p class="text-sm text-base-content/60">{$t("dashboard.queue.no_items_description")}</p>
+        <p class="text-xs text-base-content/65">{$t("dashboard.queue.empty_hint")}</p>
       </div>
-      <h3 class="text-lg font-medium mb-2">
-        {$t("dashboard.queue.no_items")}
-      </h3>
-      <p class="text-base-content/70 mb-4">
-        {$t("dashboard.queue.no_items_description")}
-      </p>
-      <p class="text-sm text-base-content/50">
-        {$t("dashboard.queue.empty_hint")}
-      </p>
     </div>
   {:else}
-    {#snippet verificationBadge(item: backend.QueueItem)}
-      {#if item.status === "complete" && item.verificationStatus === "reused"}
-        <div class="badge badge-info">{$t("dashboard.queue.reused_nzb")}</div>
-      {:else if item.status === "complete" && item.verificationStatus === "pending_verification"}
-        <div class="flex flex-col items-end gap-1 shrink-0">
-          <div class="badge badge-warning badge-sm gap-1">
-            <span class="loading loading-spinner loading-xs"></span>
-            {$t("dashboard.queue.verification.pending")}
-          </div>
-          {#if item.totalArticles && item.totalArticles > 0}
-            {@const pct = Math.round(((item.verifiedArticles ?? 0) / item.totalArticles) * 100)}
-            <div
-              class="w-24 bg-base-300 rounded-full h-1.5"
-              role="progressbar"
-              aria-valuenow={pct}
-              aria-valuemin={0}
-              aria-valuemax={100}
-            >
-              <div
-                class="bg-warning h-1.5 rounded-full transition-all duration-300"
-                style="width: {pct}%"
-              ></div>
-            </div>
-            <span class="text-xs text-base-content/60">
-              {$t("dashboard.queue.verification.progress", {
-                values: {
-                  verified: item.verifiedArticles ?? 0,
-                  total: item.totalArticles,
-                },
-              })}
-            </span>
-          {/if}
-        </div>
-      {:else if item.status === "complete" && item.verificationStatus === "verification_failed"}
-        <div class="badge badge-error badge-sm shrink-0">
-          {$t("dashboard.queue.verification.failed")}
-        </div>
-      {/if}
-    {/snippet}
-
-    <!-- Mobile card layout -->
-    <div class="md:hidden space-y-3">
+    <!-- Mobile list -->
+    <div class="md:hidden settings-group">
       {#each filteredItems as item (item.id)}
-        <div class="card bg-base-100 shadow-sm border border-base-300 p-4">
+        <div
+          class="px-3 py-2.5 border-t border-[var(--ui-hairline)] first:border-t-0"
+          class:row-selected={selectedIds.has(item.id)}
+          in:fly
+          out:fade={{ speed: "fast" }}
+          animate:listFlip
+        >
           <div class="flex items-start justify-between gap-2">
             <div class="flex items-start gap-2 min-w-0 flex-1">
               <input
@@ -540,343 +458,224 @@ let CreatedIcon = $derived(getSortIcon("created"));
                 onclick={() => toggleItem(item.id)}
               />
               <div class="min-w-0 flex-1">
-                <div class="font-medium truncate" title={item.fileName}>{item.fileName}</div>
-                <div class="text-xs text-base-content/60 mt-0.5">{formatFileSize(item.size)}</div>
+                <div class="text-sm font-medium truncate" title={item.fileName}>{item.fileName}</div>
+                <div class="text-xs text-base-content/60 mt-0.5 tabular-nums">{formatFileSize(item.size)}</div>
               </div>
             </div>
             <div class="flex flex-col items-end gap-1 shrink-0">
               {#if !(item.status === "complete" && item.verificationStatus === "pending_verification")}
-                <div class="badge {getStatusBadgeClass(item.status)} capitalize">{item.status}</div>
+                <StatusLabel status={item.status} />
               {/if}
-              {@render verificationBadge(item)}
+              <VerificationBadge {item} />
             </div>
           </div>
           {#if item.errorMessage}
-            <p class="text-xs text-error mt-2 break-words leading-snug">
-              {item.errorMessage.length > 100
-                ? item.errorMessage.substring(0, 100) + "…"
-                : item.errorMessage}
-            </p>
+            <p class="text-xs text-error mt-1.5 break-words leading-snug">{truncate(item.errorMessage, 100)}</p>
           {/if}
-          <div class="flex items-center justify-between mt-3 pt-2 border-t border-base-200">
-            <div class="text-xs text-base-content/60">
+          <div class="flex items-center justify-between mt-1.5">
+            <div class="text-xs text-base-content/65 tabular-nums">
               {formatDate(item.createdAt)}
-              {#if item.completedAt}
-                <span class="ml-2 text-base-content/50">
-                  <Clock class="w-3 h-3 inline mr-0.5" />
-                  {formatDuration(new Date(item.completedAt).getTime() - new Date(item.createdAt).getTime())}
-                </span>
-              {:else if item.status === "error"}
-                <span class="ml-2 text-error/60">
-                  <Clock class="w-3 h-3 inline mr-0.5" />
-                  {formatDuration(new Date(item.updatedAt).getTime() - new Date(item.createdAt).getTime())}
+              {#if durationOf(item)}
+                <span class="ml-2 inline-flex items-center gap-0.5">
+                  <Clock class="w-3 h-3" />{durationOf(item)}
                 </span>
               {/if}
             </div>
             <div class="flex items-center gap-1">
               {#if item.priority > 0}
-                <span class="badge badge-outline badge-xs">P{item.priority}</span>
+                <span class="badge badge-ghost badge-xs tabular-nums">P{item.priority}</span>
               {/if}
-              {#if item.status === "complete"}
-                <button class="btn btn-primary btn-xs" onclick={() => downloadNZB(item.id)} aria-label={$t("dashboard.queue.download_nzb")}>
-                  <Download class="w-3 h-3" />
-                </button>
-              {/if}
-              {#if item.status === "error"}
-                <button class="btn btn-warning btn-xs relative" onclick={() => retryJob(item.id)} aria-label={$t("dashboard.queue.retry")}>
-                  <Play class="w-3 h-3" />
-                  {#if item.retryCount > 0}
-                    <sup class="absolute -top-1 -right-1 text-[9px] leading-none bg-warning-content text-warning rounded-full w-3.5 h-3.5 flex items-center justify-center font-bold">{item.retryCount}</sup>
-                  {/if}
-                </button>
-              {/if}
-              <button class="btn btn-error btn-xs" onclick={() => removeFromQueue(item.id)} aria-label={$t("dashboard.queue.remove_from_queue")}>
-                <Trash2 class="w-3 h-3" />
-              </button>
+              <QueueItemActions {item} onDownload={downloadNZB} onRetry={retryJob} onRemove={removeFromQueue} />
             </div>
           </div>
         </div>
       {/each}
     </div>
 
-    <!-- Desktop table layout -->
-    <div class="card bg-base-100 shadow-xl border border-base-300 overflow-hidden hidden md:block">
-        <div class="overflow-x-auto">
-          <table class="table table-zebra">
-            <thead>
-              <tr>
-                <th class="w-8">
-                  <input
-                    type="checkbox"
-                    class="checkbox checkbox-sm"
-                    checked={allSelected}
-                    onclick={toggleSelectAll}
-                  />
-                </th>
-                <th
-                  class="cursor-pointer hover:bg-base-200 select-none"
-                  onclick={() => toggleSort("filename")}
-                >
-                  <div class="flex items-center gap-1">
-                    {$t("dashboard.queue.file")}
-                    <FilenameIcon class="w-4 h-4 {sortBy === 'filename' ? 'text-primary' : 'text-base-content/40'}" />
+    <!-- Desktop table -->
+    <div class="settings-group overflow-x-auto hidden md:block">
+      <table class="table table-sm">
+        <thead>
+          <tr>
+            <th class="w-8">
+              <input
+                type="checkbox"
+                class="checkbox checkbox-sm"
+                checked={allSelected}
+                onclick={toggleSelectAll}
+                aria-label={$t("dashboard.file_explorer.select_all")}
+              />
+            </th>
+            <th aria-sort={sortBy === "filename" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"}>
+              {@render sortHeader("filename", $t("dashboard.queue.file"), FilenameIcon)}
+            </th>
+            <th aria-sort={sortBy === "size" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"}>
+              {@render sortHeader("size", $t("dashboard.queue.size"), SizeIcon)}
+            </th>
+            <th aria-sort={sortBy === "status" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"}>
+              {@render sortHeader("status", $t("dashboard.queue.status"), StatusSortIcon)}
+            </th>
+            <th aria-sort={sortBy === "priority" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"}>
+              {@render sortHeader("priority", $t("dashboard.queue.priority"), PriorityIcon)}
+            </th>
+            <th aria-sort={sortBy === "created" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"}>
+              {@render sortHeader("created", $t("dashboard.queue.created"), CreatedIcon)}
+            </th>
+            <th class="text-right">{$t("dashboard.queue.actions")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each filteredItems as item (item.id)}
+            <tr
+              class:row-selected={selectedIds.has(item.id)}
+              in:fly
+              out:fade={{ speed: "fast" }}
+              animate:listFlip
+            >
+              <td>
+                <input
+                  type="checkbox"
+                  class="checkbox checkbox-sm"
+                  checked={selectedIds.has(item.id)}
+                  onclick={() => toggleItem(item.id)}
+                />
+              </td>
+              <td>
+                <div class="max-w-md">
+                  <div class="font-medium truncate" title={item.fileName}>{item.fileName}</div>
+                  <div class="text-xs text-base-content/65 truncate" title={item.path}>{item.path}</div>
+                </div>
+              </td>
+              <td class="tabular-nums whitespace-nowrap">{formatFileSize(item.size)}</td>
+              <td>
+                <div class="flex items-center gap-2 flex-wrap">
+                  {#if !(item.status === "complete" && item.verificationStatus === "pending_verification")}
+                    <StatusLabel status={item.status} />
+                  {/if}
+                  <VerificationBadge {item} />
+                </div>
+                {#if item.errorMessage}
+                  <p class="text-xs text-error mt-1 max-w-xs break-words leading-snug">{truncate(item.errorMessage, 120)}</p>
+                {/if}
+              </td>
+              <td>
+                {#if item.status === "pending"}
+                  <div class="flex items-center gap-0.5">
+                    <button
+                      class="btn btn-ghost btn-square btn-xs"
+                      title={$t("dashboard.queue.increase_priority")}
+                      aria-label={$t("dashboard.queue.increase_priority")}
+                      onclick={() => changePriority(item.id, item.priority + 1)}
+                    ><ArrowUp class="w-3.5 h-3.5" /></button>
+                    <span class="text-xs tabular-nums min-w-[1.5rem] text-center">{item.priority}</span>
+                    <button
+                      class="btn btn-ghost btn-square btn-xs"
+                      title={$t("dashboard.queue.decrease_priority")}
+                      aria-label={$t("dashboard.queue.decrease_priority")}
+                      onclick={() => changePriority(item.id, Math.max(0, item.priority - 1))}
+                      disabled={item.priority <= 0}
+                    ><ArrowDown class="w-3.5 h-3.5" /></button>
                   </div>
-                </th>
-                <th
-                  class="cursor-pointer hover:bg-base-200 select-none"
-                  onclick={() => toggleSort("size")}
-                >
-                  <div class="flex items-center gap-1">
-                    {$t("dashboard.queue.size")}
-                    <SizeIcon class="w-4 h-4 {sortBy === 'size' ? 'text-primary' : 'text-base-content/40'}" />
+                {:else}
+                  <span class="text-sm text-base-content/65 tabular-nums">{item.priority}</span>
+                {/if}
+              </td>
+              <td class="whitespace-nowrap">
+                <div class="tabular-nums">{formatDate(item.createdAt)}</div>
+                {#if item.completedAt}
+                  <div class="text-xs text-base-content/65 tabular-nums">
+                    {$t("dashboard.queue.completed")}: {formatDate(item.completedAt)}
                   </div>
-                </th>
-                <th
-                  class="cursor-pointer hover:bg-base-200 select-none"
-                  onclick={() => toggleSort("status")}
-                >
-                  <div class="flex items-center gap-1">
-                    {$t("dashboard.queue.status")}
-                    <StatusSortIcon class="w-4 h-4 {sortBy === 'status' ? 'text-primary' : 'text-base-content/40'}" />
+                {/if}
+                {#if durationOf(item)}
+                  <div class="text-xs tabular-nums inline-flex items-center gap-0.5 {item.completedAt ? 'text-base-content/65' : 'text-error/70'}">
+                    <Clock class="w-3 h-3" />{durationOf(item)}
                   </div>
-                </th>
-                <th
-                  class="cursor-pointer hover:bg-base-200 select-none"
-                  onclick={() => toggleSort("priority")}
-                >
-                  <div class="flex items-center gap-1">
-                    {$t("dashboard.queue.priority")}
-                    <PriorityIcon class="w-4 h-4 {sortBy === 'priority' ? 'text-primary' : 'text-base-content/40'}" />
-                  </div>
-                </th>
-                <th
-                  class="cursor-pointer hover:bg-base-200 select-none"
-                  onclick={() => toggleSort("created")}
-                >
-                  <div class="flex items-center gap-1">
-                    {$t("dashboard.queue.created")}
-                    <CreatedIcon class="w-4 h-4 {sortBy === 'created' ? 'text-primary' : 'text-base-content/40'}" />
-                  </div>
-                </th>
-                <th class="text-right">{$t("dashboard.queue.actions")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each filteredItems as item (item.id)}
-                <tr>
-                  <td>
-                    <input
-                      type="checkbox"
-                      class="checkbox checkbox-sm"
-                      checked={selectedIds.has(item.id)}
-                      onclick={() => toggleItem(item.id)}
-                    />
-                  </td>
-                  <td>
-                    <div class="max-w-xs">
-                      <div class="font-medium truncate" title={item.fileName}>
-                        {item.fileName}
-                      </div>
-                      <div class="text-sm text-base-content/70 truncate mt-1" title={item.path}>
-                        {item.path}
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <span class="text-sm font-medium">
-                      {formatFileSize(item.size)}
-                    </span>
-                  </td>
-                  <td>
-                    <div class="flex items-center gap-2 flex-wrap">
-                      {#if !(item.status === "complete" && item.verificationStatus === "pending_verification")}
-                        {#if item.status === "complete"}
-                          <CheckCircle class="w-4 h-4 {getStatusIconClass(item.status)}" />
-                        {:else if item.status === "error"}
-                          <AlertCircle class="w-4 h-4 {getStatusIconClass(item.status)}" />
-                        {:else}
-                          <Clock class="w-4 h-4 {getStatusIconClass(item.status)}" />
-                        {/if}
-                        <div class="badge {getStatusBadgeClass(item.status)} capitalize">
-                          {item.status}
-                        </div>
-                      {/if}
-                      {@render verificationBadge(item)}
-                    </div>
-                    {#if item.errorMessage}
-                      <p class="text-xs text-error mt-1.5 max-w-xs break-words leading-snug">
-                        {item.errorMessage.length > 120
-                          ? item.errorMessage.substring(0, 120) + "…"
-                          : item.errorMessage}
-                      </p>
-                    {/if}
-                  </td>
-                  <td>
-                    {#if item.status === "pending"}
-                      <div class="flex items-center gap-1">
-                        <button
-                          class="btn btn-xs btn-success"
-                          title={$t("dashboard.queue.increase_priority")}
-                          aria-label={$t("dashboard.queue.increase_priority")}
-                          onclick={() => changePriority(item.id, item.priority + 1)}
-                        >▲</button>
-                        <span class="px-2 py-1 text-xs font-mono bg-base-200 rounded min-w-[2rem] text-center">{item.priority}</span>
-                        <button
-                          class="btn btn-xs btn-outline"
-                          title={$t("dashboard.queue.decrease_priority")}
-                          aria-label={$t("dashboard.queue.decrease_priority")}
-                          onclick={() => changePriority(item.id, Math.max(0, item.priority - 1))}
-                          disabled={item.priority <= 0}
-                        >▼</button>
-                      </div>
-                    {:else}
-                      <span class="text-sm text-base-content/50">{item.priority}</span>
-                    {/if}
-                  </td>
-                  <td>
-                    <div class="text-sm font-medium">
-                      {formatDate(item.createdAt)}
-                    </div>
-                    {#if item.completedAt}
-                      <div class="text-xs text-base-content/70 mt-1">
-                        {$t("dashboard.queue.completed")}: {formatDate(item.completedAt)}
-                      </div>
-                      <div class="text-xs text-base-content/50 mt-1">
-                        <Clock class="w-3 h-3 inline mr-0.5" />
-                        {formatDuration(new Date(item.completedAt).getTime() - new Date(item.createdAt).getTime())}
-                      </div>
-                    {:else if item.status === "error"}
-                      <div class="text-xs text-error/70 mt-1">
-                        <Clock class="w-3 h-3 inline mr-0.5" />
-                        {formatDuration(new Date(item.updatedAt).getTime() - new Date(item.createdAt).getTime())}
-                      </div>
-                    {/if}
-                  </td>
-                  <td class="text-right">
-                    <div class="flex items-center justify-end space-x-2">
-                      {#if item.status === "complete"}
-                        <button
-                          class="btn btn-primary btn-xs"
-                          onclick={() => downloadNZB(item.id)}
-                          title={$t("dashboard.queue.download_nzb")}
-                          aria-label={$t("dashboard.queue.download_nzb")}
-                        >
-                          <Download class="w-4 h-4" />
-                        </button>
-                      {/if}
-                      {#if item.status === "error"}
-                        <button
-                          class="btn btn-warning btn-xs relative"
-                          onclick={() => retryJob(item.id)}
-                          title={$t("dashboard.queue.retry")}
-                          aria-label={$t("dashboard.queue.retry")}
-                        >
-                          <Play class="w-4 h-4" />
-                          {#if item.retryCount > 0}
-                            <sup class="absolute -top-1 -right-1 text-[9px] leading-none bg-warning-content text-warning rounded-full w-3.5 h-3.5 flex items-center justify-center font-bold">{item.retryCount}</sup>
-                          {/if}
-                        </button>
-                      {/if}
-                      <button
-                        class="btn btn-error btn-xs"
-                        onclick={() => removeFromQueue(item.id)}
-                        title={$t("dashboard.queue.remove_from_queue")}
-                        aria-label={$t("dashboard.queue.remove_from_queue")}
-                      >
-                        <Trash2 class="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
+                {/if}
+              </td>
+              <td class="text-right">
+                <QueueItemActions {item} onDownload={downloadNZB} onRetry={retryJob} onRemove={removeFromQueue} />
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
     </div>
 
-    <!-- Pagination Controls (shared between mobile/desktop) -->
     {#if totalPages > 1}
-      <div class="flex flex-col sm:flex-row justify-between items-center gap-3 p-4 bg-base-200 rounded-lg mt-3">
-        <div class="text-sm text-base-content/70">
-          {$t("dashboard.queue.showing")} {startItem} {$t("dashboard.queue.to")} {endItem} {$t("dashboard.queue.of")} {totalItems} {$t("dashboard.queue.entries")}
-        </div>
-
-        <div class="flex items-center space-x-2">
-          <button
-            class="btn btn-sm"
-            disabled={!hasPrev}
-            onclick={() => goToPage(currentPage - 1)}
-          >
-            <ChevronLeft class="w-4 h-4" />
-            <span class="hidden sm:inline">{$t("dashboard.queue.previous")}</span>
-          </button>
-
-          <div class="flex items-center space-x-1">
-            {#each Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
-              if (totalPages <= 7) return i + 1;
-              if (currentPage <= 4) return i + 1;
-              if (currentPage >= totalPages - 3) return totalPages - 6 + i;
-              return currentPage - 3 + i;
-            }) as page}
-              <button
-                class="btn btn-sm {currentPage === page ? 'btn-primary' : 'btn-outline'}"
-                onclick={() => goToPage(page)}
-              >
-                {page}
-              </button>
-            {/each}
-
-            {#if totalPages > 7 && currentPage < totalPages - 3}
-              <span class="text-base-content/50">...</span>
-              <button
-                class="btn btn-sm btn-outline"
-                onclick={() => goToPage(totalPages)}
-              >
-                {totalPages}
-              </button>
-            {/if}
-          </div>
-
-          <button
-            class="btn btn-sm"
-            disabled={!hasNext}
-            onclick={() => goToPage(currentPage + 1)}
-          >
-            <span class="hidden sm:inline">{$t("dashboard.queue.next")}</span>
-            <ChevronRight class="w-4 h-4" />
-          </button>
-        </div>
-      </div>
+      <QueuePagination
+        {currentPage}
+        {totalPages}
+        {totalItems}
+        {startItem}
+        {endItem}
+        {hasNext}
+        {hasPrev}
+        onPage={goToPage}
+      />
     {/if}
   {/if}
-</div>
 
-<!-- Batch delete confirmation dialog -->
+  <!-- Batch action bar: floats at the bottom of the viewport while rows are selected -->
+  {#if selectedIds.size > 0}
+    <div class="batch-bar-wrap" in:fly={{ y: 12 }} out:fly={{ y: 12, speed: "fast" }}>
+      <div class="batch-bar">
+        <span class="text-sm tabular-nums">{$t("dashboard.file_explorer.items_selected", { values: { count: selectedIds.size } })}</span>
+        <button class="btn btn-xs btn-error gap-1" onclick={batchDeleteSelected}>
+          <Trash2 class="w-3.5 h-3.5" />
+          {$t("dashboard.queue.delete_selected", { values: { count: selectedIds.size } })}
+        </button>
+        <button
+          class="btn btn-xs btn-ghost btn-square"
+          onclick={() => (selectedIds = new Set())}
+          title={$t("dashboard.file_explorer.clear_selection")}
+          aria-label={$t("dashboard.file_explorer.clear_selection")}
+        >
+          <X class="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  {/if}
+</section>
+
 {#if pendingBatchDelete}
-  <div class="modal modal-open" role="dialog">
-    <div class="modal-box max-w-sm">
-      <h3 class="text-lg font-bold">{$t("common.actions.confirm")}</h3>
-      <p class="py-4">{$t("dashboard.queue.confirm_delete_selected", { values: { count: selectedIds.size } })}</p>
-      <div class="modal-action">
-        <button class="btn btn-ghost" onclick={() => pendingBatchDelete = false}>{$t("common.actions.cancel")}</button>
-        <button class="btn btn-error" onclick={confirmBatchDelete}>{$t("common.actions.delete")}</button>
-      </div>
-    </div>
-    <button aria-label={$t("common.actions.cancel")} class="modal-backdrop" onclick={() => pendingBatchDelete = false}></button>
-  </div>
+  <ConfirmDialog
+    message={$t("dashboard.queue.confirm_delete_selected", { values: { count: selectedIds.size } })}
+    onConfirm={confirmBatchDelete}
+    onCancel={() => (pendingBatchDelete = false)}
+  />
 {/if}
 
-<!-- Remove confirmation dialog -->
 {#if pendingRemoveId}
-  <div class="modal modal-open">
-    <div class="modal-box max-w-sm">
-      <h3 class="text-lg font-bold">{$t("common.actions.confirm")}</h3>
-      <p class="py-4">{$t("common.messages.confirm_delete")}</p>
-      <div class="modal-action">
-        <button class="btn btn-ghost" onclick={cancelRemove}>{$t("common.actions.cancel")}</button>
-        <button class="btn btn-error" onclick={confirmRemove}>{$t("common.actions.delete")}</button>
-      </div>
-    </div>
-    <button aria-label={$t("common.actions.cancel")} class="modal-backdrop" onclick={cancelRemove}></button>
-  </div>
+  <ConfirmDialog
+    message={$t("common.messages.confirm_delete")}
+    onConfirm={confirmRemove}
+    onCancel={cancelRemove}
+  />
 {/if}
+
+<style>
+  tr.row-selected > :global(td),
+  div.row-selected {
+    background-color: color-mix(in oklab, var(--color-primary) 8%, transparent);
+  }
+  .batch-bar-wrap {
+    position: sticky;
+    bottom: 0.75rem;
+    z-index: 10;
+    display: flex;
+    justify-content: center;
+    margin-top: 0.75rem;
+    pointer-events: none;
+  }
+  .batch-bar {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.375rem 0.5rem 0.375rem 0.875rem;
+    border-radius: var(--radius-box);
+    background: var(--color-base-100);
+    box-shadow: var(--ui-shadow-md);
+  }
+</style>

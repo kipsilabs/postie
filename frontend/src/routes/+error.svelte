@@ -1,40 +1,33 @@
 <script lang="ts">
 import { page } from "$app/state";
-import { AlertCircle, ArrowLeft } from "lucide-svelte";
+import { t } from "$lib/i18n";
+import { ArrowLeft, TriangleAlert } from "lucide-svelte";
 </script>
 
 <svelte:head>
-  <title>Error {page.status} - Postie</title>
+  <title>{$t("errorPage.document_title", { values: { status: page.status } })}</title>
 </svelte:head>
 
-<div class="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-6">
-  <div class="p-6 bg-error/20 rounded-full">
-    <AlertCircle class="w-16 h-16 text-error" />
-  </div>
+<div class="flex min-h-[50vh] flex-col items-center justify-center gap-3 px-4 text-center animate-fade-up">
+  <TriangleAlert class="h-10 w-10 text-base-content/40" strokeWidth={1.5} />
 
-  <div class="space-y-2">
-    <h1 class="text-4xl font-bold">
-      {page.status}
+  <div class="space-y-1">
+    <h1 class="text-lg font-semibold">
+      {page.error?.message || $t("errorPage.title")}
     </h1>
-    <p class="text-xl text-base-content/70">
-      {page.error?.message || "Something went wrong"}
+    <p class="text-sm tabular-nums text-base-content/60">{page.status}</p>
+    <p class="mx-auto max-w-sm pt-1 text-sm text-base-content/65">
+      {$t("errorPage.description")}
     </p>
   </div>
 
-  <div class="space-y-4">
-    <p class="text-base-content/70 max-w-md">
-      We apologize for the inconvenience. Please try refreshing the page or go
-      back to the dashboard.
-    </p>
-
-    <div class="flex gap-4 justify-center">
-      <a href="/" class="btn btn-primary">
-        <ArrowLeft class="w-4 h-4" />
-        Back to Dashboard
-      </a>
-      <button class="btn btn-outline" onclick={() => window.location.reload()}>
-        Refresh Page
-      </button>
-    </div>
+  <div class="mt-2 flex flex-wrap items-center justify-center gap-2">
+    <a href="/" class="btn btn-primary btn-sm">
+      <ArrowLeft class="h-4 w-4" />
+      {$t("errorPage.back")}
+    </a>
+    <button type="button" class="btn btn-outline btn-sm" onclick={() => window.location.reload()}>
+      {$t("errorPage.reload")}
+    </button>
   </div>
 </div>

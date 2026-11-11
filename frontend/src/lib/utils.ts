@@ -131,13 +131,13 @@ export function getStatusBadgeClass(status: string): string {
 export function getStatusIconClass(status: string): string {
 	switch (status) {
 		case "pending":
-			return "text-warning";
+			return "text-warning-ink";
 		case "complete":
 			return "text-success";
 		case "error":
 			return "text-error";
 		default:
-			return "text-base-content/50";
+			return "text-base-content/65";
 	}
 }
 

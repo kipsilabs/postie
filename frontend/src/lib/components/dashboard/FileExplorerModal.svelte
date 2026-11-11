@@ -2,7 +2,8 @@
 import { t } from "$lib/i18n";
 import { toastStore } from "$lib/stores/toast";
 import apiClient from "$lib/api/client";
-import { X, Upload, Loader, ArrowLeft, Home } from "lucide-svelte";
+import { fade, scale } from "$lib/motion";
+import { X, Upload, Loader, ArrowLeft, Home, Folder, File as FileIcon } from "lucide-svelte";
 import { onMount } from "svelte";
 
 interface FileSystemItem {
@@ -134,6 +135,15 @@ async function importSelectedFiles() {
   }
 }
 
+function toggleSelected(id: string) {
+  if (selectedFiles.has(id)) {
+    selectedFiles.delete(id);
+  } else {
+    selectedFiles.add(id);
+  }
+  selectedFiles = new Set(selectedFiles);
+}
+
 function selectAll() {
   for (const item of fileManagerData) {
     selectedFiles.add(item.id);
@@ -212,16 +222,19 @@ onMount(() => {
 
 {#if isOpen}
   <!-- Modal backdrop -->
-  <div 
-    class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+  <div
+    class="fixed inset-0 z-50 bg-black/40"
+    style="-webkit-backdrop-filter: blur(var(--modal-blur)); backdrop-filter: blur(var(--modal-blur))"
     onclick={onClose}
     onkeydown={handleBackdropKeydown}
     role="presentation"
     tabindex="-1"
+    in:fade
+    out:fade={{ speed: "fast" }}
   ></div>
-  
+
   <!-- Modal content -->
-  <div 
+  <div
     class="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
     role="dialog"
     aria-modal="true"
@@ -230,145 +243,123 @@ onMount(() => {
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       bind:this={modalRef}
-      class="bg-base-100 rounded-lg shadow-2xl border border-base-300 w-full max-w-6xl h-[80vh] flex flex-col pointer-events-auto"
+      class="bg-base-100 rounded-[var(--radius-box)] shadow-lg w-full max-w-4xl h-[80vh] flex flex-col pointer-events-auto overflow-hidden"
       onkeydown={handleFocusTrap}
+      in:scale
+      out:scale={{ speed: "fast", start: 0.97 }}
     >
       <!-- Header -->
-      <div class="flex items-center justify-between p-4 border-b border-base-300">
-        <h2 id="file-explorer-title" class="text-xl font-semibold text-base-content">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-[var(--ui-hairline)]">
+        <h2 id="file-explorer-title" class="text-base font-semibold text-base-content">
           {$t("dashboard.file_explorer.title")}
         </h2>
-        <button
-          class="btn btn-ghost btn-sm"
-          onclick={onClose}
-          aria-label="Close"
-        >
-          <X class="w-5 h-5" />
+        <button class="btn btn-ghost btn-square btn-sm" onclick={onClose} aria-label={$t("dashboard.file_explorer.close")} title={$t("dashboard.file_explorer.close")}>
+          <X class="w-4 h-4" />
         </button>
       </div>
 
-      <!-- Navigation Toolbar -->
-      <div class="p-3 bg-base-50 border-b border-base-300 space-y-3">
-        <!-- Navigation Controls -->
-        <div class="flex items-center gap-2">
+      <!-- Navigation toolbar -->
+      <div class="px-3 py-2 bg-base-200/60 border-b border-[var(--ui-hairline)] space-y-2">
+        <div class="flex items-center gap-1.5">
           <button
-            class="btn btn-ghost btn-sm"
+            class="btn btn-ghost btn-square btn-sm"
             onclick={goBack}
             disabled={pathHistory.length === 0}
             title={$t('dashboard.file_explorer.go_back_tooltip')}
+            aria-label={$t('dashboard.file_explorer.go_back_tooltip')}
           >
             <ArrowLeft class="w-4 h-4" />
           </button>
 
           <button
-            class="btn btn-ghost btn-sm"
+            class="btn btn-ghost btn-square btn-sm"
             onclick={goHome}
             title={$t('dashboard.file_explorer.go_home_tooltip')}
+            aria-label={$t('dashboard.file_explorer.go_home_tooltip')}
           >
             <Home class="w-4 h-4" />
           </button>
 
-          <!-- Path Input -->
           <div class="flex-1">
             <input
               type="text"
-              class="input input-bordered input-sm w-full"
+              class="input input-sm w-full"
               bind:value={pathInput}
               onkeydown={handlePathInputKeydown}
               placeholder={$t('dashboard.file_explorer.path_placeholder')}
             />
           </div>
 
-          <button
-            class="btn btn-primary btn-sm"
-            onclick={() => navigateToPath(pathInput)}
-            disabled={loading}
-          >
+          <button class="btn btn-primary btn-sm" onclick={() => navigateToPath(pathInput)} disabled={loading}>
             {$t('dashboard.file_explorer.go_button')}
           </button>
         </div>
 
-        <!-- Selection Controls -->
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-1">
             {#if hasSelectedFiles}
-              <span class="text-sm text-base-content/70">
-                {$t('dashboard.file_explorer.items_selected', { values: { count: selectedFileCount } })}
-              </span>
-              <button
-                class="btn btn-ghost btn-xs"
-                onclick={clearSelection}
-              >
+              <button class="btn btn-ghost btn-xs" onclick={clearSelection} in:fade>
                 {$t('dashboard.file_explorer.clear_selection')}
               </button>
             {/if}
-
-            <button
-              class="btn btn-ghost btn-xs"
-              onclick={selectAll}
-              disabled={fileManagerData.length === 0}
-            >
+            <button class="btn btn-ghost btn-xs" onclick={selectAll} disabled={fileManagerData.length === 0}>
               {$t('dashboard.file_explorer.select_all')}
             </button>
           </div>
 
-          <div class="text-sm text-base-content/70">
+          <div class="text-xs text-base-content/60 truncate">
             {$t('dashboard.file_explorer.current_path', { values: { path: currentPath } })}
           </div>
         </div>
       </div>
 
-      <!-- File Browser -->
+      <!-- File browser -->
       <div class="flex-1 overflow-hidden relative">
         {#if loading}
-          <div class="absolute inset-0 bg-base-100/80 flex items-center justify-center z-10">
+          <div class="absolute inset-0 bg-base-100/70 flex items-center justify-center z-10" transition:fade={{ speed: "fast" }}>
             <div class="flex items-center gap-2">
-              <Loader class="w-6 h-6 animate-spin text-primary" />
-              <span class="text-base-content/70">{$t('dashboard.file_explorer.loading')}</span>
+              <Loader class="w-5 h-5 animate-spin text-primary" />
+              <span class="text-sm text-base-content/70">{$t('dashboard.file_explorer.loading')}</span>
             </div>
           </div>
         {/if}
 
-        <div class="h-full overflow-y-auto">
+        <div class="h-full overflow-y-auto selectable">
           {#if fileManagerData.length === 0 && !loading}
-            <div class="flex items-center justify-center h-full text-base-content/50">
+            <div class="flex items-center justify-center h-full text-base-content/65">
               <div class="text-center">
-                <div class="text-6xl mb-4">📁</div>
-                <p>{$t('dashboard.file_explorer.empty_directory')}</p>
+                <Folder class="w-10 h-10 mx-auto mb-3 opacity-40" />
+                <p class="text-sm">{$t('dashboard.file_explorer.empty_directory')}</p>
               </div>
             </div>
           {:else}
-            <div class="divide-y divide-base-300">
-              {#each fileManagerData as item}
-                <div class="flex items-center gap-3 p-3 hover:bg-base-100 transition-colors">
-                  <div class="text-2xl flex-shrink-0">
-                    {item.type === "folder" ? "📁" : "📄"}
+            <div>
+              {#each fileManagerData as item (item.id)}
+                {@const isSelected = selectedFiles.has(item.id)}
+                <div
+                  class="flex items-center gap-3 px-3 py-1.5 border-t border-[var(--ui-hairline)] first:border-t-0 transition-colors hover:bg-base-200/60"
+                  style={isSelected ? "background-color: color-mix(in oklab, var(--color-primary) 8%, transparent)" : ""}
+                >
+                  <div class="shrink-0 text-base-content/60">
+                    {#if item.type === "folder"}
+                      <Folder class="w-5 h-5 text-primary" />
+                    {:else}
+                      <FileIcon class="w-5 h-5" />
+                    {/if}
                   </div>
-                  
+
                   <button
-                    onclick={() => {
-                      // Toggle selection for both files and folders
-                      if (selectedFiles.has(item.id)) {
-                        selectedFiles.delete(item.id);
-                      } else {
-                        selectedFiles.add(item.id);
-                      }
-                      selectedFiles = new Set(selectedFiles);
-                    }}
+                    onclick={() => toggleSelected(item.id)}
                     ondblclick={() => {
                       // Double-click navigates into folders
                       if (item.type === "folder") {
                         navigateToPath(item.id);
                       }
                     }}
-                    class={`flex-1 text-left min-w-0 ${
-                      selectedFiles.has(item.id)
-                        ? "text-primary font-medium"
-                        : "text-base-content hover:text-primary"
-                    }`}
+                    class="flex-1 text-left min-w-0 {isSelected ? 'text-primary' : 'text-base-content'}"
                   >
-                    <div class="font-medium truncate">{item.id.split('/').pop()}</div>
-                    <div class="text-sm text-base-content/70 flex items-center gap-2 mt-1">
+                    <div class="text-sm font-medium truncate">{item.id.split('/').pop()}</div>
+                    <div class="text-xs text-base-content/60 flex items-center gap-2 tabular-nums">
                       <span>
                         {item.type === "file"
                           ? $t('dashboard.file_explorer.file_size_kb', { values: { size: (item.size / 1024).toFixed(1) } })
@@ -379,22 +370,13 @@ onMount(() => {
                       <span>{item.date.toLocaleDateString()}</span>
                     </div>
                   </button>
-                  
-                  <div class="flex-shrink-0">
-                    <input
-                      type="checkbox"
-                      class="checkbox checkbox-primary"
-                      checked={selectedFiles.has(item.id)}
-                      onchange={() => {
-                        if (selectedFiles.has(item.id)) {
-                          selectedFiles.delete(item.id);
-                        } else {
-                          selectedFiles.add(item.id);
-                        }
-                        selectedFiles = new Set(selectedFiles);
-                      }}
-                    />
-                  </div>
+
+                  <input
+                    type="checkbox"
+                    class="checkbox checkbox-sm checkbox-primary shrink-0"
+                    checked={isSelected}
+                    onchange={() => toggleSelected(item.id)}
+                  />
                 </div>
               {/each}
             </div>
@@ -403,8 +385,8 @@ onMount(() => {
       </div>
 
       <!-- Footer -->
-      <div class="flex items-center justify-between p-4 border-t border-base-300 bg-base-50">
-        <div class="text-sm text-base-content/70">
+      <div class="flex items-center justify-between gap-3 px-4 py-3 border-t border-[var(--ui-hairline)]">
+        <div class="text-xs text-base-content/60 tabular-nums">
           {#if hasSelectedFiles}
             {$t('dashboard.file_explorer.items_selected', { values: { count: selectedFileCount } })}
           {:else}
@@ -413,18 +395,11 @@ onMount(() => {
         </div>
 
         <div class="flex gap-2">
-          <button
-            class="btn btn-ghost"
-            onclick={onClose}
-          >
+          <button class="btn btn-ghost btn-sm" onclick={onClose}>
             {$t('dashboard.file_explorer.cancel_button')}
           </button>
 
-          <button
-            class="btn btn-primary"
-            onclick={importSelectedFiles}
-            disabled={!hasSelectedFiles || importing}
-          >
+          <button class="btn btn-primary btn-sm" onclick={importSelectedFiles} disabled={!hasSelectedFiles || importing}>
             {#if importing}
               <Loader class="w-4 h-4 animate-spin" />
               {$t('dashboard.file_explorer.adding_to_queue')}
@@ -438,19 +413,3 @@ onMount(() => {
     </div>
   </div>
 {/if}
-
-<style>
-  /* Override SVAR FileManager styles to fit our design */
-  :global(.wx-filemanager) {
-    height: 100% !important;
-    border: none !important;
-  }
-  
-  :global(.wx-filemanager .wx-panel) {
-    border: none !important;
-  }
-  
-  :global(.wx-filemanager .wx-toolbar) {
-    display: none !important; /* Hide the built-in toolbar */
-  }
-</style>

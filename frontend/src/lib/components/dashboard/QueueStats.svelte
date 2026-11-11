@@ -2,16 +2,8 @@
 import apiClient from "$lib/api/client";
 import { t } from "$lib/i18n";
 import type { backend } from "$lib/wailsjs/go/models";
-import {
-	AlertTriangle,
-	ChartPie,
-	CheckCircle,
-	Clock,
-	List,
-	Play,
-	ShieldAlert,
-	ShieldCheck,
-} from "lucide-svelte";
+import { fade } from "$lib/motion";
+import StatValue from "./StatValue.svelte";
 import { onDestroy, onMount } from "svelte";
 
 let queueStats: backend.QueueStats = {
@@ -88,130 +80,91 @@ async function loadQueueStats() {
 }
 </script>
 
-<div class="space-y-6">
-  <!-- Header -->
-  <div class="flex items-center gap-3 mb-6">
-    <div class="p-2 rounded-lg bg-gradient-to-br from-info to-secondary">
-      <ChartPie class="w-6 h-6 text-white" />
+<section>
+  <div class="section-label">{$t('dashboard.stats.queue_stats.title')}</div>
+  <div class="settings-group">
+    <div class="stat-grid grid grid-cols-2 sm:grid-cols-4" role="group" aria-label={$t('dashboard.stats.queue_stats.overview')}>
+      <div class="stat-cell">
+        <div class="stat-label">{$t('dashboard.stats.queue_stats.total_items')}</div>
+        <StatValue value={queueStats.total} />
+      </div>
+
+      <div class="stat-cell">
+        <div class="stat-label">{$t('dashboard.stats.pending')}</div>
+        <StatValue value={queueStats.pending} tone="warning" />
+        <div class="stat-hint">
+          {#if queueStats.running > 0}
+            <span class="size-1.5 rounded-full bg-primary animate-pulse-soft"></span>
+            {queueStats.running} {$t('dashboard.stats.queue_stats.currently_processing')}
+          {:else if queueStats.pending > 0}
+            {$t('dashboard.stats.queue_stats.waiting_to_process')}
+          {/if}
+        </div>
+      </div>
+
+      <div class="stat-cell">
+        <div class="stat-label">{$t('dashboard.stats.complete')}</div>
+        <StatValue value={queueStats.complete} tone="success" />
+        <div class="stat-hint">
+          {#if queueStats.complete > 0}{$t('dashboard.stats.queue_stats.successfully_finished')}{/if}
+        </div>
+      </div>
+
+      <div class="stat-cell">
+        <div class="stat-label">{$t('dashboard.stats.errors')}</div>
+        <StatValue value={queueStats.error} tone="error" />
+        <div class="stat-hint">
+          {#if queueStats.error > 0}{$t('dashboard.stats.queue_stats.failed_to_process')}{/if}
+        </div>
+      </div>
     </div>
-    <div>
-      <h2 class="text-xl font-semibold">
-        {$t('dashboard.stats.queue_stats.title')}
-      </h2>
-      <p class="text-sm text-base-content/60">{$t('dashboard.stats.queue_stats.overview')}</p>
-    </div>
+
+    <!-- Durable verification (only shown when there is verification activity) -->
+    {#if queueStats.pendingVerification > 0 || queueStats.verificationFailed > 0}
+      <div class="stat-grid grid grid-cols-2 border-t border-[var(--ui-hairline)]" in:fade out:fade>
+        <div class="stat-cell">
+          <div class="stat-label">{$t('dashboard.stats.queue_stats.pending_verification')}</div>
+          <StatValue value={queueStats.pendingVerification} />
+          <div class="stat-hint">{$t('dashboard.stats.queue_stats.pending_verification_hint')}</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-label">{$t('dashboard.stats.queue_stats.verification_failed')}</div>
+          <StatValue value={queueStats.verificationFailed} tone="error" />
+          <div class="stat-hint">
+            {#if queueStats.verificationFailed > 0}{$t('dashboard.stats.queue_stats.verification_failed_hint')}{/if}
+          </div>
+        </div>
+      </div>
+    {/if}
   </div>
+</section>
 
-  <!-- Main Stats Grid -->
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-    <!-- Total -->
-    <div class="card bg-base-100 p-6 shadow-sm hover:shadow-md transition-all duration-200">
-      <div class="flex items-center justify-between">
-        <div>
-          <p class="text-sm font-medium text-base-content/70">{$t('dashboard.stats.queue_stats.total_items')}</p>
-          <p class="text-2xl font-bold text-base-content mt-1">{queueStats.total}</p>
-        </div>
-        <div class="p-3 rounded-full bg-base-300">
-          <List class="w-6 h-6 text-base-content/70" />
-        </div>
-      </div>
-    </div>
-
-    <!-- Pending -->
-    <div class="card bg-base-100 p-6 shadow-sm hover:shadow-md transition-all duration-200">
-      <div class="flex items-center justify-between">
-        <div>
-          <p class="text-sm font-medium text-base-content/70">{$t('dashboard.stats.pending')}</p>
-          <p class="text-2xl font-bold text-warning mt-1">{queueStats.pending}</p>
-        </div>
-        <div class="p-3 rounded-full bg-warning/10">
-          <Clock class="w-6 h-6 text-warning" />
-        </div>
-      </div>
-      {#if queueStats.running > 0}
-        <div class="mt-3 flex items-center">
-          <div class="w-2 h-2 bg-primary rounded-full animate-pulse mr-2"></div>
-          <span class="text-xs text-primary font-medium">{queueStats.running} {$t('dashboard.stats.queue_stats.currently_processing')}</span>
-        </div>
-      {:else if queueStats.pending > 0}
-        <div class="mt-3 flex items-center">
-          <div class="w-2 h-2 bg-amber-500 rounded-full animate-pulse mr-2"></div>
-          <span class="text-xs text-warning">{$t('dashboard.stats.queue_stats.waiting_to_process')}</span>
-        </div>
-      {/if}
-    </div>
-
-    <!-- Complete -->
-    <div class="card bg-base-100 p-6 shadow-sm hover:shadow-md transition-all duration-200">
-      <div class="flex items-center justify-between">
-        <div>
-          <p class="text-sm font-medium text-base-content/70">{$t('dashboard.stats.complete')}</p>
-          <p class="text-2xl font-bold text-success mt-1">{queueStats.complete}</p>
-        </div>
-        <div class="p-3 rounded-full bg-success/10">
-          <CheckCircle class="w-6 h-6 text-success" />
-        </div>
-      </div>
-      {#if queueStats.complete > 0}
-        <div class="mt-3 flex items-center">
-          <div class="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-          <span class="text-xs text-success">{$t('dashboard.stats.queue_stats.successfully_finished')}</span>
-        </div>
-      {/if}
-    </div>
-
-     <!-- Error Section -->
-    <div class="card bg-base-100 p-6 shadow-sm hover:shadow-md transition-all duration-200">
-      <div class="flex items-center justify-between">
-        <div>
-          <p class="text-sm font-medium text-base-content/70">{$t('dashboard.stats.errors')}</p>
-          <p class="text-2xl font-bold text-error mt-1">{queueStats.error}</p>
-        </div>
-        <div class="p-3 rounded-full bg-error/10">
-          <AlertTriangle class="w-6 h-6 text-error" />
-        </div>
-      </div>
-      {#if queueStats.error > 0}
-        <div class="mt-3 flex items-center">
-          <div class="w-2 h-2 bg-red-500 rounded-full mr-2"></div>
-          <span class="text-xs text-error">{$t('dashboard.stats.queue_stats.failed_to_process')}</span>
-        </div>
-      {/if}
-    </div>
-  </div>
-
-  <!-- Durable verification (only shown when there is verification activity) -->
-  {#if queueStats.pendingVerification > 0 || queueStats.verificationFailed > 0}
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <!-- Pending verification -->
-      <div class="card bg-base-100 p-6 shadow-sm hover:shadow-md transition-all duration-200">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-sm font-medium text-base-content/70">{$t('dashboard.stats.queue_stats.pending_verification')}</p>
-            <p class="text-2xl font-bold text-info mt-1">{queueStats.pendingVerification}</p>
-          </div>
-          <div class="p-3 rounded-full bg-info/10">
-            <ShieldCheck class="w-6 h-6 text-info" />
-          </div>
-        </div>
-        <p class="mt-3 text-xs text-base-content/60">{$t('dashboard.stats.queue_stats.pending_verification_hint')}</p>
-      </div>
-
-      <!-- Verification failed -->
-      <div class="card bg-base-100 p-6 shadow-sm hover:shadow-md transition-all duration-200">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-sm font-medium text-base-content/70">{$t('dashboard.stats.queue_stats.verification_failed')}</p>
-            <p class="text-2xl font-bold text-error mt-1">{queueStats.verificationFailed}</p>
-          </div>
-          <div class="p-3 rounded-full bg-error/10">
-            <ShieldAlert class="w-6 h-6 text-error" />
-          </div>
-        </div>
-        {#if queueStats.verificationFailed > 0}
-          <p class="mt-3 text-xs text-error">{$t('dashboard.stats.queue_stats.verification_failed_hint')}</p>
-        {/if}
-      </div>
-    </div>
-  {/if}
-</div>
+<style>
+  .stat-cell {
+    padding: 0.625rem 1rem;
+    min-width: 0;
+  }
+  /* hairline dividers: the grid background shows through the 1px gaps */
+  .stat-grid {
+    gap: 1px;
+    background: var(--ui-hairline);
+  }
+  .stat-cell {
+    background: var(--color-base-100);
+  }
+  .stat-label {
+    font-size: 0.75rem;
+    color: color-mix(in oklab, var(--color-base-content) 60%, transparent);
+  }
+  .stat-hint {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    min-height: 1rem;
+    font-size: 0.6875rem;
+    color: color-mix(in oklab, var(--color-base-content) 65%, transparent);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+</style>

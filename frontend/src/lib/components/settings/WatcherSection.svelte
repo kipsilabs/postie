@@ -5,15 +5,11 @@ import SizeInput from "$lib/components/inputs/SizeInput.svelte";
 import { t } from "$lib/i18n";
 import { toastStore } from "$lib/stores/toast";
 import { config as configType } from "$lib/wailsjs/go/models";
-import {
-	ChevronDown,
-	ChevronUp,
-	CirclePlus,
-	Eye,
-	Folder,
-	FolderOpen,
-	Trash2,
-} from "lucide-svelte";
+import { ChevronDown, CirclePlus, FolderOpen, Trash2 } from "lucide-svelte";
+import FieldRow from "$lib/components/inputs/FieldRow.svelte";
+import ToggleRow from "$lib/components/inputs/ToggleRow.svelte";
+import { fly } from "$lib/motion";
+import { collapse } from "./collapse";
 
 interface Props {
 	config: configType.ConfigData;
@@ -154,300 +150,207 @@ function getWatcherDisplayName(w: configType.WatcherConfig, index: number): stri
 
 </script>
 
-<div class="card bg-base-100 shadow-sm">
-  <div class="card-body space-y-6">
-    <div class="flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <Eye class="w-5 h-5 text-primary" />
-        <h2 class="text-lg font-semibold text-base-content">
-          {$t('settings.watcher.title')}
-        </h2>
-      </div>
-      <button
-        type="button"
-        class="btn btn-sm btn-outline"
-        onclick={addWatcher}
-      >
-        <CirclePlus class="w-4 h-4" />
-        {$t('settings.watcher.add_directory')}
-      </button>
-    </div>
+<div class="space-y-4">
+	<div class="flex items-end justify-between gap-3">
+		<div class="section-label !mb-0">{$t('settings.watcher.title')}</div>
+		<button type="button" class="btn btn-sm" onclick={addWatcher}>
+			<CirclePlus class="w-4 h-4" />
+			{$t('settings.watcher.add_directory')}
+		</button>
+	</div>
+	<p class="settings-row-desc mx-1 -mt-2">{$t('settings.watcher.description')}</p>
 
-    <div class="alert alert-info">
-      <p class="text-sm">
-        <strong>{$t('settings.watcher.title')}:</strong> {$t('settings.watcher.description')}
-      </p>
-    </div>
+	{#each (config.watchers || []) as watcher, index (index)}
+		<div class="settings-group" in:fly={{ y: 8, speed: "fast" }}>
+			<!-- Header -->
+			<div
+				class="settings-row cursor-pointer hover:bg-base-200/60 transition-colors"
+				role="button"
+				tabindex="0"
+				aria-expanded={!!expanded[index]}
+				onclick={() => toggleExpanded(index)}
+				onkeydown={(e) => e.key === 'Enter' && toggleExpanded(index)}
+			>
+				<input
+					type="checkbox"
+					class="toggle toggle-primary toggle-sm"
+					aria-label={getWatcherDisplayName(watcher, index)}
+					bind:checked={watcher.enabled}
+					onclick={(e) => e.stopPropagation()}
+				/>
+				<div class="flex-1 min-w-0">
+					{#if watcher.name}
+						<span class="settings-row-title">{watcher.name}</span>
+					{:else}
+						<span class="text-base-content/60 text-sm">
+							{$t('settings.watcher.watcher_number', { values: { n: index + 1 } })}
+						</span>
+					{/if}
+					{#if watcher.watch_directory}
+						<p class="settings-row-desc truncate">{watcher.watch_directory}</p>
+					{/if}
+				</div>
+				<div class="flex items-center gap-1">
+					{#if (config.watchers || []).length > 1}
+						<button
+							type="button"
+							class="btn btn-xs btn-ghost text-error"
+							onclick={(e) => { e.stopPropagation(); removeWatcher(index); }}
+							title={$t('settings.watcher.remove_directory')}
+							aria-label={$t('settings.watcher.remove_directory')}
+						>
+							<Trash2 class="w-4 h-4" />
+						</button>
+					{/if}
+					<ChevronDown
+						class="w-4 h-4 text-base-content/60 transition-transform duration-(--motion-base) {expanded[index] ? 'rotate-180' : ''}"
+					/>
+				</div>
+			</div>
 
-    <div class="space-y-4">
-      {#each (config.watchers || []) as watcher, index (index)}
-        <div class="card bg-base-200/50 border border-base-300/60">
-          <!-- Card Header -->
-          <div class="px-4 py-3 flex items-center gap-3 cursor-pointer"
-               role="button"
-               tabindex="0"
-               onclick={() => toggleExpanded(index)}
-               onkeydown={(e) => e.key === 'Enter' && toggleExpanded(index)}>
-            <input
-              type="checkbox"
-              class="toggle toggle-primary toggle-sm"
-              bind:checked={watcher.enabled}
-              onclick={(e) => e.stopPropagation()}
-            />
-            <div class="flex-1 min-w-0">
-              {#if watcher.name}
-                <span class="font-medium text-base-content">{watcher.name}</span>
-              {:else}
-                <span class="text-base-content/60 italic text-sm">
-                  {$t('settings.watcher.watcher_number', { values: { n: index + 1 } })}
-                </span>
-              {/if}
-              {#if watcher.watch_directory}
-                <p class="text-xs text-base-content/50 truncate">{watcher.watch_directory}</p>
-              {/if}
-            </div>
-            <div class="flex items-center gap-2">
-              {#if (config.watchers || []).length > 1}
-                <button
-                  type="button"
-                  class="btn btn-xs btn-error btn-outline"
-                  onclick={(e) => { e.stopPropagation(); removeWatcher(index); }}
-                  title={$t('settings.watcher.remove_directory')}
-                >
-                  <Trash2 class="w-3 h-3" />
-                </button>
-              {/if}
-              {#if expanded[index]}
-                <ChevronUp class="w-4 h-4 text-base-content/60" />
-              {:else}
-                <ChevronDown class="w-4 h-4 text-base-content/60" />
-              {/if}
-            </div>
-          </div>
+			<!-- Body (collapsible) -->
+			{#if expanded[index]}
+				<div transition:collapse class="border-t border-(--ui-hairline)">
+					<FieldRow
+						label={$t('settings.watcher.watcher_name')}
+						description={$t('settings.watcher.watcher_name_description')}
+						id="watcher-name-{index}"
+					>
+						<input
+							id="watcher-name-{index}"
+							type="text"
+							class="input input-sm w-64 max-sm:w-full"
+							bind:value={watcher.name}
+							placeholder={$t('settings.watcher.watcher_number', { values: { n: index + 1 } })}
+						/>
+					</FieldRow>
 
-          <!-- Card Body (collapsible) -->
-          {#if expanded[index]}
-            <div class="px-4 pb-4 space-y-6 border-t border-base-300/40">
-              <!-- Name -->
-              <div class="pt-4">
-                <label class="label" for="watcher-name-{index}">
-                  <span class="label-text">{$t('settings.watcher.watcher_name')}</span>
-                </label>
-                <input
-                  id="watcher-name-{index}"
-                  type="text"
-                  class="input input-bordered w-full"
-                  bind:value={watcher.name}
-                  placeholder={$t('settings.watcher.watcher_number', { values: { n: index + 1 } })}
-                />
-                <p class="text-sm text-base-content/70 mt-1">
-                  {$t('settings.watcher.watcher_name_description')}
-                </p>
-              </div>
+					<FieldRow
+						label={$t('settings.watcher.watch_directory')}
+						description={$t('settings.watcher.watch_directory_description')}
+						id="watch-directory-{index}"
+					>
+						{#snippet note()}
+							{#if apiClient.environment === 'web'}
+								<div class="settings-row-desc">Enter the container path directly (e.g., /app/watch)</div>
+							{/if}
+						{/snippet}
+						<div class="flex items-center gap-2 max-sm:flex-col max-sm:items-stretch">
+							{#if apiClient.environment === 'wails'}
+								<input
+									id="watch-directory-{index}"
+									class="input input-sm w-64 max-sm:w-full"
+									value={watcher.watch_directory}
+									readonly
+									placeholder={$t('common.inputs.select_directory')}
+								/>
+								<button type="button" class="btn btn-sm" onclick={() => selectWatchDirectory(index)}>
+									<FolderOpen class="w-4 h-4" />
+									{$t('common.inputs.browse')}
+								</button>
+							{:else}
+								<input
+									id="watch-directory-{index}"
+									class="input input-sm w-64 max-sm:w-full"
+									bind:value={watcher.watch_directory}
+									placeholder="/path/to/watch/directory"
+								/>
+							{/if}
+						</div>
+					</FieldRow>
 
-              <!-- Watch Directory -->
-              <div>
-                <label class="label" for="watch-directory-{index}">
-                  <span class="label-text">{$t('settings.watcher.watch_directory')}</span>
-                </label>
-                <div class="flex items-center gap-2">
-                  {#if apiClient.environment === 'wails'}
-                    <input
-                      id="watch-directory-{index}"
-                      class="input input-bordered flex-1"
-                      value={watcher.watch_directory}
-                      readonly
-                      placeholder={$t('common.inputs.select_directory')}
-                    />
-                    <button
-                      type="button"
-                      class="btn btn-sm btn-outline"
-                      onclick={() => selectWatchDirectory(index)}
-                    >
-                      <FolderOpen class="w-4 h-4" />
-                      {$t('common.inputs.browse')}
-                    </button>
-                  {:else}
-                    <input
-                      id="watch-directory-{index}"
-                      class="input input-bordered flex-1"
-                      bind:value={watcher.watch_directory}
-                      placeholder="/path/to/watch/directory"
-                    />
-                  {/if}
-                </div>
-                <p class="text-sm text-base-content/70 mt-1">
-                  {$t('settings.watcher.watch_directory_description')}
-                  {#if apiClient.environment === 'web'}
-                    <br /><span class="text-primary text-xs">Enter the container path directly (e.g., /app/watch)</span>
-                  {/if}
-                </p>
-              </div>
+					<DurationInput
+						bind:value={watcher.check_interval}
+						label={$t('settings.watcher.check_interval')}
+						description={$t('settings.watcher.check_interval_description')}
+						presets={checkIntervalPresets}
+						id="check-interval-{index}"
+					/>
+					<DurationInput
+						bind:value={watcher.min_file_age}
+						label={$t('settings.watcher.min_file_age')}
+						description={$t('settings.watcher.min_file_age_description')}
+						presets={minFileAgePresets}
+						id="min-file-age-{index}"
+					/>
+					<DurationInput
+						bind:value={watcher.min_file_age_to_delete}
+						label={$t('settings.watcher.min_file_age_to_delete')}
+						description={$t('settings.watcher.min_file_age_to_delete_description')}
+						presets={minFileAgeToDeletePresets}
+						id="min-file-age-to-delete-{index}"
+					/>
+					<SizeInput
+						bind:value={watcher.size_threshold}
+						label={$t('settings.watcher.size_threshold')}
+						description={$t('settings.watcher.size_threshold_description')}
+						presets={sizeThresholdPresets}
+						minValue={1}
+						id="size-threshold-{index}"
+					/>
+					<SizeInput
+						bind:value={watcher.min_file_size}
+						label={$t('settings.watcher.min_file_size')}
+						description={$t('settings.watcher.min_file_size_description')}
+						presets={minFileSizePresets}
+						minValue={0}
+						id="min-file-size-{index}"
+					/>
 
-              <!-- Timing Settings -->
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <DurationInput
-                  bind:value={watcher.check_interval}
-                  label={$t('settings.watcher.check_interval')}
-                  description={$t('settings.watcher.check_interval_description')}
-                  presets={checkIntervalPresets}
-                  id="check-interval-{index}"
-                />
+					<ToggleRow
+						id="delete-original-file-{index}"
+						bind:checked={watcher.delete_original_file}
+						label={$t('settings.watcher.delete_original_file')}
+						description={$t('settings.watcher.delete_original_file_description')}
+					/>
+					<ToggleRow
+						id="single-nzb-per-folder-{index}"
+						bind:checked={watcher.single_nzb_per_folder}
+						label={$t('settings.watcher.single_nzb_per_folder')}
+						description={$t('settings.watcher.single_nzb_per_folder_description')}
+					/>
 
-                <DurationInput
-                  bind:value={watcher.min_file_age}
-                  label={$t('settings.watcher.min_file_age')}
-                  description={$t('settings.watcher.min_file_age_description')}
-                  presets={minFileAgePresets}
-                  id="min-file-age-{index}"
-                />
+					<FieldRow
+						label={$t('settings.watcher.posting_schedule')}
+						description={$t('settings.watcher.posting_schedule_description')}
+					>
+						<div class="flex items-center gap-2">
+							<label class="sr-only" for="start-time-{index}">{$t('settings.watcher.start_time')}</label>
+							<input id="start-time-{index}" type="time" class="input input-sm" bind:value={watcher.schedule.start_time} />
+							<span class="text-base-content/50">–</span>
+							<label class="sr-only" for="end-time-{index}">{$t('settings.watcher.end_time')}</label>
+							<input id="end-time-{index}" type="time" class="input input-sm" bind:value={watcher.schedule.end_time} />
+						</div>
+					</FieldRow>
 
-                <DurationInput
-                  bind:value={watcher.min_file_age_to_delete}
-                  label={$t('settings.watcher.min_file_age_to_delete')}
-                  description={$t('settings.watcher.min_file_age_to_delete_description')}
-                  presets={minFileAgeToDeletePresets}
-                  id="min-file-age-to-delete-{index}"
-                />
-
-                <SizeInput
-                  bind:value={watcher.size_threshold}
-                  label={$t('settings.watcher.size_threshold')}
-                  description={$t('settings.watcher.size_threshold_description')}
-                  presets={sizeThresholdPresets}
-                  minValue={1}
-                  id="size-threshold-{index}"
-                />
-
-                <SizeInput
-                  bind:value={watcher.min_file_size}
-                  label={$t('settings.watcher.min_file_size')}
-                  description={$t('settings.watcher.min_file_size_description')}
-                  presets={minFileSizePresets}
-                  minValue={0}
-                  id="min-file-size-{index}"
-                />
-              </div>
-
-              <!-- Behavior -->
-              <div class="space-y-4">
-                <h3 class="text-md font-medium text-base-content">
-                  {$t('settings.watcher.behavior')}
-                </h3>
-
-                <div>
-                  <div class="form-control">
-                    <label class="label cursor-pointer justify-start gap-3">
-                      <input type="checkbox" class="toggle toggle-primary" bind:checked={watcher.delete_original_file} />
-                      <span class="label-text">{$t('settings.watcher.delete_original_file')}</span>
-                    </label>
-                  </div>
-                  <p class="text-sm text-base-content/70">
-                    {$t('settings.watcher.delete_original_file_description')}
-                  </p>
-                </div>
-
-                <div>
-                  <div class="form-control">
-                    <label class="label cursor-pointer justify-start gap-3">
-                      <input type="checkbox" id="single-nzb-per-folder-{index}" class="toggle toggle-primary" bind:checked={watcher.single_nzb_per_folder} />
-                      <span class="label-text">{$t('settings.watcher.single_nzb_per_folder')}</span>
-                    </label>
-                  </div>
-                  <p class="text-sm text-base-content/70">
-                    {$t('settings.watcher.single_nzb_per_folder_description')}
-                  </p>
-                </div>
-              </div>
-
-              <!-- Schedule -->
-              <div class="space-y-4">
-                <h3 class="text-md font-medium text-base-content">
-                  {$t('settings.watcher.posting_schedule')}
-                </h3>
-                <p class="text-sm text-base-content/70">
-                  {$t('settings.watcher.posting_schedule_description')}
-                </p>
-
-                <div class="grid grid-cols-2 gap-4">
-                  <div>
-                    <label class="label" for="start-time-{index}">
-                      <span class="label-text text-sm">{$t('settings.watcher.start_time')}</span>
-                    </label>
-                    <input
-                      id="start-time-{index}"
-                      type="time"
-                      class="input input-bordered w-full"
-                      bind:value={watcher.schedule.start_time}
-                    />
-                  </div>
-                  <div>
-                    <label class="label" for="end-time-{index}">
-                      <span class="label-text text-sm">{$t('settings.watcher.end_time')}</span>
-                    </label>
-                    <input
-                      id="end-time-{index}"
-                      type="time"
-                      class="input input-bordered w-full"
-                      bind:value={watcher.schedule.end_time}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <!-- Ignore Patterns -->
-              <div class="space-y-4">
-                <div class="flex items-center justify-between">
-                  <div>
-                    <h3 class="text-md font-medium text-base-content">
-                      {$t('settings.watcher.ignore_patterns')}
-                    </h3>
-                    <p class="text-sm text-base-content/70">
-                      {$t('settings.watcher.ignore_patterns_description')}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    class="btn btn-sm btn-outline"
-                    onclick={() => addIgnorePattern(index)}
-                  >
-                    <CirclePlus class="w-4 h-4" />
-                    {$t('settings.watcher.add_pattern')}
-                  </button>
-                </div>
-
-                <div class="space-y-3">
-                  {#each (watcher.ignore_patterns || []) as pattern, pi (pi)}
-                    <div class="flex items-center gap-3">
-                      <input
-                        class="input input-bordered flex-1"
-                        value={pattern}
-                        placeholder={$t('settings.watcher.pattern_placeholder')}
-                        oninput={(e) => handlePatternInput(index, pi, e.currentTarget.value)}
-                      />
-                      <button
-                        type="button"
-                        class="btn btn-sm btn-error btn-outline"
-                        onclick={() => removeIgnorePattern(index, pi)}
-                      >
-                        <Trash2 class="w-3 h-3" />
-                        {$t('settings.watcher.remove')}
-                      </button>
-                    </div>
-                  {/each}
-                </div>
-
-                <div class="alert">
-                  <p class="text-sm">
-                    {@html $t('settings.watcher.common_patterns')}
-                  </p>
-                </div>
-              </div>
-            </div>
-          {/if}
-        </div>
-      {/each}
-    </div>
-
-  </div>
+					<FieldRow
+						label={$t('settings.watcher.ignore_patterns')}
+						description={$t('settings.watcher.ignore_patterns_description')}
+					>
+						<button type="button" class="btn btn-sm" onclick={() => addIgnorePattern(index)}>
+							<CirclePlus class="w-4 h-4" />
+							{$t('settings.watcher.add_pattern')}
+						</button>
+					</FieldRow>
+					<div class="settings-row flex-col items-stretch gap-2 border-t border-(--ui-hairline)">
+						{#each (watcher.ignore_patterns || []) as pattern, pi (pi)}
+							<div class="flex items-center gap-2" in:fly={{ y: 6, speed: "fast" }}>
+								<input
+									class="input input-sm flex-1 font-mono"
+									value={pattern}
+									placeholder={$t('settings.watcher.pattern_placeholder')}
+									oninput={(e) => handlePatternInput(index, pi, e.currentTarget.value)}
+								/>
+								<button type="button" class="btn btn-sm btn-ghost text-error" onclick={() => removeIgnorePattern(index, pi)}>
+									<Trash2 class="w-4 h-4" />
+									{$t('settings.watcher.remove')}
+								</button>
+							</div>
+						{/each}
+						<p class="settings-row-desc">{@html $t('settings.watcher.common_patterns')}</p>
+					</div>
+				</div>
+			{/if}
+		</div>
+	{/each}
 </div>

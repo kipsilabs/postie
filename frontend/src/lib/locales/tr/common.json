@@ -22,7 +22,10 @@
 			"metrics": "Metrikler",
 			"logs": "Günlükler",
 			"language": "Dil",
-			"theme": "Tema"
+			"theme": "Tema",
+			"menu": "Menüyü aç",
+			"closeMenu": "Menüyü kapat",
+			"primary": "Ana gezinme"
 		},
 		"actions": {
 			"save": "Kaydet",
@@ -103,7 +106,18 @@
 			"item_cancelled": "Öğe iptal edildi",
 			"failed_to_cancel_item": "Öğe iptal edilemedi"
 		},
-		"app_name": "Postie"
+		"app_name": "Postie",
+		"appearance": {
+			"label": "Görünüm",
+			"system": "Sistem",
+			"light": "Açık",
+			"dark": "Koyu"
+		},
+		"connection": {
+			"connected": "Bağlı",
+			"reconnecting": "Yeniden bağlanıyor…",
+			"disconnected": "Bağlantı kesildi"
+		}
 	},
 	"logs": {
 		"download": "İndir",

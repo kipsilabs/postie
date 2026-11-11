@@ -1,0 +1,15 @@
+/* Respect the OS "reduce motion" setting. Spinners / indeterminate progress
+   are essential feedback and stay animated. */
+@media (prefers-reduced-motion: reduce) {
+	*:not(.loading, .progress, .animate-spin, .loading *),
+	*:not(.loading, .progress, .animate-spin)::before,
+	*:not(.loading, .progress, .animate-spin)::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		animation-delay: 0ms !important;
+		transition-duration: 0.01ms !important;
+		transition-delay: 0ms !important;
+		scroll-behavior: auto !important;
+	}
+}
+

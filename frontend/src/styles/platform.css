@@ -1,0 +1,285 @@
+/* Larger touch targets on coarse pointers (phones/tablets in web mode). */
+@media (pointer: coarse) {
+	:root,
+	html[data-platform] {
+		--size-field: 0.25rem;
+		--size-selector: 0.25rem;
+	}
+}
+
+/* ---- macOS: SF font, system blue, medium radii, snappy + springy ---- */
+html[data-platform="mac"] {
+	--ui-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro", system-ui, "Helvetica Neue", sans-serif;
+	--ui-mono: ui-monospace, "SF Mono", Menlo, monospace;
+	--ui-root-size: 14px;
+	--radius-selector: 0.375rem;
+	--radius-field: 0.4375rem;
+	--radius-box: 0.75rem;
+	--size-field: 0.2rem;
+	--size-selector: 0.2rem;
+	--sidebar-width: 224px;
+	--nav-item-height: 30px;
+	--focus-width: 3px;
+	--focus-offset: 0px;
+	--motion-fast: 110ms;
+	--motion-base: 180ms;
+	--motion-slow: 300ms;
+	--ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+	--ease-emphasized: cubic-bezier(0.34, 1.35, 0.64, 1);
+}
+html[data-platform="mac"][data-theme="postie-light"] {
+	--color-base-100: #ffffff;
+	--color-base-200: #f2f2f4;
+	--color-base-300: #d9d9dd;
+	--color-base-content: #1d1d1f;
+	--color-primary: #0071e3;
+	--color-accent: #0071e3;
+	--sidebar-tint: 55%;
+}
+html[data-platform="mac"][data-theme="postie-dark"] {
+	--color-base-100: #1e1e1e;
+	--color-base-200: #282829;
+	--color-base-300: #3a3a3c;
+	--color-base-content: #f5f5f7;
+	--color-primary: #0a84ff;
+	--color-primary-content: #ffffff;
+	--color-accent: #0a84ff;
+	--color-accent-content: #ffffff;
+	--sidebar-tint: 40%;
+}
+
+/* ---- Windows 11: Segoe UI Variable, Fluent blue, tight radii, layering ---- */
+html[data-platform="windows"] {
+	--ui-font: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+	--ui-mono: "Cascadia Mono", Consolas, monospace;
+	--ui-root-size: 15px;
+	--radius-selector: 0.25rem;
+	--radius-field: 0.25rem;
+	--radius-box: 0.5rem;
+	--size-field: 0.2rem;
+	--size-selector: 0.2rem;
+	--nav-item-height: 36px;
+	--nav-pill: 1;
+	--focus-color: var(--color-base-content);
+	--focus-width: 2px;
+	--focus-offset: 1px;
+	--motion-fast: 100ms;
+	--motion-base: 167ms;
+	--motion-slow: 250ms;
+	--ease-standard: cubic-bezier(0, 0, 0, 1);
+	--ease-emphasized: cubic-bezier(0.1, 0.9, 0.2, 1);
+	--ui-shadow-sm: 0 0 0 1px var(--ui-hairline), 0 1px 2px rgb(0 0 0 / 0.05);
+	--scroll-size: 14px;
+}
+html[data-platform="windows"][data-theme="postie-light"] {
+	--color-base-100: #fbfbfb;
+	--color-base-200: #f3f3f3;
+	--color-base-300: #e0e0e0;
+	--color-base-content: #1a1a1a;
+	--color-primary: #0067c0;
+	--color-accent: #0067c0;
+	--color-neutral: #323232;
+	--sidebar-tint: 60%;
+}
+html[data-platform="windows"][data-theme="postie-dark"] {
+	--color-base-100: #2b2b2b;
+	--color-base-200: #202020;
+	--color-base-300: #3d3d3d;
+	--color-base-content: #ffffff;
+	--color-primary: #4cc2ff;
+	--color-primary-content: #00253a;
+	--color-accent: #4cc2ff;
+	--color-accent-content: #00253a;
+	--sidebar-tint: 55%;
+}
+
+/* ---- Linux (GNOME / Adwaita): flat, larger radii ---- */
+html[data-platform="linux"] {
+	--ui-font: "Adwaita Sans", Cantarell, "Inter", "Noto Sans", system-ui, sans-serif;
+	--ui-mono: "Adwaita Mono", "Source Code Pro", "DejaVu Sans Mono", monospace;
+	--ui-root-size: 15px;
+	--radius-selector: 0.5rem;
+	--radius-field: 0.5625rem;
+	--radius-box: 0.75rem;
+	--size-field: 0.225rem;
+	--size-selector: 0.215rem;
+	--nav-item-height: 36px;
+	--nav-active-bg: color-mix(in oklab, var(--color-base-content) 11%, transparent);
+	--focus-color: color-mix(in oklab, var(--color-primary) 65%, transparent);
+	--focus-width: 2px;
+	--focus-offset: 2px;
+	--motion-fast: 120ms;
+	--motion-base: 200ms;
+	--motion-slow: 300ms;
+	--ease-standard: cubic-bezier(0, 0, 0.58, 1);
+	--ease-emphasized: cubic-bezier(0, 0, 0.58, 1);
+	--ui-shadow-sm: 0 0 0 1px var(--ui-hairline);
+	--ui-shadow-md: 0 0 0 1px var(--ui-hairline), 0 2px 8px rgb(0 0 0 / 0.08);
+}
+html[data-platform="linux"][data-theme="postie-light"] {
+	--color-base-100: #ffffff;
+	--color-base-200: #f6f5f4;
+	--color-base-300: #deddda;
+	--color-base-content: #241f31;
+	--color-primary: #1c71d8;
+	--color-accent: #1c71d8;
+}
+html[data-platform="linux"][data-theme="postie-dark"] {
+	--color-base-100: #242424;
+	--color-base-200: #1e1e1e;
+	--color-base-300: #3d3d3d;
+	--color-base-content: #ebebeb;
+	--color-primary: #78aeed;
+	--color-primary-content: #0a2547;
+	--color-accent: #78aeed;
+	--color-accent-content: #0a2547;
+}
+
+/* Web build: keep the platform look but use a comfortable 16px root. */
+html[data-desktop="false"] {
+	--ui-root-size: 16px;
+}
+
+/* Vibrancy / Mica: the window material shows through the sidebar only. */
+html[data-desktop="true"][data-platform="mac"],
+html[data-desktop="true"][data-platform="windows"] {
+	--surface-body: transparent;
+}
+html[data-desktop="true"][data-platform="mac"] {
+	--titlebar-inset: 28px;
+}
+/* If the in-app scheme differs from the OS (native material stays on the OS
+   scheme), make the sidebar tint almost opaque so it never looks muddy. */
+@media (prefers-color-scheme: dark) {
+	html[data-desktop="true"][data-theme="postie-light"] {
+		--sidebar-tint: 96%;
+	}
+}
+@media (prefers-color-scheme: light) {
+	html[data-desktop="true"][data-theme="postie-dark"] {
+		--sidebar-tint: 96%;
+	}
+}
+
+/* ------------------------------------------------------------------ */
+/* Base                                                                 */
+/* ------------------------------------------------------------------ */
+@layer base {
+	html {
+		font-size: var(--ui-root-size);
+		background: var(--surface-body);
+		height: 100%;
+		overflow: hidden;
+		overscroll-behavior: none;
+		-webkit-text-size-adjust: 100%;
+		text-size-adjust: 100%;
+		-webkit-tap-highlight-color: transparent;
+	}
+	body {
+		height: 100%;
+		overflow: hidden;
+		overscroll-behavior: none;
+		background: var(--surface-body);
+		color: var(--color-base-content);
+		font-family: var(--ui-font);
+	}
+	html[data-platform="mac"] body {
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+	}
+	code,
+	kbd,
+	pre,
+	samp {
+		font-family: var(--ui-mono);
+	}
+
+	/* disable chrome cancel button */
+	input[type="search"]::-webkit-search-cancel-button {
+		display: none;
+	}
+
+	::selection {
+		background: color-mix(in oklab, var(--color-primary) 30%, transparent);
+	}
+
+	/* Smooth theme switching (class is toggled briefly by the theme store) */
+	html.theme-transition,
+	html.theme-transition *,
+	html.theme-transition *::before,
+	html.theme-transition *::after {
+		transition:
+			background-color var(--motion-base) var(--ease-standard),
+			color var(--motion-base) var(--ease-standard),
+			border-color var(--motion-base) var(--ease-standard),
+			fill var(--motion-base) var(--ease-standard) !important;
+	}
+}
+
+/* Thin theme-aware scrollbars (WebKit overlay-like pill, standard elsewhere). */
+@supports selector(::-webkit-scrollbar) {
+	::-webkit-scrollbar {
+		width: var(--scroll-size);
+		height: var(--scroll-size);
+	}
+	::-webkit-scrollbar-track,
+	::-webkit-scrollbar-corner {
+		background: transparent;
+	}
+	::-webkit-scrollbar-thumb {
+		background-color: var(--scroll-thumb);
+		border: 3px solid transparent;
+		background-clip: content-box;
+		border-radius: 999px;
+		min-height: 36px;
+	}
+	::-webkit-scrollbar-thumb:hover {
+		background-color: var(--scroll-thumb-hover);
+	}
+}
+@supports not selector(::-webkit-scrollbar) {
+	* {
+		scrollbar-width: thin;
+		scrollbar-color: var(--scroll-thumb) transparent;
+	}
+}
+
+/* Focus rings in the platform style. Unlayered so it beats daisyUI's rules. */
+:focus-visible {
+	outline: var(--focus-width) solid var(--focus-color);
+	outline-offset: var(--focus-offset);
+}
+.input:focus-within,
+.select:focus-within,
+.textarea:focus,
+.textarea:focus-visible {
+	outline: var(--focus-width) solid var(--focus-color);
+	outline-offset: var(--focus-offset);
+	border-color: var(--color-primary);
+}
+.input:focus-within :focus-visible {
+	outline: none;
+}
+
+/* Native feel in the desktop shell: chrome is not selectable, text content is. */
+html[data-desktop="true"] body {
+	-webkit-user-select: none;
+	user-select: none;
+	cursor: default;
+}
+html[data-desktop="true"] :is(input, textarea, select, [contenteditable], pre, code, samp, table, .selectable) {
+	-webkit-user-select: text;
+	user-select: text;
+}
+html[data-desktop="true"] :is(.alert, [role="alert"], [role="status"], .toast-message, .selectable-text) {
+	-webkit-user-select: text;
+	user-select: text;
+	cursor: text;
+}
+html[data-desktop="true"] :is(button, label, summary, select, .btn, .tab, [role="tab"], [role="button"]) {
+	cursor: default;
+}
+html[data-desktop="true"] :is(img, a) {
+	-webkit-user-drag: none;
+}
+

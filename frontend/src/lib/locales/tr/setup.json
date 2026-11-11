@@ -1,5 +1,6 @@
 {
     "setup": {
+		"step_of": "Adım {current} / {total}",
         "title": "Postie'ye Hoş Geldiniz",
         "description": "Başlamak için NNTP sunucularınızı ve dizinlerinizi ayarlayalım.",
         "wizard_title": "Postie Kurulumu",

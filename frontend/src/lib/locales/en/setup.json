@@ -1,5 +1,6 @@
 {
 	"setup": {
+		"step_of": "Step {current} of {total}",
 		"title": "Welcome to Postie",
 		"description": "Let's set up your NNTP servers and directories to get started.",
 		"wizard_title": "Postie Setup",

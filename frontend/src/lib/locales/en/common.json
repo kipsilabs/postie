@@ -22,7 +22,10 @@
 			"metrics": "Metrics",
 			"logs": "Logs",
 			"language": "Language",
-			"theme": "Theme"
+			"theme": "Theme",
+			"menu": "Open menu",
+			"closeMenu": "Close menu",
+			"primary": "Main navigation"
 		},
 		"actions": {
 			"save": "Save",
@@ -103,7 +106,18 @@
 			"item_cancelled": "Item cancelled",
 			"failed_to_cancel_item": "Failed to cancel item"
 		},
-		"app_name": "Postie"
+		"app_name": "Postie",
+		"appearance": {
+			"label": "Appearance",
+			"system": "System",
+			"light": "Light",
+			"dark": "Dark"
+		},
+		"connection": {
+			"connected": "Connected",
+			"reconnecting": "Reconnecting…",
+			"disconnected": "Disconnected"
+		}
 	},
 	"logs": {
 		"download": "Download",

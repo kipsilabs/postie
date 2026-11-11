@@ -1,0 +1,81 @@
+@plugin "daisyui" {
+	/* Stock themes are replaced by the two Postie themes below. */
+	themes: false;
+}
+
+/*
+ * Postie themes. Colours are the neutral/status base; the per-platform accent,
+ * radii, font and motion refinements live further down, keyed on
+ * html[data-platform="mac|windows|linux"], so both themes share them.
+ */
+@plugin "daisyui/theme" {
+	name: "postie-light";
+	default: true;
+	prefersdark: false;
+	color-scheme: light;
+	--color-base-100: #ffffff;
+	--color-base-200: #f5f5f7;
+	--color-base-300: #dcdce0;
+	--color-base-content: #1d1d1f;
+	--color-primary: #0071e3;
+	--color-primary-content: #ffffff;
+	--color-secondary: #5e5ce6;
+	--color-secondary-content: #ffffff;
+	--color-accent: #0071e3;
+	--color-accent-content: #ffffff;
+	--color-neutral: #3a3a3c;
+	--color-neutral-content: #f5f5f7;
+	--color-info: #0a6fc2;
+	--color-info-content: #ffffff;
+	--color-success: #1e7e34;
+	--color-success-content: #ffffff;
+	--color-warning: #f0a30a;
+	--color-warning-content: #2e1d00;
+	--color-error: #d1242f;
+	--color-error-content: #ffffff;
+	--radius-selector: 0.375rem;
+	--radius-field: 0.375rem;
+	--radius-box: 0.625rem;
+	--size-selector: 0.22rem;
+	--size-field: 0.22rem;
+	--border: 1px;
+	--depth: 0;
+	--noise: 0;
+}
+
+@plugin "daisyui/theme" {
+	name: "postie-dark";
+	default: false;
+	prefersdark: true;
+	color-scheme: dark;
+	--color-base-100: #1e1e20;
+	--color-base-200: #2a2a2d;
+	--color-base-300: #3c3c40;
+	--color-base-content: #f2f2f5;
+	--color-primary: #3d95ff;
+	--color-primary-content: #00162e;
+	--color-secondary: #8e8cff;
+	--color-secondary-content: #12104a;
+	--color-accent: #3d95ff;
+	--color-accent-content: #00162e;
+	--color-neutral: #48484c;
+	--color-neutral-content: #f2f2f5;
+	--color-info: #5ac8fa;
+	--color-info-content: #00283a;
+	--color-success: #34d058;
+	--color-success-content: #002d0f;
+	--color-warning: #ffcc33;
+	--color-warning-content: #3a2a00;
+	--color-error: #ff6b6b;
+	--color-error-content: #3d0508;
+	--radius-selector: 0.375rem;
+	--radius-field: 0.375rem;
+	--radius-box: 0.625rem;
+	--size-selector: 0.22rem;
+	--size-field: 0.22rem;
+	--border: 1px;
+	--depth: 0;
+	--noise: 0;
+}
+@plugin "@tailwindcss/typography";
+

@@ -3,6 +3,8 @@ import { onDestroy, onMount } from 'svelte';
 import { t } from '$lib/i18n';
 import { toastStore } from '$lib/stores/toast';
 import apiClient from '$lib/api/client';
+import { CircleAlert, Info } from 'lucide-svelte';
+import { collapse } from './collapse';
 
 let pendingStatus = $state<Record<string, unknown>>({});
 let loading = $state(false);
@@ -106,30 +108,32 @@ let errorMessage = $derived(pendingStatus.error as string);
 </script>
 
 {#if hasPending}
-	<div class="alert {hasError ? 'alert-error' : 'alert-info'} animate-fade-in border-l-4 {hasError ? 'border-l-error' : 'border-l-info'}">
-		<div class="flex items-center gap-3">
-			{#if hasError}
-				<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-				</svg>
-			{:else}
-				<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-				</svg>
-			{/if}
-			
-			<div class="flex-1">
-				<h3 class="font-semibold">
+	<div
+		transition:collapse
+		role={hasError ? "alert" : "status"}
+	>
+		<div
+			class="flex items-start gap-3 rounded-(--radius-box) border px-4 py-3 {hasError
+				? 'border-error/40 bg-error/10'
+				: 'border-(--ui-hairline) bg-base-100 shadow-sm'}"
+		>
+			<span class="mt-0.5 shrink-0 {hasError ? 'text-error' : 'text-primary'}">
+				{#if hasError}
+					<CircleAlert class="w-4 h-4" />
+				{:else}
+					<Info class="w-4 h-4" />
+				{/if}
+			</span>
+
+			<div class="min-w-0 flex-1">
+				<div class="settings-row-title">
 					{#if hasError}
 						{$t('settings.pending_config.error_title')}
 					{:else}
-						<span class="flex items-center gap-2">
-							{$t('settings.pending_config.pending_title')}
-							<span class="badge badge-accent badge-sm">EDITING</span>
-						</span>
+						{$t('settings.pending_config.pending_title')}
 					{/if}
-				</h3>
-				<p class="text-sm opacity-90">
+				</div>
+				<p class="settings-row-desc">
 					{#if hasError}
 						{errorMessage}
 					{:else}
@@ -137,23 +141,14 @@ let errorMessage = $derived(pendingStatus.error as string);
 					{/if}
 				</p>
 			</div>
-			
-			<div class="flex gap-2">
+
+			<div class="flex shrink-0 gap-2 max-sm:flex-col">
 				{#if canApplyNow && !hasError}
-					<button 
-						class="btn btn-sm btn-primary"
-						onclick={applyNow}
-						disabled={loading}
-					>
+					<button class="btn btn-sm btn-primary" onclick={applyNow} disabled={loading}>
 						{loading ? $t('common.applying') : $t('settings.pending_config.apply_now')}
 					</button>
 				{/if}
-				
-				<button 
-					class="btn btn-sm btn-ghost"
-					onclick={discardChanges}
-					disabled={loading}
-				>
+				<button class="btn btn-sm btn-ghost" onclick={discardChanges} disabled={loading}>
 					{loading ? $t('common.discarding') : $t('settings.pending_config.discard')}
 				</button>
 			</div>

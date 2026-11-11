@@ -49,5 +49,31 @@
 
 		"nntp_servers": "NNTP Servers",
 		"server_host": "Server Host"
+	},
+	"logs": {
+		"search_placeholder": "Filter logs",
+		"level_label": "Log level",
+		"level_all": "All levels",
+		"level_info": "Info and above",
+		"level_warn": "Warnings and errors",
+		"level_error": "Errors only",
+		"count": "{count} lines",
+		"count_filtered": "{shown} of {total} lines",
+		"more_available": "older lines available",
+		"jump_to_latest": "Jump to latest",
+		"loading": "Loading logs…",
+		"loading_older": "Loading older logs…",
+		"beginning": "Beginning of logs",
+		"empty": "No matching log lines",
+		"copy": "Copy",
+		"copied": "Logs copied to clipboard",
+		"copy_error": "Could not copy logs"
+	},
+	"errorPage": {
+		"title": "Something went wrong",
+		"description": "Try reloading the page, or go back to the dashboard.",
+		"back": "Back to Dashboard",
+		"reload": "Reload",
+		"document_title": "Error {status} - Postie"
 	}
 }

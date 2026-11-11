@@ -37,57 +37,52 @@ if (!outputDirectory) {
 }
 </script>
 
-<div class="space-y-6">
-	<div>
-		<h3 class="text-lg font-semibold text-base-content mb-2">
+<div class="mx-auto w-full max-w-xl space-y-5">
+	<div class="space-y-1">
+		<h2 class="text-lg font-semibold text-base-content">
 			{$t("setup.directories.title")}
-		</h3>
-		<p class="text-base-content/70 mb-4">
+		</h2>
+		<p class="text-sm text-base-content/65">
 			{$t("setup.directories.description")}
 		</p>
 	</div>
 
-	<div class="space-y-6">
-		<!-- Output Directory -->
-		<div class="card bg-base-100 shadow-xl">
-			<div class="card-body">
-				<div class="mb-4">
-					<h4 class="card-title">
-						{$t("setup.directories.outputDirectory")}
-					</h4>
-					<p class="text-sm text-base-content/70 mb-4">
-						{$t("setup.directories.outputDescription")}
-					</p>
+	<div class="settings-group">
+		<div class="space-y-3 p-4">
+			<div>
+				<div class="settings-row-title">
+					{$t("setup.directories.outputDirectory")}
 				</div>
-				<div class="form-control">
-					<label class="label" for="output-dir">
-						<span class="label-text">{$t("setup.directories.outputPath")} *</span>
-					</label>
-					<div class="flex gap-2">
-						<input
-							id="output-dir"
-							class="input input-bordered flex-1"
-							bind:value={outputDirectory}
-							placeholder="./output"
-							required
-							oninput={updateDirectories}
-						/>
-						{#if apiClient.environment === "wails"}
-							<button
-								class="btn btn-outline"
-								onclick={selectOutputDirectory}
-							>
-								<FolderOpen class="w-4 h-4" />
-								{$t("setup.directories.browse")}
-							</button>
-						{/if}
-					</div>
+				<div class="settings-row-desc">
+					{$t("setup.directories.outputDescription")}
+				</div>
+			</div>
+			<div class="flex flex-col gap-1">
+				<label class="text-sm font-medium" for="output-dir">
+					{$t("setup.directories.outputPath")} *
+				</label>
+				<div class="flex gap-2">
+					<input
+						id="output-dir"
+						class="input min-w-0 flex-1"
+						bind:value={outputDirectory}
+						placeholder="./output"
+						required
+						oninput={updateDirectories}
+					/>
+					{#if apiClient.environment === "wails"}
+						<button
+							class="btn btn-ghost shrink-0"
+							onclick={selectOutputDirectory}
+						>
+							<FolderOpen class="h-4 w-4" />
+							{$t("setup.directories.browse")}
+						</button>
+					{/if}
 				</div>
 			</div>
 		</div>
 	</div>
 
-	<div class="text-sm text-base-content/50">
-		<p>* {$t("setup.directories.requiredFields")}</p>
-	</div>
+	<p class="text-xs text-base-content/65">* {$t("setup.directories.requiredFields")}</p>
 </div>

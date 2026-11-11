@@ -89,54 +89,52 @@ function handleUploadValidation(data: { hasValidServers: boolean }) {
 
 <div class="space-y-6">
   <!-- Upload Pool -->
-  <div class="card bg-base-100 shadow-sm">
-    <div class="card-body space-y-4">
-      <div class="flex items-center gap-3">
-        <Upload class="w-5 h-5 text-primary" />
-        <div>
-          <h2 class="text-lg font-semibold text-base-content">
-            {$t("settings.server.upload_pool_title")}
-          </h2>
-          <p class="text-sm text-base-content/60">
-            {$t("settings.server.upload_pool_description")}
-          </p>
-        </div>
+  <section class="space-y-3">
+    <div class="flex items-center gap-2.5">
+      <Upload class="h-4 w-4 shrink-0 text-base-content/60" />
+      <div class="min-w-0">
+        <h2 class="text-sm font-semibold text-base-content">
+          {$t("settings.server.upload_pool_title")}
+        </h2>
+        <p class="text-sm text-base-content/60">
+          {$t("settings.server.upload_pool_description")}
+        </p>
       </div>
-
-      <NntpServerManager
-        servers={uploadManagedServers}
-        onupdate={handleUploadUpdate}
-        onvalidationchange={handleUploadValidation}
-        variant="settings"
-        restrictedRole="upload"
-      />
     </div>
-  </div>
+
+    <NntpServerManager
+      servers={uploadManagedServers}
+      onupdate={handleUploadUpdate}
+      onvalidationchange={handleUploadValidation}
+      variant="settings"
+      restrictedRole="upload"
+    />
+  </section>
+
+  <div class="border-t border-base-content/10"></div>
 
   <!-- Verify Pool -->
-  <div class="card bg-base-100 shadow-sm">
-    <div class="card-body space-y-4">
-      <div class="flex items-center gap-3">
-        <ShieldCheck class="w-5 h-5 text-secondary" />
-        <div>
-          <h2 class="text-lg font-semibold text-base-content">
-            {$t("settings.server.verify_pool_title")}
-            <span class="badge badge-ghost badge-sm ml-2">
-              {$t("settings.server.verify_pool_optional")}
-            </span>
-          </h2>
-          <p class="text-sm text-base-content/60">
-            {$t("settings.server.verify_pool_description")}
-          </p>
-        </div>
+  <section class="space-y-3">
+    <div class="flex items-center gap-2.5">
+      <ShieldCheck class="h-4 w-4 shrink-0 text-base-content/60" />
+      <div class="min-w-0">
+        <h2 class="text-sm font-semibold text-base-content">
+          {$t("settings.server.verify_pool_title")}
+          <span class="badge badge-ghost badge-sm ml-1.5">
+            {$t("settings.server.verify_pool_optional")}
+          </span>
+        </h2>
+        <p class="text-sm text-base-content/60">
+          {$t("settings.server.verify_pool_description")}
+        </p>
       </div>
-
-      <NntpServerManager
-        servers={verifyManagedServers}
-        onupdate={handleVerifyUpdate}
-        variant="settings"
-        restrictedRole="verify"
-      />
     </div>
-  </div>
+
+    <NntpServerManager
+      servers={verifyManagedServers}
+      onupdate={handleVerifyUpdate}
+      variant="settings"
+      restrictedRole="verify"
+    />
+  </section>
 </div>

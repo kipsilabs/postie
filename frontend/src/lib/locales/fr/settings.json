@@ -1,5 +1,9 @@
 {
 	"settings": {
+		"config_status": {
+			"applied": "Appliquée",
+			"editing_pending": "Modification en attente"
+		},
 		"duplicate_lookup": {
 			"title": "Recherche de doublons",
 			"description": "Réutilise un NZB avant la publication de fichiers individuels selon le nom original exact, la taille et des échantillons du contenu. Les dossiers ignorent la recherche. Les erreurs arrêtent la publication ; les sources réutilisées sont conservées.",
@@ -24,6 +28,7 @@
 			"advanced_mode": "Mode Avancé",
 			"advanced_mode_description": "Afficher les options de configuration avancées pour un réglage fin",
 			"unsaved_changes": "Modifications non enregistrées",
+			"discard_changes": "Annuler",
 			"status": {
 				"configuration_error": "Erreur de Configuration",
 				"configuration_required": "Configuration Requise",
@@ -107,6 +112,7 @@
 			"saved_success_description": "Votre configuration de nomenclature des fichiers a été sauvegardée avec succès !"
 		},
 		"nzb_compression": {
+			"save_button": "Enregistrer les paramètres de compression NZB",
 			"title": "Configuration de Compression NZB",
 			"enable": "Activer la Compression NZB",
 			"enable_description": "Compresser les fichiers NZB générés pour réduire la taille du fichier",
@@ -434,6 +440,8 @@
 			"curl_example_label": "Exemple de requête"
 		},
 		"server": {
+			"inflight_description": "Nombre de requêtes simultanées par connexion (par défaut : 10).",
+			"inflight": "Requêtes simultanées",
 			"title": "Serveurs NNTP",
 			"add_server": "Ajouter un Serveur",
 			"validating": "Validation...",

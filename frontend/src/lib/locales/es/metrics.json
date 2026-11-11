@@ -49,5 +49,31 @@
 
 		"nntp_servers": "Servidores NNTP",
 		"server_host": "Host del Servidor"
+	},
+	"logs": {
+		"search_placeholder": "Filtrar registros",
+		"level_label": "Nivel de registro",
+		"level_all": "Todos los niveles",
+		"level_info": "Info y superior",
+		"level_warn": "Avisos y errores",
+		"level_error": "Solo errores",
+		"count": "{count} líneas",
+		"count_filtered": "{shown} de {total} líneas",
+		"more_available": "hay líneas más antiguas",
+		"jump_to_latest": "Ir al último",
+		"loading": "Cargando registros…",
+		"loading_older": "Cargando registros anteriores…",
+		"beginning": "Inicio de los registros",
+		"empty": "Ninguna línea coincide",
+		"copy": "Copiar",
+		"copied": "Registros copiados al portapapeles",
+		"copy_error": "No se pudieron copiar los registros"
+	},
+	"errorPage": {
+		"title": "Algo salió mal",
+		"description": "Prueba a recargar la página o vuelve al panel.",
+		"back": "Volver al panel",
+		"reload": "Recargar",
+		"document_title": "Error {status} - Postie"
 	}
 }

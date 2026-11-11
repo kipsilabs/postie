@@ -3,11 +3,8 @@ import NntpServerManager from "$lib/components/NntpServerManager.svelte";
 import { t } from "$lib/i18n";
 import { advancedMode } from "$lib/stores/app";
 import { config as configType } from "$lib/wailsjs/go/models";
-import {
-	Upload,
-	ShieldCheck,
-	AlertTriangle,
-} from "lucide-svelte";
+import { AlertTriangle } from "lucide-svelte";
+import { collapse } from "./collapse";
 
 interface Props {
 	config: configType.ConfigData;
@@ -110,68 +107,48 @@ function handleVerifyUpdate(updatedServers: any[]) {
 
 <div class="space-y-6">
   <!-- Upload Pool -->
-  <div class="card bg-base-100 shadow-sm">
-    <div class="card-body space-y-4">
-      <div class="flex items-center gap-3">
-        <Upload class="w-5 h-5 text-primary" />
-        <div>
-          <h2 class="text-lg font-semibold text-base-content">
-            {$t("settings.server.upload_pool_title")}
-          </h2>
-          <p class="text-sm text-base-content/60">
-            {$t("settings.server.upload_pool_description")}
-          </p>
-        </div>
-      </div>
+  <section>
+    <div class="section-label">{$t("settings.server.upload_pool_title")}</div>
+    <p class="settings-row-desc mx-1 mb-2">{$t("settings.server.upload_pool_description")}</p>
 
-      {#if hasMultipleUploadBackbones}
-        <div class="alert alert-warning">
-          <AlertTriangle class="w-5 h-5 shrink-0" />
+    {#if hasMultipleUploadBackbones}
+      <div transition:collapse role="status">
+        <div class="mb-3 flex items-start gap-3 rounded-(--radius-box) border border-warning/40 bg-warning/10 px-4 py-3">
+          <AlertTriangle class="mt-0.5 h-4 w-4 shrink-0 text-warning-ink" />
           <span class="text-sm">{$t("settings.server.multiple_backbones_warning")}</span>
         </div>
-      {/if}
+      </div>
+    {/if}
 
-      <NntpServerManager
-        servers={uploadManagedServers}
-        onupdate={handleUploadUpdate}
-        showAdvancedFields={isAdvanced}
-        variant="settings"
-        restrictedRole="upload"
-      />
-    </div>
-  </div>
+    <NntpServerManager
+      servers={uploadManagedServers}
+      onupdate={handleUploadUpdate}
+      showAdvancedFields={isAdvanced}
+      variant="settings"
+      restrictedRole="upload"
+    />
+  </section>
 
   <!-- Verify Pool -->
-  <div class="card bg-base-100 shadow-sm">
-    <div class="card-body space-y-4">
-      <div class="flex items-center gap-3">
-        <ShieldCheck class="w-5 h-5 text-secondary" />
-        <div>
-          <h2 class="text-lg font-semibold text-base-content">
-            {$t("settings.server.verify_pool_title")}
-            <span class="badge badge-ghost badge-sm ml-2">
-              {$t("settings.server.verify_pool_optional")}
-            </span>
-          </h2>
-          <p class="text-sm text-base-content/60">
-            {$t("settings.server.verify_pool_description")}
-          </p>
-        </div>
-      </div>
-
-      <NntpServerManager
-        servers={verifyManagedServers}
-        onupdate={handleVerifyUpdate}
-        showAdvancedFields={isAdvanced}
-        variant="settings"
-        restrictedRole="verify"
-      />
+  <section>
+    <div class="section-label">
+      {$t("settings.server.verify_pool_title")}
+      <span class="badge badge-ghost badge-sm ml-1 normal-case tracking-normal">
+        {$t("settings.server.verify_pool_optional")}
+      </span>
     </div>
-  </div>
+    <p class="settings-row-desc mx-1 mb-2">{$t("settings.server.verify_pool_description")}</p>
 
-  <div class="pt-2">
-    <p class="text-sm text-base-content/70">
-      {@html $t("settings.server.tip")}
-    </p>
-  </div>
+    <NntpServerManager
+      servers={verifyManagedServers}
+      onupdate={handleVerifyUpdate}
+      showAdvancedFields={isAdvanced}
+      variant="settings"
+      restrictedRole="verify"
+    />
+  </section>
+
+  <p class="settings-row-desc mx-1">
+    {@html $t("settings.server.tip")}
+  </p>
 </div>

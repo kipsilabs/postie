@@ -160,6 +160,7 @@
 		"job_failed": "Subida fallida: {fileName}",
 		"file_explorer": {
 			"title": "Agregar Archivos del Servidor a la Cola",
+			"close": "Cerrar",
 			"import_success": "Archivos agregados a la cola exitosamente",
 			"no_files_selected": "No se han seleccionado archivos",
 			"import_success_description": "Se {count, plural, =1 {agregó} other {agregaron}} {count} {count, plural, =1 {archivo} other {archivos}} a la cola correctamente",

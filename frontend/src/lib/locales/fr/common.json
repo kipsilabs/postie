@@ -23,14 +23,20 @@
 			"metrics": "Métriques",
 			"logs": "Logs",
 			"language": "Langue",
-			"theme": "Thème"
+			"theme": "Thème",
+			"menu": "Ouvrir le menu",
+			"closeMenu": "Fermer le menu",
+			"primary": "Navigation principale"
 		},
 		"actions": {
+			"reset": "Réinitialiser",
+			"confirm": "Confirmer",
 			"save": "Sauvegarder",
 			"cancel": "Annuler",
 			"delete": "Supprimer",
 			"edit": "Modifier",
 			"add": "Ajouter",
+			"close": "Fermer",
 			"browse": "Parcourir",
 			"upload": "Télécharger",
 			"download": "Télécharger",
@@ -53,6 +59,8 @@
 			"paused": "En pause"
 		},
 		"common": {
+			"applying": "Application…",
+			"discarding": "Annulation…",
 			"saving": "Sauvegarde...",
 			"clearing": "Suppression...",
 			"clear": "Vider",
@@ -121,6 +129,17 @@
 			"configuration_saved": "Configuration sauvegardée",
 			"configuration_saved_description": "Votre configuration a été sauvegardée avec succès !",
 			"configuration_save_failed": "Échec de la sauvegarde de la configuration"
+		},
+		"appearance": {
+			"label": "Apparence",
+			"system": "Système",
+			"light": "Clair",
+			"dark": "Sombre"
+		},
+		"connection": {
+			"connected": "Connecté",
+			"reconnecting": "Reconnexion…",
+			"disconnected": "Déconnecté"
 		}
 	},
 	"logs": {

@@ -2,6 +2,7 @@
 import { onDestroy, onMount } from 'svelte';
 import { t } from '$lib/i18n';
 import apiClient from '$lib/api/client';
+import { fade } from '$lib/motion';
 
 let hasPending = $state(false);
 
@@ -42,10 +43,11 @@ function handleAppliedEvent() {
 </script>
 
 {#if hasPending}
-	<div class="flex items-center gap-2 px-3 py-1 bg-info/20 border border-info/30 rounded-full">
-		<div class="w-2 h-2 bg-info rounded-full animate-pulse"></div>
-		<span class="text-sm font-medium text-info">
-			{$t('settings.config_status.editing_pending')}
-		</span>
+	<div
+		class="inline-flex items-center gap-1.5 rounded-full bg-base-200 px-2.5 py-0.5 text-xs text-base-content/70"
+		transition:fade={{ speed: "fast" }}
+	>
+		<span class="h-1.5 w-1.5 rounded-full bg-primary"></span>
+		{$t('settings.config_status.editing_pending')}
 	</div>
 {/if}

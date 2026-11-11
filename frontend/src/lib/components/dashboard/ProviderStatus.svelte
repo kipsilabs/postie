@@ -8,7 +8,8 @@ import {
 import { t } from "$lib/i18n";
 import { classifyProvider, type ProviderSnapshot, type ProviderState } from "$lib/provider-status";
 import { backend } from "$lib/wailsjs/go/models";
-import { CheckCircle, Clock, AlertCircle, Server, WifiOff } from "lucide-svelte";
+import { fade } from "$lib/motion";
+import { AlertCircle, WifiOff } from "lucide-svelte";
 import { onDestroy, onMount } from "svelte";
   import { formatElapsed } from '$lib/utils';
 
@@ -59,14 +60,14 @@ async function fetchProviderStatus() {
 	}
 }
 
-function getProviderStatusIcon(provider: backend.NntpProviderMetrics) {
+function getProviderDotClass(provider: backend.NntpProviderMetrics) {
 	switch (stateOf(provider)) {
 		case "connected":
-			return CheckCircle;
+			return "bg-success";
 		case "failed":
-			return AlertCircle;
+			return "bg-error";
 		default:
-			return Clock;
+			return "bg-base-content/30";
 	}
 }
 
@@ -77,7 +78,7 @@ function getProviderStatusClass(provider: backend.NntpProviderMetrics) {
 		case "failed":
 			return "text-error";
 		default:
-			return "text-base-content/50";
+			return "text-base-content/65";
 	}
 }
 
@@ -118,125 +119,102 @@ onDestroy(() => {
 });
 </script>
 
-<div class="card bg-base-100 shadow-sm">
-	<div class="card-body">
-		<h2 class="card-title text-base-content flex items-center gap-2">
-			<Server class="w-5 h-5" />
-			{$t("dashboard.provider.title")}
-		</h2>
+<section>
+	<div class="section-label">{$t("dashboard.provider.title")}</div>
 
-		{#if initialLoad && !poolMetrics}
-			<div class="flex justify-center py-4">
-				<span class="loading loading-spinner loading-md"></span>
+	{#if initialLoad && !poolMetrics}
+		<div class="settings-group">
+			<div class="flex justify-center py-6">
+				<span class="loading loading-spinner loading-sm"></span>
 			</div>
-		{:else if error}
-			<div class="alert alert-error">
-				<AlertCircle class="w-4 h-4" />
-				<span>{$t("dashboard.provider.error")}: {error}</span>
-			</div>
-		{:else if poolMetrics?.providers && poolMetrics.providers.length > 0}
-			<div class="space-y-3">
-				{#each poolMetrics.providers as provider, i (i)}
-					{@const StatusIcon = getProviderStatusIcon(provider)}
-					<div class="border border-base-300 rounded-lg p-4">
-						<div class="flex items-center justify-between mb-3">
-							<div class="flex items-center gap-3">
-								<StatusIcon class="w-5 h-5 {getProviderStatusClass(provider)}" />
-								<div>
-									<h3 class="font-semibold text-base-content">
-										{provider.name || provider.host}
-									</h3>
-								</div>
-							</div>
-							<div class="text-right">
-								<div class="text-sm font-medium {getProviderStatusClass(provider)}">
-									{getProviderStatusText(provider)}
-								</div>
-								<div class="text-xs text-base-content/60">
-									{$t("dashboard.provider.connections")}: {provider.activeConnections}/{provider.maxConnections}
-									{#if provider.availableSlots > 0}
-										({provider.availableSlots} {$t("dashboard.provider.free_slots")})
-									{/if}
-								</div>
-							</div>
+		</div>
+	{:else if error}
+		<div class="alert alert-error" in:fade>
+			<AlertCircle class="w-4 h-4" />
+			<span>{$t("dashboard.provider.error")}: {error}</span>
+		</div>
+	{:else if poolMetrics?.providers && poolMetrics.providers.length > 0}
+		<div class="settings-group" in:fade>
+			{#each poolMetrics.providers as provider, i (i)}
+				<div class="settings-row !block">
+					<div class="flex items-center justify-between gap-3">
+						<div class="flex items-center gap-2 min-w-0">
+							<span class="size-2 rounded-full shrink-0 {getProviderDotClass(provider)}"></span>
+							<span class="settings-row-title truncate">{provider.name || provider.host}</span>
+							<span class="text-xs {getProviderStatusClass(provider)}">{getProviderStatusText(provider)}</span>
 						</div>
-
-						<div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-							<div>
-								<span class="text-base-content/70">{$t("dashboard.provider.ttfb")}:</span>
-								<span class="font-medium ml-1">{provider.ttfb || "—"}</span>
-							</div>
-							<div>
-								<span class="text-base-content/70">{$t("dashboard.provider.inflight")}:</span>
-								<span class="font-medium ml-1">{provider.inflight}</span>
-							</div>
-							<div>
-								<span class="text-base-content/70">{$t("dashboard.provider.missing")}:</span>
-								<span class="font-medium ml-1">{provider.missing.toLocaleString()}</span>
-							</div>
-							<div>
-								<span class="text-base-content/70">{$t("dashboard.provider.errors")}:</span>
-								<span class="font-medium ml-1 {provider.totalErrors > 0 ? 'text-error' : ''}">{provider.totalErrors.toLocaleString()}</span>
-							</div>
+						<div class="text-xs text-base-content/60 tabular-nums text-right">
+							{$t("dashboard.provider.connections")}: {provider.activeConnections}/{provider.maxConnections}
+							{#if provider.availableSlots > 0}
+								({provider.availableSlots} {$t("dashboard.provider.free_slots")})
+							{/if}
 						</div>
-
-						{#if provider.quotaBytes > 0}
-							<div class="mt-3 pt-3 border-t border-base-300">
-								<div class="flex justify-between items-center text-sm mb-1">
-									<span class="text-base-content/70">
-										{$t("dashboard.provider.quota")}:
-										<span class="font-medium {provider.quotaExceeded ? 'text-error' : ''}">
-											{formatBytes(provider.quotaUsed)} / {formatBytes(provider.quotaBytes)}
-										</span>
-										{#if provider.quotaExceeded}
-											<span class="badge badge-error badge-sm ml-1">{$t("dashboard.provider.quota_exceeded")}</span>
-										{/if}
-									</span>
-									{#if provider.quotaResetAt}
-										<span class="text-xs text-base-content/60">
-											{$t("dashboard.provider.quota_resets")}: {new Date(provider.quotaResetAt).toLocaleString()}
-										</span>
-									{/if}
-								</div>
-								<progress
-									class="progress w-full {provider.quotaExceeded ? 'progress-error' : 'progress-primary'}"
-									value={provider.quotaUsed}
-									max={provider.quotaBytes}
-								></progress>
-							</div>
-						{/if}
 					</div>
-				{/each}
-			</div>
 
-			<!-- Pool Summary -->
-			<div class="mt-4 p-3 bg-base-200 rounded-lg">
-				<div class="flex justify-between items-center text-sm">
-					<span class="text-base-content/70">{$t("dashboard.provider.upload_speed")}:</span>
-					<span class="font-medium">{poolMetrics.uploadSpeed > 0 ? formatSpeed(poolMetrics.uploadSpeed) : "—"}</span>
+					<div class="mt-1.5 flex flex-wrap gap-x-5 gap-y-0.5 text-xs text-base-content/60 tabular-nums">
+						<span>{$t("dashboard.provider.ttfb")}: <span class="text-base-content">{provider.ttfb || "—"}</span></span>
+						<span>{$t("dashboard.provider.inflight")}: <span class="text-base-content">{provider.inflight}</span></span>
+						<span>{$t("dashboard.provider.missing")}: <span class="text-base-content">{provider.missing.toLocaleString()}</span></span>
+						<span>{$t("dashboard.provider.errors")}: <span class={provider.totalErrors > 0 ? "text-error" : "text-base-content"}>{provider.totalErrors.toLocaleString()}</span></span>
+					</div>
+
+					{#if provider.quotaBytes > 0}
+						{@const quotaRatio = Math.min(1, provider.quotaUsed / provider.quotaBytes)}
+						<div class="mt-2">
+							<div class="flex justify-between items-center gap-2 text-xs mb-1">
+								<span class="text-base-content/60 tabular-nums">
+									{$t("dashboard.provider.quota")}:
+									<span class={provider.quotaExceeded ? "text-error" : "text-base-content"}>
+										{formatBytes(provider.quotaUsed)} / {formatBytes(provider.quotaBytes)}
+									</span>
+									{#if provider.quotaExceeded}
+										<span class="badge badge-soft badge-error badge-xs ml-1">{$t("dashboard.provider.quota_exceeded")}</span>
+									{/if}
+								</span>
+								{#if provider.quotaResetAt}
+									<span class="text-base-content/65">
+										{$t("dashboard.provider.quota_resets")}: {new Date(provider.quotaResetAt).toLocaleString()}
+									</span>
+								{/if}
+							</div>
+							<div
+								class="progress-track"
+								style="height: 0.25rem"
+								role="progressbar"
+								aria-valuenow={Math.round(quotaRatio * 100)}
+								aria-valuemin={0}
+								aria-valuemax={100}
+								aria-label={$t("dashboard.provider.quota")}
+							>
+								<div
+									class="progress-fill"
+									style="transform: scaleX({quotaRatio}){provider.quotaExceeded ? '; background-color: var(--color-error)' : ''}"
+								></div>
+							</div>
+						</div>
+					{/if}
 				</div>
-				<div class="flex justify-between items-center text-sm mt-1">
-					<span class="text-base-content/70">{$t("dashboard.provider.avg_upload_speed")}:</span>
-					<span class="font-medium">{poolMetrics.uploadAvgSpeed > 0 ? formatSpeed(poolMetrics.uploadAvgSpeed) : "—"}</span>
+			{/each}
+
+			<!-- Pool summary -->
+			{#snippet summaryRow(label: string, value: string)}
+				<div class="settings-row !min-h-9 !py-1.5 text-sm">
+					<span class="text-base-content/60">{label}</span>
+					<span class="tabular-nums">{value}</span>
 				</div>
-				<div class="flex justify-between items-center text-sm mt-1">
-					<span class="text-base-content/70">{$t("dashboard.provider.uploaded")}:</span>
-					<span class="font-medium">{poolMetrics.bytesUploaded > 0 ? formatBytes(poolMetrics.bytesUploaded) : "—"}</span>
-				</div>
-				<div class="flex justify-between items-center text-sm mt-1">
-					<span class="text-base-content/70">{$t("dashboard.provider.elapsed")}:</span>
-					<span class="font-medium">{formatElapsed(poolMetrics.elapsed)}</span>
-				</div>
-				<div class="flex justify-between items-center text-sm mt-1">
-					<span class="text-base-content/70">{$t("dashboard.provider.total_errors")}:</span>
-					<span class="font-medium">{poolMetrics.totalErrors.toLocaleString()}</span>
-				</div>
+			{/snippet}
+			{@render summaryRow($t("dashboard.provider.upload_speed"), poolMetrics.uploadSpeed > 0 ? formatSpeed(poolMetrics.uploadSpeed) : "—")}
+			{@render summaryRow($t("dashboard.provider.avg_upload_speed"), poolMetrics.uploadAvgSpeed > 0 ? formatSpeed(poolMetrics.uploadAvgSpeed) : "—")}
+			{@render summaryRow($t("dashboard.provider.uploaded"), poolMetrics.bytesUploaded > 0 ? formatBytes(poolMetrics.bytesUploaded) : "—")}
+			{@render summaryRow($t("dashboard.provider.elapsed"), formatElapsed(poolMetrics.elapsed))}
+			{@render summaryRow($t("dashboard.provider.total_errors"), poolMetrics.totalErrors.toLocaleString())}
+		</div>
+	{:else}
+		<div class="settings-group" in:fade>
+			<div class="flex flex-col items-center text-center py-8 text-base-content/60 gap-2">
+				<WifiOff class="w-7 h-7 opacity-40" />
+				<p class="text-sm">{$t("dashboard.provider.no_providers")}</p>
 			</div>
-		{:else}
-			<div class="text-center py-8 text-base-content/60">
-				<WifiOff class="w-12 h-12 mx-auto mb-2 opacity-50" />
-				<p>{$t("dashboard.provider.no_providers")}</p>
-			</div>
-		{/if}
-	</div>
-</div>
+		</div>
+	{/if}
+</section>

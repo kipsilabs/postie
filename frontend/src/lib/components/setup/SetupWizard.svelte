@@ -1,8 +1,8 @@
 <script lang="ts">
 import logo from "$lib/assets/images/logo.png";
 import { t } from "$lib/i18n";
-import { backend, type config } from "$lib/wailsjs/go/models";
-import { Check } from "lucide-svelte";
+import { fly } from "$lib/motion";
+import { backend } from "$lib/wailsjs/go/models";
 import DirectorySetupStep from "./DirectorySetupStep.svelte";
 import ServerSetupStep from "./ServerSetupStep.svelte";
 import WelcomeStep from "./WelcomeStep.svelte";
@@ -14,45 +14,45 @@ interface Props {
 let { oncomplete }: Props = $props();
 
 let currentStep = $state(1);
+// 1 = moving forward (content leaves to the left), -1 = moving back.
+let direction = $state<1 | -1>(1);
 let hasValidServers = $state(false);
 
 const stepData = new backend.SetupWizardData();
 
-const steps = [
-	{ id: 1, name: $t("setup.steps.welcome"), completed: false },
-	{ id: 2, name: $t("setup.steps.servers"), completed: false },
-	{ id: 3, name: $t("setup.steps.directories"), completed: false },
-];
+const steps = $derived([
+	{ id: 1, name: $t("setup.steps.welcome") },
+	{ id: 2, name: $t("setup.steps.servers") },
+	{ id: 3, name: $t("setup.steps.directories") },
+]);
 
 function nextStep() {
 	if (currentStep < steps.length) {
-		steps[currentStep - 1].completed = true;
+		direction = 1;
 		currentStep++;
 	}
 }
 
 function prevStep() {
 	if (currentStep > 1) {
+		direction = -1;
 		currentStep--;
 	}
 }
 
-// Reactive statement that updates when dependencies change
-const canProceed = $derived(
-	(() => {
-		switch (currentStep) {
-			case 1:
-				return true; // Welcome step can always proceed
-			case 2:
-				// For servers step, require at least one server with successful validation
-				return hasValidServers;
-			case 3:
-				return stepData.outputDirectory !== "";
-			default:
-				return false;
-		}
-	})(),
-);
+const canProceed = $derived.by(() => {
+	switch (currentStep) {
+		case 1:
+			return true; // Welcome step can always proceed
+		case 2:
+			// For servers step, require at least one server with successful validation
+			return hasValidServers;
+		case 3:
+			return stepData.outputDirectory !== "";
+		default:
+			return false;
+	}
+});
 
 function handleServerUpdate(event: { servers: backend.ServerData[] }) {
 	stepData.servers = event.servers;
@@ -71,119 +71,164 @@ function handleDirectoryUpdate(event: {
 async function finishSetup() {
 	oncomplete(stepData);
 }
+
+const SLIDE_PX = 28;
 </script>
 
-<div class="min-h-screen flex flex-col w-full">
-	<!-- Header with Logo - Fixed at top -->
-	<div class="bg-base-100 border-b border-base-300 py-6">
-		<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-			<div class="text-center">
-				<div class="flex items-center justify-center gap-3 mb-2">
-					<img src={logo} alt="Postie UI" class="w-10 h-10" loading="lazy" />
-					<h1 class="text-2xl sm:text-3xl font-bold">
-						{$t("setup.wizard_title")}
-					</h1>
-				</div>
-				<p class="text-base-content/70 text-sm sm:text-base">
+<div class="wizard-wrap">
+	<div class="wizard-panel animate-fade-in">
+		<!-- Header: logo, title and step indicator -->
+		<header class="wizard-header">
+			<img src={logo} alt="Postie UI" class="h-9 w-9 shrink-0" loading="lazy" />
+			<div class="min-w-0 flex-1">
+				<h1 class="truncate text-base font-semibold">
+					{$t("setup.wizard_title")}
+				</h1>
+				<p class="truncate text-sm text-base-content/65">
 					{$t("setup.wizard_subtitle")}
 				</p>
 			</div>
-		</div>
-	</div>
-
-	<!-- Step Indicator - Fixed below header -->
-	<div class="bg-base-200 border-b border-base-300 py-4">
-		<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-			<div class="flex justify-center overflow-x-auto">
-				<div class="flex items-center space-x-4 sm:space-x-8 min-w-max">
-					{#each steps as step, index}
-						<div class="flex items-center">
-							<div class="flex flex-col items-center">
-								<div class="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 mb-2 transition-all duration-200 {
-									step.completed ? 'bg-success border-success text-success-content' :
-									currentStep === step.id ? 'bg-primary border-primary text-primary-content' :
-									'border-base-300 text-base-content/50'
-								}">
-									{#if step.completed}
-										<Check class="w-4 h-4 sm:w-5 sm:h-5" />
-									{:else}
-										<span class="text-xs sm:text-sm font-medium">{step.id}</span>
-									{/if}
-								</div>
-								<span class="text-xs sm:text-sm font-medium text-base-content text-center max-w-20 sm:max-w-none">
-									{step.name}
-								</span>
-							</div>
-							{#if index < steps.length - 1}
-								<div class="w-8 sm:w-16 h-0.5 mx-2 sm:mx-4 transition-colors duration-200 {
-									step.completed ? 'bg-success' : 'bg-base-300'
-								}"></div>
-							{/if}
-						</div>
+			<div class="flex shrink-0 flex-col items-end gap-1.5" aria-live="polite">
+				<div class="flex items-center gap-1.5" aria-hidden="true">
+					{#each steps as step (step.id)}
+						<span
+							class="step-dot"
+							class:is-current={currentStep === step.id}
+							class:is-done={currentStep > step.id}
+						></span>
 					{/each}
 				</div>
+				<span class="text-xs tabular-nums text-base-content/60">
+					{$t("setup.step_of", { values: { current: currentStep, total: steps.length } })}
+					· {steps[currentStep - 1].name}
+				</span>
 			</div>
-		</div>
-	</div>
+		</header>
 
-	<!-- Main Content Area - Scrollable -->
-	<div class="flex-1 overflow-y-auto">
-		<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-			<div class="card bg-base-100 shadow-lg min-h-[500px] w-full max-w-full">
-				<div class="card-body p-6 sm:p-8">
+		<!-- Step content: old and new steps overlap in one grid cell while sliding -->
+		<div class="wizard-body">
+			{#key currentStep}
+				<div
+					class="wizard-step"
+					in:fly={{ x: direction * SLIDE_PX, y: 0, speed: "slow", ease: "emphasized" }}
+					out:fly={{ x: -direction * SLIDE_PX, y: 0, speed: "base", ease: "in" }}
+				>
 					{#if currentStep === 1}
 						<WelcomeStep />
 					{:else if currentStep === 2}
-						<ServerSetupStep 
+						<ServerSetupStep
 							servers={stepData.servers}
 							onupdate={handleServerUpdate}
 							onvalidationchange={handleValidationChange}
 						/>
 					{:else if currentStep === 3}
-						<DirectorySetupStep 
+						<DirectorySetupStep
 							outputDirectory={stepData.outputDirectory}
 							onupdate={handleDirectoryUpdate}
 						/>
 					{/if}
 				</div>
-			</div>
+			{/key}
 		</div>
-	</div>
 
-	<!-- Navigation - Fixed at bottom -->
-	<div class="bg-base-100 border-t border-base-300 py-4">
-		<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-			<div class="flex justify-between items-center">
-				<div>
-					{#if currentStep > 1}
-						<button class="btn btn-outline btn-sm sm:btn-md" onclick={prevStep}>
-							{$t("setup.buttons.previous")}
-						</button>
-					{:else}
-						<div></div>
-					{/if}
-				</div>
-				
-				<div class="flex gap-3">
-					{#if currentStep < steps.length}
-						<button 
-							class="btn btn-primary btn-sm sm:btn-md"
-							disabled={!canProceed}
-							onclick={nextStep}
-						>
-							{$t("setup.buttons.next")}
-						</button>
-					{:else}
-						<button 
-							class="btn btn-success btn-sm sm:btn-md"
-							disabled={!canProceed}
-							onclick={finishSetup}
-						>
-							{$t("setup.buttons.finish")}
-						</button>
-					{/if}
-				</div>
+		<!-- Navigation: back bottom-left, primary bottom-right -->
+		<footer class="wizard-footer">
+			<div>
+				{#if currentStep > 1}
+					<button class="btn btn-ghost btn-sm" onclick={prevStep}>
+						{$t("setup.buttons.previous")}
+					</button>
+				{/if}
 			</div>
-		</div>
+
+			{#if currentStep < steps.length}
+				<button
+					class="btn btn-primary btn-sm"
+					disabled={!canProceed}
+					onclick={nextStep}
+				>
+					{$t("setup.buttons.next")}
+				</button>
+			{:else}
+				<button
+					class="btn btn-primary btn-sm"
+					disabled={!canProceed}
+					onclick={finishSetup}
+				>
+					{$t("setup.buttons.finish")}
+				</button>
+			{/if}
+		</footer>
 	</div>
 </div>
+
+<style>
+	.wizard-wrap {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		min-height: calc(100dvh - var(--titlebar-inset));
+		padding: 1rem;
+	}
+	.wizard-panel {
+		display: flex;
+		flex-direction: column;
+		width: 100%;
+		max-width: 48rem;
+		min-width: 0;
+		border-radius: calc(var(--radius-box) * 1.25);
+		background: var(--color-base-100);
+		box-shadow: var(--ui-shadow-md);
+	}
+	.wizard-header {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		padding: 0.875rem 1.25rem;
+		border-bottom: 1px solid var(--ui-hairline);
+	}
+	.wizard-body {
+		display: grid;
+		min-width: 0;
+		min-height: 22rem;
+		overflow-x: clip;
+	}
+	.wizard-step {
+		grid-area: 1 / 1;
+		min-width: 0;
+		padding: 1.5rem 1.25rem;
+	}
+	.wizard-footer {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 0.75rem 1.25rem;
+		border-top: 1px solid var(--ui-hairline);
+		background: color-mix(in oklab, var(--color-base-content) 3%, transparent);
+		border-radius: 0 0 calc(var(--radius-box) * 1.25) calc(var(--radius-box) * 1.25);
+	}
+	.step-dot {
+		height: 0.375rem;
+		width: 0.375rem;
+		border-radius: 999px;
+		background: color-mix(in oklab, var(--color-base-content) 18%, transparent);
+		transition:
+			width var(--motion-base) var(--ease-standard),
+			background-color var(--motion-base) var(--ease-standard);
+	}
+	.step-dot.is-done {
+		background: color-mix(in oklab, var(--color-primary) 45%, transparent);
+	}
+	.step-dot.is-current {
+		width: 1.25rem;
+		background: var(--color-primary);
+	}
+	@media (max-width: 479px) {
+		.wizard-header {
+			flex-wrap: wrap;
+		}
+		.wizard-step {
+			padding: 1.25rem 1rem;
+		}
+	}
+</style>

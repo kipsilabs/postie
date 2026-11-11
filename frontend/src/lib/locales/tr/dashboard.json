@@ -158,6 +158,7 @@
         "job_failed": "Yükleme başarısız: {fileName}",
         "file_explorer": {
             "title": "Sunucudan Kuyruğa Dosya Ekle",
+            "close": "Kapat",
             "import_success": "Dosyalar kuyruğa başarıyla eklendi",
             "no_files_selected": "Dosya seçilmedi",
             "import_success_description": "{count} {count, plural, =1 {dosya} other {dosya}} kuyruğa başarıyla eklendi",
