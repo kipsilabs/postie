@@ -24,6 +24,7 @@
 			"advanced_mode": "Advanced Mode",
 			"advanced_mode_description": "Show advanced configuration options for fine-tuning",
 			"unsaved_changes": "Unsaved changes",
+			"discard_changes": "Discard",
 			"status": {
 				"configuration_error": "Configuration Error",
 				"configuration_required": "Configuration Required",

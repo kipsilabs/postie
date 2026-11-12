@@ -79,9 +79,9 @@ func TestDashboard_RemainsLiveAfterLeavingPendingInitialFetch(t *testing.T) {
 		chromedp.Navigate(baseURL+"/"),
 		dashboardStage("hold initial snapshots", chromedp.Poll(`window.__dashboard.releases.length === 2`, nil)),
 		// Use navigation buttons so Svelte remounts panels without reloading JS.
-		dashboardStage("click Logs", chromedp.Click(`button[title="Logs"]`, chromedp.ByQuery)),
+		dashboardStage("click Logs", chromedp.Click(`a[title="Logs"]`, chromedp.ByQuery)),
 		dashboardStage("navigate to logs", chromedp.Poll(`location.pathname === '/logs'`, nil)),
-		dashboardStage("click Dashboard", chromedp.Click(`button[title="Dashboard"]`, chromedp.ByQuery)),
+		dashboardStage("click Dashboard", chromedp.Click(`a[title="Dashboard"]`, chromedp.ByQuery)),
 		dashboardStage("remount dashboard", chromedp.Poll(`window.__dashboard.counts['/api/running-job-details'] === 2 &&
           window.__dashboard.counts['/api/metrics/nntp-pool'] === 2 &&
           document.body.innerText.includes('navigation-provider')`, nil)),

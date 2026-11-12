@@ -23,7 +23,7 @@ async function changeLanguage(event: Event) {
 
 <select
 	id="language-select"
-	class="select select-bordered w-full"
+	class="select select-sm w-auto min-w-44 max-sm:w-full"
 	value={$locale}
 	onchange={changeLanguage}>
 	{#each languageOptions as option}

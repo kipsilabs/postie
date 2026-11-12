@@ -1,4 +1,6 @@
 <script lang="ts">
+import FieldRow from "./FieldRow.svelte";
+import PresetChips from "./PresetChips.svelte";
 // Imports
 import { t } from "$lib/i18n";
 
@@ -80,63 +82,28 @@ function setPreset(presetValue: number, presetUnit: string) {
 }
 </script>
 
-<!-- Duration Input Component -->
-<div class="form-control w-full">
-	<!-- Label -->
-	{#if label}
-		<label class="label" for={id}>
-			<span class="label-text font-medium text-base-content">{label}</span>
-		</label>
-	{/if}
-	
-	<!-- Input with Unit Selector -->
-	<div class="flex gap-2">
-		<div class="flex-1">
-			<input
-				{id}
-				type="number"
-				class="input input-bordered w-full focus:input-primary transition-colors"
-				bind:value={numberValue}
-				min={minValue}
-				max={maxValue}
-				{placeholder}
-				oninput={(e) => {
-					const target = e.target as HTMLInputElement;
-					target.value = target.value.replace(/[^0-9]/g, '');
-				}}
-			/>
-		</div>
-		<div class="w-24">
-			<select
-				class="select select-bordered focus:select-primary transition-colors"
-				bind:value={unitValue}
-			>
-				{#each timeUnitOptions as option}
-					<option value={option.value}>{option.name}</option>
-				{/each}
-			</select>
-		</div>
-	</div>
-	
-	<!-- Description -->
-	{#if description}
-		<p class="text-sm text-base-content/70 mt-1">
-			{description}
-		</p>
-	{/if}
-	
-	<!-- Preset Buttons -->
-	{#if presets.length > 0}
-		<div class="mt-2 flex flex-wrap gap-2">
-			{#each presets as preset}
-				<button
-					type="button"
-					class="btn btn-xs btn-outline hover:btn-primary transition-colors"
-					onclick={() => setPreset(preset.value, preset.unit)}
-				>
-					{preset.label}
-				</button>
+<FieldRow {label} {description} {id}>
+	<div class="join">
+		<input
+			{id}
+			type="number"
+			class="input input-sm join-item w-28 text-right tabular-nums"
+			bind:value={numberValue}
+			min={minValue}
+			max={maxValue}
+			{placeholder}
+			oninput={(e) => {
+				const target = e.target as HTMLInputElement;
+				target.value = target.value.replace(/[^0-9]/g, "");
+			}}
+		/>
+		<select class="select select-sm join-item w-auto" aria-label={label || id} bind:value={unitValue}>
+			{#each timeUnitOptions as option}
+				<option value={option.value}>{option.name}</option>
 			{/each}
-		</div>
-	{/if}
-</div> 
+		</select>
+	</div>
+	{#snippet below()}
+		<PresetChips items={presets.map((p) => ({ label: p.label, onpick: () => setPreset(p.value, p.unit) }))} />
+	{/snippet}
+</FieldRow>

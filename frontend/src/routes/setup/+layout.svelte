@@ -1,9 +1,10 @@
-<!-- Setup layout without navbar -->
+<!-- Setup layout: no sidebar. The root layout provides styles and toasts. -->
 <script lang="ts">
-import ToastContainer from "$lib/components/ToastContainer.svelte";
-import "../../style.css";
 import apiClient from "$lib/api/client";
+import type { Snippet } from "svelte";
 import { onMount } from "svelte";
+
+let { children }: { children: Snippet } = $props();
 
 onMount(async () => {
 	// Initialize API client
@@ -11,8 +12,6 @@ onMount(async () => {
 });
 </script>
 
-<div class="min-h-screen bg-gradient-to-br from-primary/10 to-secondary/10">
-	<slot />
-	<!-- Toast notifications -->
-	<ToastContainer />
+<div class="min-h-screen bg-base-200">
+	{@render children()}
 </div>

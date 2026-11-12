@@ -3,7 +3,12 @@ import apiClient from "$lib/api/client";
 import { t } from "$lib/i18n";
 import { toastStore } from "$lib/stores/toast";
 import type { config as configType } from "$lib/wailsjs/go/models";
-import { Copy, Eye, EyeOff, KeyRound, RefreshCw } from "lucide-svelte";
+import { Copy, Eye, EyeOff, RefreshCw } from "lucide-svelte";
+import FieldRow from "$lib/components/inputs/FieldRow.svelte";
+import ToggleRow from "$lib/components/inputs/ToggleRow.svelte";
+import { fade, scale } from "$lib/motion";
+import SettingsSection from "./SettingsSection.svelte";
+import { collapse } from "./collapse";
 import { onMount } from "svelte";
 
 interface Props {
@@ -87,115 +92,99 @@ $effect(() => {
 });
 </script>
 
-<div class="card bg-base-100 shadow-xl">
-	<div class="card-body space-y-6">
-		<div class="flex items-center gap-3">
-			<KeyRound class="w-5 h-5 text-base-content/60" />
-			<h2 class="card-title text-lg">{$t("settings.api.title")}</h2>
-		</div>
+<SettingsSection title={$t("settings.api.title")}>
+	<ToggleRow
+		id="api-enabled"
+		bind:checked={enabled}
+		label={$t("settings.api.enabled")}
+		description={$t("settings.api.enabled_description")}
+	/>
 
-		<div class="form-control">
-			<label class="label cursor-pointer justify-start gap-3">
-				<input type="checkbox" class="toggle" bind:checked={enabled} />
-				<span class="label-text">{$t("settings.api.enabled")}</span>
-			</label>
-			<div class="label">
-				<span class="label-text-alt ml-8">
-					{$t("settings.api.enabled_description")}
-				</span>
-			</div>
-		</div>
-
-		{#if enabled}
-			<div class="space-y-4 pl-4 border-l-2 border-blue-200 dark:border-blue-700">
-				<div class="form-control">
-					<label class="label" for="api-key">
-						<span class="label-text">{$t("settings.api.key_label")}</span>
-					</label>
-					<div class="join w-full">
-						<input
-							id="api-key"
-							type="text"
-							readonly
-							class="input input-bordered join-item flex-1 font-mono text-sm"
-							value={displayedKey}
-							placeholder={loading ? "…" : ""}
-						/>
-						<button
-							type="button"
-							class="btn join-item"
-							onclick={() => (revealed = !revealed)}
-							title={revealed ? $t("settings.api.hide") : $t("settings.api.reveal")}
-							disabled={!apiKey}
-						>
-							{#if revealed}
-								<EyeOff class="w-4 h-4" />
-							{:else}
-								<Eye class="w-4 h-4" />
-							{/if}
-						</button>
-						<button
-							type="button"
-							class="btn join-item"
-							onclick={copyKey}
-							title={$t("settings.api.copy")}
-							disabled={!apiKey}
-						>
-							<Copy class="w-4 h-4" />
-						</button>
-						<button
-							type="button"
-							class="btn btn-warning join-item"
-							onclick={() => (confirmRegenerate = true)}
-							disabled={regenerating}
-							title={$t("settings.api.regenerate")}
-						>
-							<RefreshCw class="w-4 h-4 {regenerating ? 'animate-spin' : ''}" />
-						</button>
-					</div>
-					<div class="label">
-						<span class="label-text-alt">{$t("settings.api.key_description")}</span>
-					</div>
+	{#if enabled}
+		<div transition:collapse class="border-t border-(--ui-hairline)">
+			<FieldRow
+				label={$t("settings.api.key_label")}
+				description={$t("settings.api.key_description")}
+				id="api-key"
+				stacked
+			>
+				<div class="join w-full">
+					<input
+						id="api-key"
+						type="text"
+						readonly
+						class="input input-sm join-item flex-1 font-mono"
+						value={displayedKey}
+						placeholder={loading ? "…" : ""}
+					/>
+					<button
+						type="button"
+						class="btn btn-sm join-item"
+						onclick={() => (revealed = !revealed)}
+						title={revealed ? $t("settings.api.hide") : $t("settings.api.reveal")}
+						aria-label={revealed ? $t("settings.api.hide") : $t("settings.api.reveal")}
+						disabled={!apiKey}
+					>
+						{#if revealed}
+							<EyeOff class="w-4 h-4" />
+						{:else}
+							<Eye class="w-4 h-4" />
+						{/if}
+					</button>
+					<button
+						type="button"
+						class="btn btn-sm join-item"
+						onclick={copyKey}
+						title={$t("settings.api.copy")}
+						aria-label={$t("settings.api.copy")}
+						disabled={!apiKey}
+					>
+						<Copy class="w-4 h-4" />
+					</button>
+					<button
+						type="button"
+						class="btn btn-sm join-item"
+						onclick={() => (confirmRegenerate = true)}
+						disabled={regenerating}
+						title={$t("settings.api.regenerate")}
+						aria-label={$t("settings.api.regenerate")}
+					>
+						<RefreshCw class="w-4 h-4 {regenerating ? 'animate-spin' : ''}" />
+					</button>
 				</div>
+			</FieldRow>
 
-				{#if apiKey}
-					<div class="form-control">
-						<label class="label" for="api-curl">
-							<span class="label-text">{$t("settings.api.curl_example_label")}</span>
-						</label>
+			{#if apiKey}
+				<div transition:collapse>
+					<FieldRow label={$t("settings.api.curl_example_label")} id="api-curl" stacked>
 						<textarea
 							id="api-curl"
 							readonly
-							class="textarea textarea-bordered font-mono text-xs h-32"
+							class="textarea w-full font-mono text-xs h-28"
 							value={curlExample}
 						></textarea>
-					</div>
-				{/if}
-			</div>
-		{/if}
-	</div>
-</div>
+					</FieldRow>
+				</div>
+			{/if}
+		</div>
+	{/if}
+</SettingsSection>
 
 {#if confirmRegenerate}
-	<div class="modal modal-open">
-		<div class="modal-box">
-			<h3 class="font-bold text-lg mb-4">{$t("settings.api.regenerate")}</h3>
-			<p class="py-4">{$t("settings.api.regenerate_confirm")}</p>
+	<div class="modal modal-open" role="dialog" aria-modal="true" out:fade={{ speed: "fast" }}>
+		<div class="modal-box max-w-md" out:scale={{ speed: "fast", start: 0.97 }}>
+			<h3 class="text-base font-semibold mb-2">{$t("settings.api.regenerate")}</h3>
+			<p class="text-sm text-base-content/70">{$t("settings.api.regenerate_confirm")}</p>
 			<div class="modal-action">
 				<button
 					type="button"
-					class="btn btn-ghost"
+					class="btn btn-sm btn-ghost"
 					onclick={() => (confirmRegenerate = false)}
 					disabled={regenerating}
 				>
 					{$t("common.common.cancel")}
 				</button>
-				<button
-					type="button"
-					class="btn btn-warning"
-					onclick={regenerate}
-					disabled={regenerating}
-				>
+				<button type="button" class="btn btn-sm btn-primary" onclick={regenerate} disabled={regenerating}>
 					<RefreshCw class="w-4 h-4 {regenerating ? 'animate-spin' : ''}" />
 					{regenerating ? $t("common.common.saving") : $t("settings.api.regenerate")}
 				</button>

@@ -10,6 +10,8 @@ import { t } from "$lib/i18n";
 import { toastStore } from "$lib/stores/toast";
 import { uploadActions, uploadStore } from "$lib/stores/upload";
 import { isUploading } from "$lib/stores/app";
+import { fade, fly } from "$lib/motion";
+import { toolbar } from "$lib/stores/toolbar";
 import { AlertTriangle, Plus, X, Pause, Play, FolderOpen, FolderPlus } from "lucide-svelte";
 import { onMount, onDestroy } from "svelte";
 import FileExplorerModal from "./FileExplorerModal.svelte";
@@ -151,7 +153,7 @@ async function handleFolderUpload() {
       } else {
         toastStore.success(
           $t("dashboard.header.folders_added"),
-          $t("dashboard.header.folders_added_description", { count: folderPaths.length })
+          $t("dashboard.header.folders_added_description", { values: { count: folderPaths.length } })
         );
       }
     } else {
@@ -202,158 +204,131 @@ async function handleFolderUpload() {
   }
 }
 
+$effect(() => {
+  toolbar.set({ actions: toolbarActions });
+  return () => toolbar.reset();
+});
 </script>
 
-<div class="card bg-base-100/60 backdrop-blur-sm border border-base-300/60 shadow-xl animate-fade-in max-w-full">
-  <div class="card-body">
-    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-      <div class="space-y-2">
-        <div class="flex items-center gap-3">
-          <h1 class="text-3xl font-bold">
-            {$t("dashboard.header.title")}
-          </h1>
-          <span class="text-sm text-base-content/50">
-            v{__APP_VERSION__}
-            {#if __GIT_COMMIT__ !== "unknown"}
-              <span class="text-base-content/40">({__GIT_COMMIT__.slice(0, 7)})</span>
-            {/if}
-          </span>
-        </div>
-        <p class="text-lg text-base-content/70">
-          {$t("dashboard.header.description")}
-        </p>
-      </div>
-
-      <div class="flex flex-wrap gap-3">
-        {#if $uploadStore.isUploading}
-          <!-- Upload Progress Indicator -->
-          <div class="bg-base-100 rounded-lg border border-base-300 p-4 min-w-[300px]">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-sm font-medium">
-                Uploading {$uploadStore.files.length} file{$uploadStore.files.length !== 1 ? 's' : ''}
-              </span>
-              <div class="flex items-center gap-2">
-                <span class="text-sm text-base-content/70">
-                  {Math.round($uploadStore.totalProgress)}%
-                </span>
-                <button
-                  class="btn btn-error btn-xs w-6 h-6"
-                  onclick={cancelCurrentUpload}
-                >
-                  <X class="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-            
-            <!-- Overall Progress Bar -->
-            <div
-              class="w-full bg-base-300 rounded-full h-2 mb-2"
-              role="progressbar"
-              aria-valuenow={Math.round($uploadStore.totalProgress)}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label="Upload progress"
-            >
-              <div
-                class="bg-primary h-2 rounded-full transition-all duration-300"
-                style="width: {$uploadStore.totalProgress}%"
-              ></div>
-            </div>
-
-            <!-- Current File Info -->
-            {#if $uploadStore.files.length > 0}
-              {@const currentFile = $uploadStore.files.find(f => f.status === 'uploading' || f.status === 'processing') || $uploadStore.files[0]}
-              <div class="text-xs text-base-content/70 truncate">
-                {currentFile.name} ({formatFileSize(currentFile.size)})
-              </div>
-            {/if}
-          </div>
-        {:else}
-          <!-- Add Files Button -->
-          <button
-            class="btn btn-primary"
-            onclick={handleUpload}
-            disabled={needsConfiguration}
-          >
-            <Plus class="w-4 h-4" />
-            {$t("dashboard.header.add_files")}
-          </button>
-
-          <!-- Add Folder Button -->
-          <button
-            class="btn btn-secondary"
-            onclick={handleFolderUpload}
-            disabled={needsConfiguration}
-            title={$t("dashboard.header.add_folder_tooltip")}
-          >
-            <FolderPlus class="w-4 h-4" />
-            {$t("dashboard.header.add_folder")}
-          </button>
-
-          <!-- Import Files Button (Web mode only) -->
-          {#if isWebMode}
-            <button
-              class="btn btn-secondary"
-              onclick={openFileExplorer}
-              disabled={needsConfiguration}
-              title={$t("dashboard.header.import_files_tooltip")}
-            >
-              <FolderOpen class="w-4 h-4" />
-              {$t("dashboard.header.import_files")}
-            </button>
-          {/if}
-        {/if}
-
-        <!-- Pause/Resume Button - Show when there are queue items or active uploads -->
+{#snippet toolbarActions()}
+  <div class="flex items-center gap-1.5">
+    {#if !$uploadStore.isUploading}
+      <button class="btn btn-primary btn-sm" onclick={handleUpload} disabled={needsConfiguration}>
+        <Plus class="w-4 h-4" />
+        {$t("dashboard.header.add_files")}
+      </button>
+      <button
+        class="btn btn-ghost btn-sm"
+        onclick={handleFolderUpload}
+        disabled={needsConfiguration}
+        title={$t("dashboard.header.add_folder_tooltip")}
+        aria-label={$t("dashboard.header.add_folder")}
+      >
+        <FolderPlus class="w-4 h-4" />
+        <span class="hidden min-[1100px]:inline">{$t("dashboard.header.add_folder")}</span>
+      </button>
+      {#if isWebMode}
         <button
-          type="button"
-          onclick={isPaused ? resumeProcessing : pauseProcessing}
-          class="btn {isPaused ? 'btn-warning' : 'btn-success'}"
-          title={isPaused ? $t("dashboard.progress.resume_processing") : $t("dashboard.progress.pause_processing")}
+          class="btn btn-ghost btn-sm"
+          onclick={openFileExplorer}
+          disabled={needsConfiguration}
+          title={$t("dashboard.header.import_files_tooltip")}
+          aria-label={$t("dashboard.header.import_files")}
         >
-          {#if isPaused}
-            <Play class="w-4 h-4" />
-            {$t("dashboard.progress.resume_processing")}
-          {:else}
-            <Pause class="w-4 h-4" />
-            {$t("dashboard.progress.pause_processing")}
-          {/if}
+          <FolderOpen class="w-4 h-4" />
+          <span class="hidden min-[1100px]:inline">{$t("dashboard.header.import_files")}</span>
         </button>
+      {/if}
+    {/if}
+    <button
+      type="button"
+      onclick={isPaused ? resumeProcessing : pauseProcessing}
+      class="btn btn-sm {isPaused ? 'btn-warning' : 'btn-ghost'}"
+      title={isPaused ? $t("dashboard.progress.resume_processing") : $t("dashboard.progress.pause_processing")}
+      aria-label={isPaused ? $t("dashboard.progress.resume_processing") : $t("dashboard.progress.pause_processing")}
+    >
+      {#if isPaused}
+        <Play class="w-4 h-4" />
+      {:else}
+        <Pause class="w-4 h-4" />
+      {/if}
+      <span class="hidden min-[1100px]:inline">
+        {isPaused ? $t("dashboard.progress.resume_processing") : $t("dashboard.progress.pause_processing")}
+      </span>
+    </button>
+  </div>
+{/snippet}
+
+<div class="space-y-3 empty:hidden">
+  {#if $uploadStore.isUploading}
+    <!-- Browser upload progress -->
+    <div class="settings-group" in:fly out:fade>
+      <div class="settings-row !block">
+        <div class="flex items-center justify-between gap-3">
+          <span class="text-sm font-medium">
+            Uploading {$uploadStore.files.length} file{$uploadStore.files.length !== 1 ? 's' : ''}
+          </span>
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-base-content/70 tabular-nums">{Math.round($uploadStore.totalProgress)}%</span>
+            <button
+              class="btn btn-ghost btn-square btn-xs text-error"
+              onclick={cancelCurrentUpload}
+              title={$t("dashboard.progress.cancel_upload")}
+              aria-label={$t("dashboard.progress.cancel_upload")}
+            >
+              <X class="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+        <div
+          class="progress-track mt-2"
+          style="height: 0.25rem"
+          role="progressbar"
+          aria-valuenow={Math.round($uploadStore.totalProgress)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Upload progress"
+        >
+          <div class="progress-fill" style="transform: scaleX({Math.min(1, Math.max(0, $uploadStore.totalProgress / 100))})"></div>
+        </div>
+        {#if $uploadStore.files.length > 0}
+          {@const currentFile = $uploadStore.files.find(f => f.status === 'uploading' || f.status === 'processing') || $uploadStore.files[0]}
+          <div class="mt-1.5 text-xs text-base-content/60 truncate tabular-nums">
+            {currentFile.name} ({formatFileSize(currentFile.size)})
+          </div>
+        {/if}
       </div>
     </div>
+  {/if}
 
-    {#if criticalConfigError}
-      <div class="alert alert-error mt-6">
-        <AlertTriangle class="w-5 h-5" />
-        <span>
-          <span class="font-semibold">{$t("dashboard.alerts.config_error")}</span>
-          {@html $t("dashboard.alerts.config_error_description", { values: { settingsLink: `<a href="/settings" class="font-medium underline hover:no-underline transition-all">${$t("dashboard.alerts.settings_link")}</a>` } })}
-        </span>
-      </div>
-    {:else if needsConfiguration}
-      <div class="alert alert-warning mt-6">
-        <AlertTriangle class="w-5 h-5" />
-        <span>
-          <span class="font-semibold">{$t("dashboard.alerts.config_required")}</span>
-          {@html $t("dashboard.alerts.config_required_description", { values: { settingsLink: `<a href="/settings" class="font-medium underline hover:no-underline transition-all">${$t("dashboard.alerts.settings_link")}</a>` } })}
-        </span>
-      </div>
-    {/if}
-    
-    {#if isAutoPaused && autoPauseReason}
-      <div class="alert alert-warning mt-6">
-        <Pause class="w-5 h-5" />
-        <span>
-          <span class="font-semibold">{$t("dashboard.alerts.auto_paused")}</span>
-          {autoPauseReason}
-        </span>
-      </div>
-    {/if}
-  </div>
+  {#if criticalConfigError}
+    <div class="alert alert-error alert-soft" in:fly out:fade>
+      <AlertTriangle class="w-4 h-4" />
+      <span>
+        <span class="font-semibold">{$t("dashboard.alerts.config_error")}</span>
+        {@html $t("dashboard.alerts.config_error_description", { values: { settingsLink: `<a href="/settings" class="font-medium underline hover:no-underline">${$t("dashboard.alerts.settings_link")}</a>` } })}
+      </span>
+    </div>
+  {:else if needsConfiguration}
+    <div class="alert alert-warning alert-soft" in:fly out:fade>
+      <AlertTriangle class="w-4 h-4" />
+      <span>
+        <span class="font-semibold">{$t("dashboard.alerts.config_required")}</span>
+        {@html $t("dashboard.alerts.config_required_description", { values: { settingsLink: `<a href="/settings" class="font-medium underline hover:no-underline">${$t("dashboard.alerts.settings_link")}</a>` } })}
+      </span>
+    </div>
+  {/if}
+
+  {#if isAutoPaused && autoPauseReason}
+    <div class="alert alert-warning alert-soft" in:fly out:fade>
+      <Pause class="w-4 h-4" />
+      <span>
+        <span class="font-semibold">{$t("dashboard.alerts.auto_paused")}</span>
+        {autoPauseReason}
+      </span>
+    </div>
+  {/if}
 </div>
 
 <!-- File Explorer Modal -->
-<FileExplorerModal 
-  isOpen={showFileExplorer} 
-  onClose={closeFileExplorer} 
-/>
+<FileExplorerModal isOpen={showFileExplorer} onClose={closeFileExplorer} />

@@ -1,5 +1,24 @@
 {
 	"setup": {
+		"errors": {
+			"generic_message": "Ocurrió un error inesperado durante la configuración. Inténtalo de nuevo.",
+			"generic_title": "Error en la configuración",
+			"timeout_message": "La solicitud de configuración tardó demasiado en completarse. Inténtalo de nuevo.",
+			"timeout_title": "Tiempo de espera agotado",
+			"network_message": "No se pudo conectar con el servidor. Comprueba tu conexión a internet e inténtalo de nuevo.",
+			"network_title": "Error de red",
+			"invalid_input_message": "Algunos valores de la configuración no son válidos. Revisa y corrige tus ajustes.",
+			"invalid_input_title": "Configuración no válida",
+			"config_save_message": "No se pudo guardar tu configuración. Asegúrate de tener espacio en disco suficiente e inténtalo de nuevo.",
+			"config_save_title": "Error al guardar la configuración",
+			"filesystem_message": "No se pudo guardar la configuración por permisos del sistema de archivos. Comprueba el acceso de escritura.",
+			"filesystem_title": "Error de permisos de archivo",
+			"server_validation_message": "No se pudo conectar a uno o más servidores NNTP. Comprueba tus credenciales y tu conexión de red.",
+			"server_validation_title": "Error de conexión con el servidor"
+		},
+		"success_message": "Tu configuración de Postie se ha guardado correctamente. Ya puedes empezar a subir archivos.",
+		"success_title": "¡Configuración completada!",
+		"step_of": "Paso {current} de {total}",
 		"title": "Bienvenido a Postie",
 		"description": "Configuremos tus servidores NNTP y directorios para comenzar.",
 		"wizard_title": "Configuración de Postie",

@@ -141,14 +141,10 @@ async function handleWizardComplete(
 </svelte:head>
 
 {#if isLoading}
-	<div class="min-h-screen flex items-center justify-center p-4">
-		<div class="text-center">
-			<div class="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-			<p class="text-base-content/70">{$t("common.common.loading")}</p>
-		</div>
+	<div class="flex items-center justify-center gap-3 p-4 text-sm text-base-content/65" style="min-height: calc(100dvh - var(--titlebar-inset))">
+		<span class="loading loading-spinner loading-sm"></span>
+		<p>{$t("common.common.loading")}</p>
 	</div>
 {:else}
-	<SetupWizard 
-		oncomplete={handleWizardComplete}
-	/>
+	<SetupWizard oncomplete={handleWizardComplete} />
 {/if}

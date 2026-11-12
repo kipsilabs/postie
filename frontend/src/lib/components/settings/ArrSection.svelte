@@ -2,6 +2,10 @@
 	import { t } from '$lib/i18n';
 	import apiClient, { type ArrInstance } from '$lib/api/client';
 	import { toastStore } from '$lib/stores/toast';
+	import FieldRow from '$lib/components/inputs/FieldRow.svelte';
+	import ToggleRow from '$lib/components/inputs/ToggleRow.svelte';
+	import { fade, fly, listFlip } from '$lib/motion';
+	import { collapse } from './collapse';
 
 	let instances = $state<ArrInstance[]>([]);
 	let showAddForm = $state(false);
@@ -87,32 +91,32 @@
 	}
 </script>
 
-<div class="card bg-base-100 shadow-sm">
-	<div class="card-body space-y-4">
-		<div class="flex items-center justify-between">
-			<div>
-				<h3 class="card-title">{$t('arr.title')}</h3>
-				<p class="text-sm text-base-content/70">{$t('arr.description')}</p>
-			</div>
-			{#if !showAddForm}
-				<button class="btn btn-primary btn-sm" onclick={() => (showAddForm = true)}>
-					+ {$t('arr.add_instance')}
-				</button>
-			{/if}
-		</div>
+<section>
+	<div class="flex items-end justify-between gap-3 mb-1.5">
+		<div class="section-label !mb-0">{$t('arr.title')}</div>
+		{#if !showAddForm}
+			<button class="btn btn-sm" onclick={() => (showAddForm = true)} transition:fade={{ speed: "fast" }}>
+				+ {$t('arr.add_instance')}
+			</button>
+		{/if}
+	</div>
+	<p class="settings-row-desc mx-1 mb-2">{$t('arr.description')}</p>
 
+	<div class="settings-group">
 		{#if instances.length === 0 && !showAddForm}
-			<p class="text-sm text-base-content/50 italic">{$t('arr.no_instances')}</p>
+			<div class="settings-row" transition:collapse>
+				<p class="text-sm text-base-content/65">{$t('arr.no_instances')}</p>
+			</div>
 		{/if}
 
 		{#each instances as instance (instance.id)}
-			<div class="flex items-center justify-between rounded-lg border border-base-300 px-4 py-3">
-				<div>
-					<span class="font-medium">{instance.name}</span>
+			<div class="settings-row" animate:listFlip in:fly={{ y: 6, speed: "fast" }} out:fade={{ speed: "fast" }}>
+				<div class="min-w-0 flex-1">
+					<span class="settings-row-title">{instance.name}</span>
 					<span class="badge badge-ghost badge-sm ml-2">{instance.type}</span>
-					<p class="text-xs text-base-content/60 mt-0.5">{instance.url}</p>
+					<p class="settings-row-desc truncate">{instance.url}</p>
 				</div>
-				<div class="flex gap-2">
+				<div class="flex gap-1">
 					<button
 						class="btn btn-ghost btn-xs"
 						disabled={testingId === instance.id}
@@ -120,10 +124,7 @@
 					>
 						{testingId === instance.id ? $t('arr.testing') : $t('arr.test_connection')}
 					</button>
-					<button
-						class="btn btn-error btn-xs btn-outline"
-						onclick={() => removeInstance(instance)}
-					>
+					<button class="btn btn-ghost btn-xs text-error" onclick={() => removeInstance(instance)}>
 						{$t('arr.remove_instance')}
 					</button>
 				</div>
@@ -131,70 +132,57 @@
 		{/each}
 
 		{#if showAddForm}
-			<div class="rounded-lg border border-primary/30 bg-base-200 p-4 space-y-4">
-				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-					<div>
-						<label class="label" for="arr-name">
-							<span class="label-text">{$t('arr.instance_name')}</span>
-						</label>
-						<input
-							id="arr-name"
-							type="text"
-							class="input input-bordered w-full"
-							placeholder={$t('arr.instance_name_placeholder')}
-							bind:value={draft.name}
-						/>
-					</div>
-
-					<div>
-						<label class="label" for="arr-type">
-							<span class="label-text">{$t('arr.type')}</span>
-						</label>
-						<select
-							id="arr-type"
-							class="select select-bordered w-full"
-							bind:value={draft.type}
-							onchange={applyTypeDefaults}
-						>
-							{#each ARR_TYPES as arrType}
-								<option value={arrType.value}>{arrType.label}</option>
-							{/each}
-						</select>
-					</div>
-
-					<div>
-						<label class="label" for="arr-url">
-							<span class="label-text">{$t('arr.url')}</span>
-						</label>
-						<input
-							id="arr-url"
-							type="url"
-							class="input input-bordered w-full"
-							placeholder={$t('arr.url_placeholder')}
-							bind:value={draft.url}
-						/>
-					</div>
-
-					<div>
-						<label class="label" for="arr-apikey">
-							<span class="label-text">{$t('arr.api_key')}</span>
-						</label>
-						<input
-							id="arr-apikey"
-							type="password"
-							class="input input-bordered w-full"
-							placeholder={$t('arr.api_key_placeholder')}
-							bind:value={draft.api_key}
-						/>
-					</div>
-				</div>
-
-				<label class="flex items-center gap-2 cursor-pointer">
-					<input type="checkbox" class="checkbox checkbox-sm" bind:checked={draft.delete_after_upload} />
-					<span class="text-sm">{$t('arr.delete_after_upload')}</span>
-				</label>
-
-				<div class="flex gap-2 pt-2">
+			<div transition:collapse class="border-t border-(--ui-hairline)">
+				<FieldRow label={$t('arr.instance_name')} id="arr-name">
+					<input
+						id="arr-name"
+						type="text"
+						class="input input-sm w-64 max-sm:w-full"
+						placeholder={$t('arr.instance_name_placeholder')}
+						bind:value={draft.name}
+					/>
+				</FieldRow>
+				<FieldRow label={$t('arr.type')} id="arr-type">
+					<select
+						id="arr-type"
+						class="select select-sm w-auto min-w-40"
+						bind:value={draft.type}
+						onchange={applyTypeDefaults}
+					>
+						{#each ARR_TYPES as arrType}
+							<option value={arrType.value}>{arrType.label}</option>
+						{/each}
+					</select>
+				</FieldRow>
+				<FieldRow label={$t('arr.url')} id="arr-url">
+					<input
+						id="arr-url"
+						type="url"
+						class="input input-sm w-64 max-sm:w-full"
+						placeholder={$t('arr.url_placeholder')}
+						bind:value={draft.url}
+					/>
+				</FieldRow>
+				<FieldRow label={$t('arr.api_key')} id="arr-apikey">
+					<input
+						id="arr-apikey"
+						type="password"
+						class="input input-sm w-64 max-sm:w-full"
+						placeholder={$t('arr.api_key_placeholder')}
+						bind:value={draft.api_key}
+					/>
+				</FieldRow>
+				<ToggleRow id="arr-delete-after-upload" bind:checked={draft.delete_after_upload} label={$t('arr.delete_after_upload')} />
+				<div class="settings-row justify-end gap-2">
+					<button
+						class="btn btn-ghost btn-sm"
+						onclick={() => {
+							showAddForm = false;
+							draft = blankInstance();
+						}}
+					>
+						Cancel
+					</button>
 					<button
 						class="btn btn-ghost btn-sm"
 						disabled={testingId === 'draft'}
@@ -209,17 +197,8 @@
 					>
 						{saving ? $t('arr.setting_up') : $t('arr.save_instance')}
 					</button>
-					<button
-						class="btn btn-ghost btn-sm"
-						onclick={() => {
-							showAddForm = false;
-							draft = blankInstance();
-						}}
-					>
-						Cancel
-					</button>
 				</div>
 			</div>
 		{/if}
 	</div>
-</div>
+</section>

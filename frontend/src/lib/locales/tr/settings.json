@@ -24,6 +24,7 @@
 			"advanced_mode": "Gelişmiş Mod",
 			"advanced_mode_description": "İnce ayar için gelişmiş yapılandırma seçeneklerini göster",
 			"unsaved_changes": "Kaydedilmemiş değişiklikler",
+			"discard_changes": "Vazgeç",
 			"status": {
 				"configuration_error": "Yapılandırma Hatası",
 				"configuration_required": "Yapılandırma Gerekli",
@@ -395,6 +396,8 @@
 			"curl_example_label": "Örnek istek"
 		},
 		"server": {
+			"inflight_description": "Bağlantı başına eşzamanlı istek sayısı (varsayılan: 10).",
+			"inflight": "Eşzamanlı istekler",
 			"validating": "Doğrulanıyor...",
 			"title": "NNTP Sunucuları",
 			"add_server": "Sunucu Ekle",

@@ -1,5 +1,6 @@
 {
 	"common": {
+		"app_name": "Postie",
 		"auth": {
 			"retry": "Reintentar",
 			"signIn": "Iniciar sesión en Postie",
@@ -22,7 +23,10 @@
 			"metrics": "Métricas",
 			"logs": "Logs",
 			"language": "Idioma",
-			"theme": "Tema"
+			"theme": "Tema",
+			"menu": "Abrir menú",
+			"closeMenu": "Cerrar menú",
+			"primary": "Navegación principal"
 		},
 		"actions": {
 			"save": "Guardar",
@@ -35,6 +39,8 @@
 			"reset": "Restablecer"
 		},
 		"common": {
+			"applying": "Aplicando...",
+			"discarding": "Descartando...",
 			"saving": "Guardando...",
 			"clearing": "Limpiando...",
 			"clear": "Limpiar",
@@ -103,6 +109,17 @@
 			"failed_to_retry_item": "Error al reintentar el elemento",
 			"item_cancelled": "Elemento cancelado",
 			"failed_to_cancel_item": "Error al cancelar el elemento"
+		},
+		"appearance": {
+			"label": "Apariencia",
+			"system": "Sistema",
+			"light": "Claro",
+			"dark": "Oscuro"
+		},
+		"connection": {
+			"connected": "Conectado",
+			"reconnecting": "Reconectando…",
+			"disconnected": "Desconectado"
 		}
 	},
 	"logs": {

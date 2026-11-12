@@ -21,8 +21,11 @@ import { t } from "$lib/i18n";
 import { advancedMode, appStatus, settingsSaveFunction } from "$lib/stores/app";
 import { toastStore } from "$lib/stores/toast";
 import { backend, config as configType } from "$lib/wailsjs/go/models";
-import { AlertCircle, CheckCircle, RefreshCw, Save, Settings } from "lucide-svelte";
-import { onDestroy, onMount, tick } from "svelte";
+import { AlertCircle, RefreshCw, Save } from "lucide-svelte";
+import { collapse } from "$lib/components/settings/collapse";
+import { fade, fly } from "$lib/motion";
+import { toolbar } from "$lib/stores/toolbar";
+import { onDestroy, onMount, tick, untrack } from "svelte";
 
 let configData: configType.ConfigData | null = $state(null);
 let localConfig: configType.ConfigData | null = $state(null);
@@ -31,9 +34,38 @@ let criticalConfigError = $state(false);
 let criticalConfigErrorMessage = $state("");
 let loading = $state(false);
 let loadError = $state(false);
-let isDirty = $state(false);
 let saving = $state(false);
-let savedConfigSnapshot = "";
+// Baseline serialisation of the config; dirty state is derived from data, not DOM events.
+let savedConfigSnapshot = $state<string | null>(null);
+let isDirty = $derived(
+	localConfig !== null &&
+		savedConfigSnapshot !== null &&
+		JSON.stringify(localConfig) !== savedConfigSnapshot,
+);
+let activeTab = $state(0);
+let formKey = $state(0);
+
+// Sections normalise values on mount (defaults, duration formats). Wait for
+// that to settle so a freshly loaded page is clean.
+async function settle() {
+	await tick();
+	await new Promise((resolve) => setTimeout(resolve, 0));
+	await tick();
+}
+
+async function rebaseline() {
+	await settle();
+	if (localConfig) savedConfigSnapshot = JSON.stringify(localConfig);
+}
+
+// Revealing advanced sections mounts components that normalise values; if the
+// page was clean before the toggle it must stay clean.
+$effect.pre(() => {
+	void $advancedMode;
+	untrack(() => {
+		if (localConfig && !isDirty) rebaseline();
+	});
+});
 
 onMount(() => {
 	loadConfig();
@@ -68,7 +100,7 @@ async function loadConfig() {
 		) {
 			localConfig.servers = [new configType.ServerConfig()];
 		}
-		isDirty = false;
+		savedConfigSnapshot = null;
 	} catch (error) {
 		console.error("Failed to load config:", error);
 		loadError = true;
@@ -81,8 +113,26 @@ async function loadConfig() {
 	// After loading=false, components render and run initializeDefaults().
 	// tick() waits for that DOM update cycle before capturing the snapshot.
 	if (localConfig) {
-		await tick();
-		savedConfigSnapshot = JSON.stringify(localConfig);
+		await rebaseline();
+	}
+}
+
+// Reset local edits without unmounting the page (no spinner flash, tab kept).
+async function discardChanges() {
+	try {
+		const config = await apiClient.getConfig();
+		configData = config;
+		const fresh = JSON.parse(JSON.stringify(config));
+		if (!fresh.servers || fresh.servers.length === 0) {
+			fresh.servers = [new configType.ServerConfig()];
+		}
+		localConfig = fresh;
+		// Remount sections so their local state re-seeds from the restored config.
+		formKey += 1;
+		await rebaseline();
+	} catch (error) {
+		console.error("Failed to discard changes:", error);
+		toastStore.error($t("common.common.error"), String(error));
 	}
 }
 
@@ -184,7 +234,6 @@ async function handleSaveConfig() {
 		// Update localConfig to the saved config to maintain reactivity
 		localConfig = JSON.parse(JSON.stringify(configToSave));
 		savedConfigSnapshot = JSON.stringify(localConfig);
-		isDirty = false;
 
 		// Update app status
 		const status = await apiClient.getAppStatus();
@@ -210,22 +259,30 @@ async function handleSaveConfig() {
 	}
 }
 
-function checkDirty() {
-	if (!localConfig || !savedConfigSnapshot) return;
-	isDirty = JSON.stringify(localConfig) !== savedConfigSnapshot;
-}
-
 function handleBeforeUnload(event: BeforeUnloadEvent) {
 	if (isDirty) {
 		event.preventDefault();
 	}
 }
 
+$effect(() => {
+	toolbar.set({ actions: toolbarActions });
+	return () => toolbar.reset();
+});
+
 onDestroy(() => {
 	// Clean up when the component is destroyed
 	settingsSaveFunction.set(null);
 });
 </script>
+
+{#snippet toolbarActions()}
+  <ConfigStatusBadge />
+  <label class="flex cursor-pointer items-center gap-2" title={$t('settings.header.advanced_mode_description')}>
+    <span class="text-sm text-base-content/70 max-sm:hidden">{$t('settings.header.advanced_mode')}</span>
+    <input type="checkbox" class="toggle toggle-primary toggle-sm" aria-label={$t('settings.header.advanced_mode')} bind:checked={$advancedMode} />
+  </label>
+{/snippet}
 
 <svelte:window onbeforeunload={handleBeforeUnload} />
 
@@ -234,76 +291,29 @@ onDestroy(() => {
   <meta name="description" content="Configure your upload settings" />
 </svelte:head>
 
-<div class="space-y-6">
-  <!-- Main header section (not sticky) -->
-  <div class="bg-base-100 p-6 rounded-lg shadow-sm border border-base-300">
-    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-      <div class="flex-1">
-        <div class="flex items-center gap-3 mb-2">
-          <Settings class="w-6 h-6 text-base-content/60" />
-          <h1 class="text-2xl font-bold">
-            {$t('settings.title')}
-          </h1>
-          <ConfigStatusBadge />
-          {#if isDirty}
-            <div class="badge badge-warning gap-1">
-              <span class="w-2 h-2 rounded-full bg-warning-content animate-pulse"></span>
-              {$t('settings.header.unsaved_changes')}
-            </div>
-          {/if}
-          {#if criticalConfigError}
-            <div class="flex items-center gap-2 px-3 py-1 bg-red-100 dark:bg-red-900/30 rounded-full">
-              <AlertCircle class="w-4 h-4 text-red-600 dark:text-red-400" />
-              <span class="text-sm font-medium text-red-800 dark:text-red-200">{$t('settings.header.status.configuration_error')}</span>
-            </div>
-          {:else if needsConfiguration}
-            <div class="flex items-center gap-2 px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 rounded-full">
-              <AlertCircle class="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
-              <span class="text-sm font-medium text-yellow-800 dark:text-yellow-200">{$t('settings.header.status.configuration_required')}</span>
-            </div>
-          {:else}
-            <div class="flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 rounded-full">
-              <CheckCircle class="w-4 h-4 text-green-600 dark:text-green-400" />
-              <span class="text-sm font-medium text-green-800 dark:text-green-200">{$t('settings.header.status.configured')}</span>
-            </div>
-          {/if}
-        </div>
+<div class="space-y-5">
+  <p class="settings-row-desc mx-1">{$t('settings.header.description')}</p>
 
-        <p class="text-base-content/70">
-          {$t('settings.header.description')}
+  {#if criticalConfigError}
+    <div transition:collapse role="alert">
+      <div class="flex items-start gap-3 rounded-(--radius-box) border border-error/40 bg-error/10 px-4 py-3">
+        <AlertCircle class="mt-0.5 h-4 w-4 shrink-0 text-error" />
+        <p class="text-sm">
+          <strong>{$t('settings.header.status.configuration_error')}:</strong>
+          {criticalConfigErrorMessage}
         </p>
-
-        {#if criticalConfigError}
-          <div class="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-            <p class="text-error">
-              <strong>{$t('settings.header.status.configuration_error')}:</strong>
-              {criticalConfigErrorMessage}
-            </p>
-          </div>
-        {:else if needsConfiguration}
-          <div class="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-            <p class="text-warning">
-              <strong>{$t('settings.header.alerts.setup_required')}</strong> {$t('settings.header.alerts.setup_required_description')}
-            </p>
-          </div>
-        {/if}
-      </div>
-      
-      <div class="flex flex-col sm:flex-row gap-3 sm:items-center">
-        <div class="flex items-center gap-3">
-          <input type="checkbox" class="toggle toggle-primary" bind:checked={$advancedMode} />
-          <div>
-            <p class="text-sm font-medium">
-              {$t('settings.header.advanced_mode')}
-            </p>
-            <p class="text-xs text-base-content/70">
-              {$t('settings.header.advanced_mode_description')}
-            </p>
-          </div>
-        </div>
       </div>
     </div>
-  </div>
+  {:else if needsConfiguration}
+    <div transition:collapse role="status">
+      <div class="flex items-start gap-3 rounded-(--radius-box) border border-warning/40 bg-warning/10 px-4 py-3">
+        <AlertCircle class="mt-0.5 h-4 w-4 shrink-0 text-warning-ink" />
+        <p class="text-sm">
+          <strong>{$t('settings.header.alerts.setup_required')}</strong> {$t('settings.header.alerts.setup_required_description')}
+        </p>
+      </div>
+    </div>
+  {/if}
 
   {#if loading === true}
     <div class="flex items-center justify-center py-12">
@@ -313,94 +323,106 @@ onDestroy(() => {
       </div>
     </div>
   {:else if loadError}
-    <div class="flex items-center justify-center py-12">
+    <div class="flex items-center justify-center py-12" in:fade={{ speed: "base" }}>
       <div class="text-center max-w-md">
-        <AlertCircle class="mb-4 w-12 h-12 mx-auto text-red-500 dark:text-red-400" />
+        <AlertCircle class="mb-4 w-12 h-12 mx-auto text-error" />
         <h3 class="mb-2 text-lg font-semibold">
           {$t('settings.header.status.failed_to_load_configuration')}
         </h3>
         <p class="mb-4 text-base-content/70">
           {$t('settings.header.status.failed_to_load_configuration_description')}
         </p>
-        <button class="btn btn-primary" onclick={loadConfig}>
+        <button class="btn btn-primary btn-sm" onclick={loadConfig}>
           <RefreshCw class="w-4 h-4 mr-2" />
           {$t('settings.retry')}
         </button>
       </div>
     </div>
-      {:else if localConfig}
-      <!-- Pending Config Notification -->
-      <PendingConfigNotification />
-      
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="bg-base-100 rounded-lg shadow-sm border border-base-300" oninput={checkDirty} onchange={checkDirty}>
-        <div role="tablist" class="tabs tabs-bordered">
-          <input type="radio" name="settings_tabs" role="tab" class="tab" aria-label="Core Configuration" checked />
-          <div role="tabpanel" class="tab-content p-6">
-            <div class="space-y-6">
-              <GeneralSection bind:config={localConfig} />
-              <ServerSection bind:config={localConfig} />
-            </div>
-          </div>
+  {:else if localConfig}
+    <!-- Pending Config Notification -->
+    <PendingConfigNotification />
 
-          <input type="radio" name="settings_tabs" role="tab" class="tab" aria-label="Upload Settings" />
-          <div role="tabpanel" class="tab-content p-6">
-            <div class="space-y-6">
-              <PostingSection bind:config={localConfig} />
-              <PostCheckSection bind:config={localConfig} />
-              {#if $advancedMode}
+    {#key formKey}
+    <div>
+      <div role="tablist" class="tabs settings-tabs">
+        <input type="radio" name="settings_tabs" role="tab" class="tab" aria-label="Core Configuration" checked={activeTab === 0} onchange={() => (activeTab = 0)} />
+        <div role="tabpanel" class="tab-content">
+          <div class="space-y-6">
+            <GeneralSection bind:config={localConfig} />
+            <ServerSection bind:config={localConfig} />
+          </div>
+        </div>
+
+        <input type="radio" name="settings_tabs" role="tab" class="tab" aria-label="Upload Settings" checked={activeTab === 1} onchange={() => (activeTab = 1)} />
+        <div role="tabpanel" class="tab-content">
+          <div class="space-y-6">
+            <PostingSection bind:config={localConfig} />
+            <PostCheckSection bind:config={localConfig} />
+            {#if $advancedMode}
+              <div transition:collapse class="space-y-6">
                 <QueueSection bind:config={localConfig} />
                 <ConnectionPoolSection bind:config={localConfig} />
-              {/if}
-            </div>
-          </div>
-
-          <input type="radio" name="settings_tabs" role="tab" class="tab" aria-label="File Processing" />
-          <div role="tabpanel" class="tab-content p-6">
-            <div class="space-y-6">
-              <FileNamingSection bind:config={localConfig} />
-              <Par2Section bind:config={localConfig} />
-              <DuplicateLookupSection bind:config={localConfig} />
-              <NzbCompressionSection bind:config={localConfig} />
-            </div>
-          </div>
-
-          <input type="radio" name="settings_tabs" role="tab" class="tab" aria-label="Automation" />
-          <div role="tabpanel" class="tab-content p-6">
-            <div class="space-y-6">
-              <WatcherSection bind:config={localConfig} />
-              <PostUploadScriptSection bind:config={localConfig} />
-              <ApiSection bind:config={localConfig} />
-              {#if apiClient.environment !== 'wails'}
-                <ArrSection />
-              {/if}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Sticky Save Bar -->
-      <div class="sticky bottom-0 z-10 bg-base-100 border-t border-base-300 shadow-md">
-        <div class="flex items-center justify-end gap-4 p-4">
-          {#if isDirty}
-            <span class="text-sm text-warning font-medium">{$t('settings.header.unsaved_changes')}</span>
-          {/if}
-          <button
-            type="button"
-            class="btn btn-success"
-            onclick={handleSaveConfig}
-            disabled={saving}
-          >
-            {#if saving}
-              <span class="loading loading-spinner loading-sm"></span>
-              {$t('common.common.saving')}
-            {:else}
-              <Save class="w-4 h-4" />
-              {$t('settings.header.save_configuration')}
+              </div>
             {/if}
-          </button>
+          </div>
+        </div>
+
+        <input type="radio" name="settings_tabs" role="tab" class="tab" aria-label="File Processing" checked={activeTab === 2} onchange={() => (activeTab = 2)} />
+        <div role="tabpanel" class="tab-content">
+          <div class="space-y-6">
+            <FileNamingSection bind:config={localConfig} />
+            <Par2Section bind:config={localConfig} />
+            <DuplicateLookupSection bind:config={localConfig} />
+            <NzbCompressionSection bind:config={localConfig} />
+          </div>
+        </div>
+
+        <input type="radio" name="settings_tabs" role="tab" class="tab" aria-label="Automation" checked={activeTab === 3} onchange={() => (activeTab = 3)} />
+        <div role="tabpanel" class="tab-content">
+          <div class="space-y-6">
+            <WatcherSection bind:config={localConfig} />
+            <PostUploadScriptSection bind:config={localConfig} />
+            <ApiSection bind:config={localConfig} />
+            {#if apiClient.environment !== 'wails'}
+              <ArrSection />
+            {/if}
+          </div>
         </div>
       </div>
+    </div>
+    {/key}
+
+    <!-- Save bar: slides in only when there is something to save -->
+    {#if isDirty || needsConfiguration}
+      <div class="sticky bottom-0 z-10 -mx-1 pb-1 pt-2" transition:fly={{ y: 16 }}>
+        <div class="settings-group">
+          <div class="settings-row">
+            <span class="text-sm {isDirty ? 'text-base-content' : 'text-base-content/60'}">
+              {#if isDirty}
+                <span class="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-primary align-middle"></span>
+                {$t('settings.header.unsaved_changes')}
+              {/if}
+            </span>
+            <div class="flex items-center gap-2">
+              {#if isDirty}
+                <button type="button" class="btn btn-sm btn-ghost" onclick={discardChanges} disabled={saving} transition:fade={{ speed: "fast" }}>
+                  {$t('settings.header.discard_changes')}
+                </button>
+              {/if}
+              <button type="button" class="btn btn-sm btn-primary" onclick={handleSaveConfig} disabled={saving}>
+                {#if saving}
+                  <span class="loading loading-spinner loading-sm"></span>
+                  {$t('common.common.saving')}
+                {:else}
+                  <Save class="w-4 h-4" />
+                  {$t('settings.header.save_configuration')}
+                {/if}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    {/if}
   {:else}
     <div class="flex items-center justify-center py-12">
       <div class="text-center">
@@ -409,3 +431,52 @@ onDestroy(() => {
     </div>
   {/if}
 </div>
+
+<style>
+  /* Segmented-style secondary navigation built on daisyUI radio tabs. The radios
+     stay real `input[role=tab]` elements (browser tests click them). */
+  .settings-tabs {
+    gap: 2px;
+    row-gap: 0.25rem;
+  }
+  .settings-tabs > :global(input.tab) {
+    flex: 0 0 auto;
+    height: calc(var(--size-field, 0.25rem) * 8);
+    min-width: 0;
+    padding-inline: 0.875rem;
+    border: 0;
+    border-radius: var(--radius-field);
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: color-mix(in oklab, var(--color-base-content) 65%, transparent);
+    background: transparent;
+    margin-bottom: 0.75rem;
+  }
+  .settings-tabs > :global(input.tab:hover) {
+    background: color-mix(in oklab, var(--color-base-content) 6%, transparent);
+    color: var(--color-base-content);
+  }
+  .settings-tabs > :global(input.tab:checked) {
+    background: color-mix(in oklab, var(--color-base-content) 10%, transparent);
+    color: var(--color-base-content);
+  }
+  .settings-tabs > :global(input.tab:focus-visible) {
+    outline: var(--focus-width, 2px) solid var(--focus-color, var(--color-primary));
+    outline-offset: var(--focus-offset, 2px);
+  }
+  .settings-tabs > :global(.tab-content) {
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+  .settings-tabs > :global(input.tab:checked + .tab-content) {
+    /* backwards (not both): a retained end transform would make fixed modals inside the panel position against it */
+    animation: fade-up var(--motion-base) var(--ease-standard) backwards;
+  }
+  @media (max-width: 40rem) {
+    .settings-tabs > :global(input.tab) {
+      padding-inline: 0.625rem;
+      font-size: 0.8125rem;
+    }
+  }
+</style>

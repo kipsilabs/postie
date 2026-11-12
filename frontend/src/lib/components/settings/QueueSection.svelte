@@ -4,7 +4,11 @@ import ByteSizeInput from "$lib/components/inputs/ByteSizeInput.svelte";
 import { t } from "$lib/i18n";
 import { toastStore } from "$lib/stores/toast";
 import type { config as configType } from "$lib/wailsjs/go/models";
-import { Quote, Trash2 } from "lucide-svelte";
+import { Trash2 } from "lucide-svelte";
+import FieldRow from "$lib/components/inputs/FieldRow.svelte";
+import NumberField from "$lib/components/inputs/NumberField.svelte";
+import { fade, scale } from "$lib/motion";
+import SettingsSection from "./SettingsSection.svelte";
 
 interface Props {
 	config: configType.ConfigData;
@@ -61,98 +65,66 @@ async function clearQueue() {
 }
 </script>
 
-<div class="card bg-base-100 shadow-xl">
-  <div class="card-body space-y-6">
-    <div class="flex items-center gap-3">
-      <Quote class="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
-      <h2 class="card-title text-lg">
-        {$t('settings.queue.title')}
-      </h2>
-    </div>
-
-    <div class="space-y-6">
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div class="form-control">
-          <label class="label" for="max-concurrent">
-            <span class="label-text">{$t('settings.queue.max_concurrent_uploads')}</span>
-          </label>
-          <input
-            id="max-concurrent"
-            type="number"
-            class="input input-bordered"
-            bind:value={maxConcurrentUploads}
-            min="1"
-            max="20"
-          />
-          <div class="label">
-            <span class="label-text-alt">
-              {$t('settings.queue.max_concurrent_uploads_description')}
-            </span>
-          </div>
-        </div>
-
-        <ByteSizeInput
-          bind:value={minSizeToStart}
-          id="min-size-to-start"
-          label={$t('settings.queue.min_size_to_start')}
-          description={$t('settings.queue.min_size_to_start_description')}
-          presets={minSizePresets}
-          minValue={0}
-          maxValue={10 * 1000 * 1000 * 1000 * 1000}
-        />
-      </div>
-    </div>
-
-    <div class="alert alert-info">
-      <span class="text-sm">
-        {@html $t('settings.queue.info')}
-      </span>
-    </div>
-
-    <!-- Action Buttons -->
-    <div class="pt-4 border-t border-base-300">
-      <button
-        type="button"
-        class="btn btn-error btn-outline"
-        onclick={() => showClearModal = true}
-        disabled={clearing}
-      >
-        <Trash2 class="w-4 h-4" />
-        {$t('dashboard.header.clear_completed')}
-      </button>
-    </div>
-  </div>
-</div>
+<SettingsSection title={$t('settings.queue.title')} footer={$t('settings.queue.info')}>
+	<NumberField
+		id="max-concurrent"
+		bind:value={maxConcurrentUploads}
+		label={$t('settings.queue.max_concurrent_uploads')}
+		description={$t('settings.queue.max_concurrent_uploads_description')}
+		minValue={1}
+		maxValue={20}
+	/>
+	<ByteSizeInput
+		bind:value={minSizeToStart}
+		id="min-size-to-start"
+		label={$t('settings.queue.min_size_to_start')}
+		description={$t('settings.queue.min_size_to_start_description')}
+		presets={minSizePresets}
+		minValue={0}
+		maxValue={10 * 1000 * 1000 * 1000 * 1000}
+	/>
+	<FieldRow label={$t('dashboard.header.clear_completed')}>
+		<button
+			type="button"
+			class="btn btn-sm btn-error btn-outline"
+			onclick={() => showClearModal = true}
+			disabled={clearing}
+		>
+			<Trash2 class="w-4 h-4" />
+			{$t('dashboard.header.clear_completed')}
+		</button>
+	</FieldRow>
+</SettingsSection>
 
 <!-- Clear Queue Confirmation Modal -->
 {#if showClearModal}
-  <div class="modal modal-open">
-    <div class="modal-box">
-      <h3 class="font-bold text-lg mb-4">
-        {$t('dashboard.header.clear_completed')}
-      </h3>
-      <p class="py-4">
-        Are you sure you want to clear all completed items from the queue? This action cannot be undone.
-      </p>
-      <div class="modal-action">
-        <button
-          type="button"
-          class="btn btn-ghost"
-          onclick={() => showClearModal = false}
-          disabled={clearing}
-        >
-          {$t('common.common.cancel')}
-        </button>
-        <button
-          type="button"
-          class="btn btn-error"
-          onclick={clearQueue}
-          disabled={clearing}
-        >
-          <Trash2 class="w-4 h-4" />
-          {clearing ? $t('common.common.clearing') : $t('common.common.clear')}
-        </button>
-      </div>
-    </div>
-  </div>
+	<div class="modal modal-open" role="dialog" aria-modal="true" out:fade={{ speed: "fast" }}>
+		<div class="modal-box max-w-md" out:scale={{ speed: "fast", start: 0.97 }}>
+			<h3 class="text-base font-semibold mb-2">
+				{$t('dashboard.header.clear_completed')}
+			</h3>
+			<p class="text-sm text-base-content/70">
+				Are you sure you want to clear all completed items from the queue? This action cannot be undone.
+			</p>
+			<div class="modal-action">
+				<button
+					type="button"
+					class="btn btn-sm btn-ghost"
+					onclick={() => showClearModal = false}
+					disabled={clearing}
+				>
+					{$t('common.common.cancel')}
+				</button>
+				<button
+					type="button"
+					class="btn btn-sm btn-error"
+					onclick={clearQueue}
+					disabled={clearing}
+				>
+					<Trash2 class="w-4 h-4" />
+					{clearing ? $t('common.common.clearing') : $t('common.common.clear')}
+				</button>
+			</div>
+		</div>
+	</div>
 {/if}

@@ -1,0 +1,155 @@
+/* ------------------------------------------------------------------ */
+/* Tailwind theme: font, soft shadows, animation utilities             */
+/* ------------------------------------------------------------------ */
+@theme {
+	--font-sans: var(--ui-font);
+
+	/* Shadows are routed through tokens so every `shadow-*` utility follows
+	   the platform look: a hairline ring plus a very soft drop shadow. */
+	--shadow-xs: 0 0 0 1px var(--ui-hairline);
+	--shadow-sm: var(--ui-shadow-sm);
+	--shadow: var(--ui-shadow-sm);
+	--shadow-md: var(--ui-shadow-md);
+	--shadow-lg: var(--ui-shadow-md);
+	--shadow-xl: var(--ui-shadow-lg);
+	--shadow-2xl: var(--ui-shadow-lg);
+
+	--animate-fade-in: fade-in var(--motion-base) var(--ease-standard) backwards;
+	--animate-fade-out: fade-out var(--motion-fast) var(--ease-in) both;
+	--animate-fade-up: fade-up var(--motion-slow) var(--ease-standard) backwards;
+	--animate-fade-down: fade-down var(--motion-slow) var(--ease-standard) backwards;
+	--animate-scale-in: scale-in var(--motion-base) var(--ease-emphasized) backwards;
+	--animate-scale-out: scale-out var(--motion-fast) var(--ease-in) both;
+	--animate-slide-in-left: slide-in-left var(--motion-slow) var(--ease-emphasized) backwards;
+	--animate-slide-in-right: slide-in-right var(--motion-slow) var(--ease-emphasized) backwards;
+	--animate-slide-in-up: slide-in-up var(--motion-slow) var(--ease-emphasized) backwards;
+	--animate-slide-out-left: slide-out-left var(--motion-base) var(--ease-in) both;
+	--animate-slide-out-right: slide-out-right var(--motion-base) var(--ease-in) both;
+	--animate-slide-out-down: slide-out-down var(--motion-base) var(--ease-in) both;
+	--animate-pulse-soft: pulse-soft 2s var(--ease-standard) infinite;
+	--animate-shimmer: shimmer 1.6s linear infinite;
+
+	@keyframes fade-in {
+		from { opacity: 0; }
+		to { opacity: 1; }
+	}
+	@keyframes fade-out {
+		from { opacity: 1; }
+		to { opacity: 0; }
+	}
+	@keyframes fade-up {
+		from { opacity: 0; transform: translate3d(0, 8px, 0); }
+		to { opacity: 1; transform: translate3d(0, 0, 0); }
+	}
+	@keyframes fade-down {
+		from { opacity: 0; transform: translate3d(0, -8px, 0); }
+		to { opacity: 1; transform: translate3d(0, 0, 0); }
+	}
+	@keyframes scale-in {
+		from { opacity: 0; transform: scale(0.96); }
+		to { opacity: 1; transform: scale(1); }
+	}
+	@keyframes scale-out {
+		from { opacity: 1; transform: scale(1); }
+		to { opacity: 0; transform: scale(0.97); }
+	}
+	@keyframes slide-in-left {
+		from { transform: translate3d(-100%, 0, 0); }
+		to { transform: translate3d(0, 0, 0); }
+	}
+	@keyframes slide-in-right {
+		from { transform: translate3d(100%, 0, 0); }
+		to { transform: translate3d(0, 0, 0); }
+	}
+	@keyframes slide-in-up {
+		from { transform: translate3d(0, 100%, 0); }
+		to { transform: translate3d(0, 0, 0); }
+	}
+	@keyframes slide-out-left {
+		from { transform: translate3d(0, 0, 0); }
+		to { transform: translate3d(-100%, 0, 0); }
+	}
+	@keyframes slide-out-right {
+		from { transform: translate3d(0, 0, 0); }
+		to { transform: translate3d(100%, 0, 0); }
+	}
+	@keyframes slide-out-down {
+		from { transform: translate3d(0, 0, 0); }
+		to { transform: translate3d(0, 100%, 0); }
+	}
+	@keyframes pulse-soft {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.45; }
+	}
+	@keyframes shimmer {
+		from { transform: translate3d(-100%, 0, 0); }
+		to { transform: translate3d(100%, 0, 0); }
+	}
+}
+
+/* ------------------------------------------------------------------ */
+/* Design tokens                                                        */
+/* ------------------------------------------------------------------ */
+:root {
+	/* Typography / sizing */
+	--ui-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+	--ui-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+	--ui-root-size: 16px;
+	--ui-font-weight-strong: 600;
+
+	/* Surfaces */
+	--ui-hairline: color-mix(in oklab, var(--color-base-content) 12%, transparent);
+	--surface-body: var(--color-base-200);
+	--surface-content: var(--color-base-100);
+	--sidebar-tint: 100%;
+	--sidebar-bg: color-mix(in oklab, var(--color-base-200) var(--sidebar-tint), transparent);
+	--sidebar-border: var(--ui-hairline);
+	--sidebar-width: 220px;
+	--sidebar-rail-width: 60px;
+	--toolbar-height: 44px;
+	--titlebar-inset: 0px; /* space reserved for macOS traffic lights */
+	--nav-item-height: 34px;
+	--nav-item-gap: 2px;
+	--nav-active-bg: color-mix(in oklab, var(--color-base-content) 10%, transparent);
+	--nav-pill: 0;
+
+	/* Accessible text variant of the warning colour (the fill colour is too light as text on white) */
+	--warning-text: #8a5a00;
+
+	/* Shadows */
+	--ui-shadow-sm: 0 0 0 1px var(--ui-hairline), 0 1px 2px rgb(0 0 0 / 0.04);
+	--ui-shadow-md: 0 0 0 1px var(--ui-hairline), 0 4px 14px rgb(0 0 0 / 0.08);
+	--ui-shadow-lg: 0 0 0 1px var(--ui-hairline), 0 12px 32px rgb(0 0 0 / 0.14);
+
+	/* Focus ring */
+	--focus-color: color-mix(in oklab, var(--color-primary) 55%, transparent);
+	--focus-width: 3px;
+	--focus-offset: 0px;
+
+	/* Scrollbars */
+	--scroll-thumb: color-mix(in oklab, var(--color-base-content) 26%, transparent);
+	--scroll-thumb-hover: color-mix(in oklab, var(--color-base-content) 45%, transparent);
+	--scroll-size: 12px;
+
+	/* Motion */
+	--motion-fast: 120ms;
+	--motion-base: 200ms;
+	--motion-slow: 320ms;
+	--motion-stagger: 40ms;
+	--ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+	--ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
+	--ease-in: cubic-bezier(0.4, 0, 1, 1);
+
+	/* Modal */
+	--modal-blur: 6px;
+}
+
+[data-theme="postie-dark"] {
+	--warning-text: #ffcc33;
+	--ui-shadow-sm: 0 0 0 1px var(--ui-hairline), 0 1px 2px rgb(0 0 0 / 0.3);
+	--ui-shadow-md: 0 0 0 1px var(--ui-hairline), 0 4px 14px rgb(0 0 0 / 0.4);
+	--ui-shadow-lg: 0 0 0 1px var(--ui-hairline), 0 12px 32px rgb(0 0 0 / 0.55);
+	--ui-hairline: color-mix(in oklab, var(--color-base-content) 14%, transparent);
+	--nav-active-bg: color-mix(in oklab, var(--color-base-content) 14%, transparent);
+}
+

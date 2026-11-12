@@ -18,7 +18,9 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/menu/keys"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/linux"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
+	"github.com/wailsapp/wails/v2/pkg/options/windows"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -83,6 +85,17 @@ func recoverMainPanic() {
 	}
 }
 
+// windowBackground returns the native window background. Platforms with a
+// translucent window (macOS vibrancy, Windows Mica) use a fully transparent
+// colour so the system material shows through; elsewhere a neutral light grey
+// avoids flashing dark blue before the webview paints.
+func windowBackground() *options.RGBA {
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		return &options.RGBA{R: 0, G: 0, B: 0, A: 0}
+	}
+	return &options.RGBA{R: 246, G: 245, B: 244, A: 255}
+}
+
 func main() {
 	// Set up panic recovery for the entire application
 	defer recoverMainPanic()
@@ -97,11 +110,11 @@ func main() {
 
 	// File menu
 	fileMenu := appMenu.AddSubmenu("File")
-	fileMenu.AddText("Settings", keys.Control("comma"), func(_ *menu.CallbackData) {
+	fileMenu.AddText("Settings", keys.CmdOrCtrl(","), func(_ *menu.CallbackData) {
 		app.NavigateToSettings()
 	})
 	fileMenu.AddSeparator()
-	fileMenu.AddText("Quit", keys.Control("q"), func(_ *menu.CallbackData) {
+	fileMenu.AddText("Quit", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
 		wailsruntime.Quit(context.Background())
 	})
 
@@ -142,22 +155,24 @@ func main() {
 
 	// View menu
 	viewMenu := appMenu.AddSubmenu("View")
-	viewMenu.AddText("Dashboard", keys.Control("1"), func(_ *menu.CallbackData) {
+	viewMenu.AddText("Dashboard", keys.CmdOrCtrl("1"), func(_ *menu.CallbackData) {
 		app.NavigateToDashboard()
 	})
-	viewMenu.AddText("Settings", keys.Control("2"), func(_ *menu.CallbackData) {
+	viewMenu.AddText("Settings", keys.CmdOrCtrl("2"), func(_ *menu.CallbackData) {
 		app.NavigateToSettings()
 	})
 
 	// Create application with options
 	err := wails.Run(&options.App{
-		Title:  "Postie UI",
-		Width:  1024,
-		Height: 768,
+		Title:     "Postie UI",
+		Width:     1024,
+		Height:    768,
+		MinWidth:  880,
+		MinHeight: 600,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
+		BackgroundColour: windowBackground(),
 		DisableResize:    false,
 		SingleInstanceLock: &options.SingleInstanceLock{
 			UniqueId: "postie",
@@ -230,8 +245,24 @@ func main() {
 				Message: "© 2025 Postie",
 				Icon:    icon,
 			},
-			Appearance:          mac.NSAppearanceNameAccessibilityHighContrastVibrantDark,
-			WindowIsTranslucent: true,
+			// Inset hidden title bar: content extends under the traffic lights and
+			// the frontend reserves space for them. Appearance is left at the
+			// default so the window follows the system light/dark setting.
+			TitleBar:             mac.TitleBarHiddenInset(),
+			Appearance:           mac.DefaultAppearance,
+			WebviewIsTransparent: true,
+			WindowIsTranslucent:  true,
+		},
+		Windows: &windows.Options{
+			// Mica needs Windows 11 22621+; older versions ignore the backdrop.
+			WebviewIsTransparent: true,
+			WindowIsTranslucent:  true,
+			BackdropType:         windows.Mica,
+			Theme:                windows.SystemDefault,
+		},
+		Linux: &linux.Options{
+			Icon:        icon,
+			ProgramName: "postie",
 		},
 	})
 

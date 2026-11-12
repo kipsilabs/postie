@@ -1,5 +1,24 @@
 {
 	"setup": {
+		"errors": {
+			"generic_message": "Une erreur inattendue s’est produite pendant la configuration. Veuillez réessayer.",
+			"generic_title": "Échec de la configuration",
+			"timeout_message": "La requête de configuration a pris trop de temps. Veuillez réessayer.",
+			"timeout_title": "Délai d’attente dépassé",
+			"network_message": "Impossible de se connecter au serveur. Vérifiez votre connexion internet et réessayez.",
+			"network_title": "Erreur réseau",
+			"invalid_input_message": "Certaines valeurs de configuration sont invalides. Veuillez vérifier et corriger vos paramètres.",
+			"invalid_input_title": "Configuration invalide",
+			"config_save_message": "Échec de l’enregistrement de votre configuration. Assurez-vous d’avoir suffisamment d’espace disque et réessayez.",
+			"config_save_title": "Échec de l’enregistrement de la configuration",
+			"filesystem_message": "Impossible d’enregistrer la configuration en raison des permissions du système de fichiers. Vérifiez l’accès en écriture.",
+			"filesystem_title": "Erreur de permissions de fichier",
+			"server_validation_message": "Impossible de se connecter à un ou plusieurs serveurs NNTP. Vérifiez vos identifiants et votre connexion réseau.",
+			"server_validation_title": "Échec de la connexion au serveur"
+		},
+		"success_message": "Votre configuration Postie a été enregistrée avec succès. Vous pouvez maintenant commencer à envoyer des fichiers.",
+		"success_title": "Configuration terminée !",
+		"step_of": "Étape {current} sur {total}",
 		"title": "Bienvenue dans Postie",
 		"description": "Configurons vos serveurs NNTP et répertoires pour commencer.",
 		"wizard_title": "Configuration de Postie",

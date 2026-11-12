@@ -1,5 +1,9 @@
 {
 	"metrics": {
+		"ping_rtt": "Latence (RTT)",
+		"missing": "Manquants",
+		"elapsed": "Durée de fonctionnement du pool",
+		"avg_speed": "Vitesse moyenne",
 		"title": "Métriques du Pool de Connexions",
 		"description": "Métriques de performance et de connexion en temps réel pour votre pool de connexions",
 		"auto_refresh": "Actualisation automatique",
@@ -79,5 +83,31 @@
 		"server_host": "Hôte du Serveur",
 		"data_posted": "Données Publiées",
 		"connection_age": "Âge de Connexion"
+	},
+	"logs": {
+		"search_placeholder": "Filtrer les journaux",
+		"level_label": "Niveau de journal",
+		"level_all": "Tous les niveaux",
+		"level_info": "Info et plus",
+		"level_warn": "Avertissements et erreurs",
+		"level_error": "Erreurs uniquement",
+		"count": "{count} lignes",
+		"count_filtered": "{shown} sur {total} lignes",
+		"more_available": "des lignes plus anciennes sont disponibles",
+		"jump_to_latest": "Aller au dernier",
+		"loading": "Chargement des journaux…",
+		"loading_older": "Chargement des journaux précédents…",
+		"beginning": "Début des journaux",
+		"empty": "Aucune ligne correspondante",
+		"copy": "Copier",
+		"copied": "Journaux copiés dans le presse-papiers",
+		"copy_error": "Impossible de copier les journaux"
+	},
+	"errorPage": {
+		"title": "Une erreur est survenue",
+		"description": "Essayez de recharger la page ou retournez au tableau de bord.",
+		"back": "Retour au tableau de bord",
+		"reload": "Recharger",
+		"document_title": "Erreur {status} - Postie"
 	}
 }

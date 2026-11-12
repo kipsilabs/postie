@@ -391,6 +391,9 @@ export namespace backend {
 	    uploadWorkerCount: number;
 	    uploadReservedBytes: number;
 	    uploadBudgetBytes: number;
+	    uploadBytes: number;
+	    uploadSpeedBps: number;
+	    uploadAvgSpeedBps: number;
 	    par2ActiveJobs: number;
 	    par2QueuedJobs: number;
 	    par2Capacity: number;
@@ -406,6 +409,9 @@ export namespace backend {
 	        this.uploadWorkerCount = source["uploadWorkerCount"];
 	        this.uploadReservedBytes = source["uploadReservedBytes"];
 	        this.uploadBudgetBytes = source["uploadBudgetBytes"];
+	        this.uploadBytes = source["uploadBytes"];
+	        this.uploadSpeedBps = source["uploadSpeedBps"];
+	        this.uploadAvgSpeedBps = source["uploadAvgSpeedBps"];
 	        this.par2ActiveJobs = source["par2ActiveJobs"];
 	        this.par2QueuedJobs = source["par2QueuedJobs"];
 	        this.par2Capacity = source["par2Capacity"];
@@ -499,6 +505,24 @@ export namespace config {
 		}
 	}
 	
+	export class DuplicateLookupConfig {
+	    enabled: boolean;
+	    url: string;
+	    api_key: string;
+	    timeout: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DuplicateLookupConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.url = source["url"];
+	        this.api_key = source["api_key"];
+	        this.timeout = source["timeout"];
+	    }
+	}
 	export class PostUploadScriptConfig {
 	    enabled: boolean;
 	    command: string;
@@ -650,7 +674,7 @@ export namespace config {
 	    slice_size: number;
 	    max_concurrent_jobs: number;
 	    gf16_method: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new Par2Config(source);
 	    }
@@ -869,26 +893,7 @@ export namespace config {
 	        this.proxy_url = source["proxy_url"];
 	    }
 	}
-	export class DuplicateLookupConfig {
-	    enabled: boolean;
-	    url: string;
-	    api_key: string;
-	    timeout: string;
-
-	    static createFrom(source: any = {}) {
-	        return new DuplicateLookupConfig(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.enabled = source["enabled"];
-	        this.url = source["url"];
-	        this.api_key = source["api_key"];
-	        this.timeout = source["timeout"];
-	    }
-	}
 	export class ConfigData {
-	    duplicate_lookup: DuplicateLookupConfig;
 	    version: number;
 	    servers: ServerConfig[];
 	    connection_pool: ConnectionPoolConfig;
@@ -905,6 +910,7 @@ export namespace config {
 	    maintain_original_extension?: boolean;
 	    post_upload_script: PostUploadScriptConfig;
 	    arr?: ArrConfig;
+	    duplicate_lookup: DuplicateLookupConfig;
 	
 	    static createFrom(source: any = {}) {
 	        return new ConfigData(source);
@@ -912,7 +918,6 @@ export namespace config {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.duplicate_lookup = this.convertValues(source["duplicate_lookup"], DuplicateLookupConfig);
 	        this.version = source["version"];
 	        this.servers = this.convertValues(source["servers"], ServerConfig);
 	        this.connection_pool = this.convertValues(source["connection_pool"], ConnectionPoolConfig);
@@ -929,6 +934,7 @@ export namespace config {
 	        this.maintain_original_extension = source["maintain_original_extension"];
 	        this.post_upload_script = this.convertValues(source["post_upload_script"], PostUploadScriptConfig);
 	        this.arr = this.convertValues(source["arr"], ArrConfig);
+	        this.duplicate_lookup = this.convertValues(source["duplicate_lookup"], DuplicateLookupConfig);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -949,6 +955,7 @@ export namespace config {
 		    return a;
 		}
 	}
+	
 	
 	
 	

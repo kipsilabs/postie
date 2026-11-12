@@ -8,6 +8,7 @@ import QueueSection from "$lib/components/dashboard/QueueSection.svelte";
 import QueueStats from "$lib/components/dashboard/QueueStats.svelte";
 import WatcherStatus from "$lib/components/dashboard/WatcherStatus.svelte";
 import { t } from "$lib/i18n";
+import { fade, scale } from "$lib/motion";
 import { appStatus, runningJobs } from "$lib/stores/app";
 import { toastStore } from "$lib/stores/toast";
 import { uploadActions } from "$lib/stores/upload";
@@ -280,38 +281,34 @@ async function handleUpload() {
 <div style="--wails-drop-target: drop">
   <!-- Drag and Drop Overlay -->
   {#if isDragOver}
-    <div class="drag-overlay" style="--wails-drop-target: drop">
-      <div class="drag-overlay-content">
+    <div class="drag-overlay" style="--wails-drop-target: drop" out:fade={{ speed: "fast" }}>
+      <div class="drag-overlay-content" out:scale={{ speed: "fast", start: 0.97 }}>
         <div class="drag-icon">
-          <Plus class="w-16 h-16 text-white" />
+          <Plus class="w-12 h-12" />
         </div>
-        <h2 class="text-2xl font-bold text-white mb-2">{$t('dashboard.drag_drop_title')}</h2>
-        <p class="text-white/80">{$t('dashboard.drag_drop_description')}</p>
+        <h2 class="text-xl font-semibold mb-1">{$t('dashboard.drag_drop_title')}</h2>
+        <p class="opacity-80">{$t('dashboard.drag_drop_description')}</p>
       </div>
     </div>
   {/if}
-	<div class="space-y-8 relative">
-		<DashboardHeader {needsConfiguration} {criticalConfigError} {handleUpload} />
 
-		<div
-			class="flex flex-col gap-8"
-			class:pointer-events-none={needsConfiguration || criticalConfigError}
-			class:opacity-50={needsConfiguration || criticalConfigError}
-		>
-			<!-- Queue Stats Overview -->
-			<QueueStats />
+  <div class="space-y-5">
+    <DashboardHeader {needsConfiguration} {criticalConfigError} {handleUpload} />
 
-			<!-- Main Content Area -->
-			<div class="space-y-8">
-				<ProgressSection />
-				<QueueSection />
-			</div>
-
-			<!-- Other -->
-			<div class="space-y-8">
-				<ProviderStatus />
-				<WatcherStatus />
-			</div>
-		</div>
+    <div
+      class="flex flex-col gap-5 transition-opacity"
+      class:pointer-events-none={needsConfiguration || criticalConfigError}
+      class:opacity-50={needsConfiguration || criticalConfigError}
+    >
+      <QueueStats />
+      <ProgressSection />
+      <QueueSection />
+      <ProviderStatus />
+      <WatcherStatus />
     </div>
+
+    <p class="text-center text-xs text-base-content/65 tabular-nums">
+      Postie v{__APP_VERSION__}{#if __GIT_COMMIT__ !== "unknown"} ({__GIT_COMMIT__.slice(0, 7)}){/if}
+    </p>
+  </div>
 </div>

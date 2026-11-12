@@ -5,9 +5,12 @@ import {
 	type NntpPoolMetricsEvent,
 } from "$lib/api/events";
 import { t } from "$lib/i18n";
+import { duration, easing } from "$lib/motion";
+import { toolbar } from "$lib/stores/toolbar";
 import { toastStore } from "$lib/stores/toast";
 import { onMount, onDestroy } from "svelte";
-import { Activity, Upload, Server, AlertCircle, AlertTriangle, Gauge } from "lucide-svelte";
+import { Tween } from "svelte/motion";
+import { Activity, AlertCircle, RotateCw } from "lucide-svelte";
 import type { backend } from "$lib/wailsjs/go/models";
 import { formatElapsed } from "$lib/utils";
 
@@ -79,215 +82,193 @@ function formatSpeed(bytesPerSec: number): string {
 function formatNumber(num: number): string {
 	return num.toLocaleString();
 }
+
+// Smoothly animated headline values (first value snaps, later ones tween).
+const connectionsTween = new Tween(0);
+const avgSpeedTween = new Tween(0);
+const bytesTween = new Tween(0);
+const errorsTween = new Tween(0);
+let tweenReady = false;
+
+$effect(() => {
+	const next = metrics;
+	if (!next) return;
+	const opts = tweenReady
+		? { duration: duration("slow"), easing: easing("standard") }
+		: { duration: 0 };
+	connectionsTween.set(next.activeConnections, opts);
+	avgSpeedTween.set(next.avgSpeed, opts);
+	bytesTween.set(next.bytesConsumed, opts);
+	errorsTween.set(next.totalErrors, opts);
+	tweenReady = true;
+});
+
+$effect(() => {
+	toolbar.set({ actions: metricsActions });
+	return () => toolbar.reset();
+});
 </script>
 
-<div class="space-y-6">
-	<!-- Header -->
-	<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-		<div>
-			<h1 class="text-3xl font-bold text-base-content">{$t('metrics.title')}</h1>
-			<p class="text-base-content/70 mt-1">{$t('metrics.description')}</p>
+{#snippet metricsActions()}
+	<div class="flex items-center gap-3">
+		<div class="hidden items-center gap-1.5 text-xs text-base-content/60 sm:flex">
+			<Activity class="h-3.5 w-3.5 text-primary" />
+			<span>{$t('metrics.auto_refresh')}</span>
 		</div>
-
-		<div class="flex items-center gap-3">
-			<!-- Auto-refresh indicator -->
-			<div class="flex items-center gap-2 text-sm text-base-content/60">
-				<Activity class="w-4 h-4 animate-pulse text-primary" />
-				<span>{$t('metrics.auto_refresh')}</span>
-			</div>
-
-			<button
-				class="btn btn-primary btn-sm"
-				onclick={() => loadMetrics(true)}
-				disabled={loading}
-			>
-				{loading ? $t('common.common.loading') : $t('metrics.refresh')}
-			</button>
-		</div>
+		<button
+			class="btn btn-sm btn-ghost"
+			onclick={() => loadMetrics(true)}
+			disabled={loading}
+		>
+			{#if loading}
+				<span class="loading loading-spinner loading-xs"></span>
+			{:else}
+				<RotateCw class="h-4 w-4" />
+			{/if}
+			{$t('metrics.refresh')}
+		</button>
 	</div>
+{/snippet}
+
+<div class="space-y-6">
+	<p class="text-sm text-base-content/65">{$t('metrics.description')}</p>
 
 	<!-- Transfer runtime (process-wide upload engine + PAR2 scheduler) -->
 	{#if transferMetrics && (transferMetrics.uploadWorkerCount > 0 || transferMetrics.par2Capacity > 0)}
-		<div>
-			<h2 class="text-xl font-semibold text-base-content mb-3 flex items-center gap-2">
-				<Gauge class="w-5 h-5 text-primary" />
-				{$t('metrics.transfer_runtime.title')}
-			</h2>
-			<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-				<div class="stat bg-base-100 rounded-lg shadow-sm">
-					<div class="stat-title text-xs">{$t('metrics.transfer_runtime.upload_workers')}</div>
-					<div class="stat-value text-2xl">{transferMetrics.uploadActiveWorkers}/{transferMetrics.uploadWorkerCount}</div>
-					<div class="stat-desc">{transferMetrics.uploadQueuedWorkers} {$t('metrics.transfer_runtime.queued')}</div>
+		<section>
+			<div class="section-label">{$t('metrics.transfer_runtime.title')}</div>
+			<div class="grid grid-cols-2 gap-3 md:grid-cols-3">
+				<div class="tile animate-fade-up anim-delay" style="--i: 0">
+					<div class="tile-title">{$t('metrics.transfer_runtime.upload_workers')}</div>
+					<div class="tile-value">{transferMetrics.uploadActiveWorkers}/{transferMetrics.uploadWorkerCount}</div>
+					<div class="tile-desc">{transferMetrics.uploadQueuedWorkers} {$t('metrics.transfer_runtime.queued')}</div>
 				</div>
-				<div class="stat bg-base-100 rounded-lg shadow-sm">
-					<div class="stat-title text-xs">{$t('metrics.transfer_runtime.buffer_memory')}</div>
-					<div class="stat-value text-2xl">{formatBytes(transferMetrics.uploadReservedBytes)}</div>
-					<div class="stat-desc">/ {formatBytes(transferMetrics.uploadBudgetBytes)}</div>
+				<div class="tile animate-fade-up anim-delay" style="--i: 1">
+					<div class="tile-title">{$t('metrics.transfer_runtime.buffer_memory')}</div>
+					<div class="tile-value">{formatBytes(transferMetrics.uploadReservedBytes)}</div>
+					<div class="tile-desc">/ {formatBytes(transferMetrics.uploadBudgetBytes)}</div>
 				</div>
-				<div class="stat bg-base-100 rounded-lg shadow-sm">
-					<div class="stat-title text-xs">{$t('metrics.transfer_runtime.par2_jobs')}</div>
-					<div class="stat-value text-2xl">{transferMetrics.par2ActiveJobs}/{transferMetrics.par2Capacity}</div>
-					<div class="stat-desc">{transferMetrics.par2QueuedJobs} {$t('metrics.transfer_runtime.queued')}</div>
+				<div class="tile animate-fade-up anim-delay" style="--i: 2">
+					<div class="tile-title">{$t('metrics.transfer_runtime.par2_jobs')}</div>
+					<div class="tile-value">{transferMetrics.par2ActiveJobs}/{transferMetrics.par2Capacity}</div>
+					<div class="tile-desc">{transferMetrics.par2QueuedJobs} {$t('metrics.transfer_runtime.queued')}</div>
 				</div>
 			</div>
-		</div>
+		</section>
 	{/if}
 
 	{#if loading && !metrics}
 		<div class="flex items-center justify-center py-12">
-			<span class="loading loading-spinner loading-lg"></span>
+			<span class="loading loading-spinner loading-md"></span>
 		</div>
 	{:else if error}
-		<div class="alert alert-error">
-			<AlertCircle class="w-5 h-5" />
+		<div class="alert alert-error animate-fade-in" role="alert">
+			<AlertCircle class="h-4 w-4" />
 			<div>
-				<h3>{$t('metrics.error_title')}</h3>
+				<h3 class="font-medium">{$t('metrics.error_title')}</h3>
 				<div class="text-sm opacity-75">{error}</div>
 			</div>
 		</div>
 	{:else if metrics}
-		<!-- Overview Stats -->
-		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-			<!-- Active Connections -->
-			<div class="stat bg-base-100 rounded-lg shadow-sm">
-				<div class="stat-figure text-primary">
-					<Server class="w-8 h-8" />
-				</div>
-				<div class="stat-title">{$t('metrics.active_connections')}</div>
-				<div class="stat-value text-primary">{metrics.activeConnections}</div>
+		<!-- Overview -->
+		<section class="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+			<div class="tile animate-fade-up anim-delay" style="--i: 0">
+				<div class="tile-title">{$t('metrics.active_connections')}</div>
+				<div class="tile-value">{Math.round(connectionsTween.current)}</div>
 			</div>
-
-			<!-- Average Speed -->
-			<div class="stat bg-base-100 rounded-lg shadow-sm">
-				<div class="stat-figure text-success">
-					<Gauge class="w-8 h-8" />
-				</div>
-				<div class="stat-title">{$t('metrics.avg_speed')}</div>
-				<div class="stat-value text-success text-2xl">{formatSpeed(metrics.avgSpeed)}</div>
+			<div class="tile animate-fade-up anim-delay" style="--i: 1">
+				<div class="tile-title">{$t('metrics.avg_speed')}</div>
+				<div class="tile-value">{formatSpeed(Math.round(avgSpeedTween.current))}</div>
 			</div>
-
-			<!-- Total Downloaded -->
-			<div class="stat bg-base-100 rounded-lg shadow-sm">
-				<div class="stat-figure text-secondary">
-					<Upload class="w-8 h-8" />
-				</div>
-				<div class="stat-title">{$t('metrics.downloaded')}</div>
-				<div class="stat-value text-secondary text-2xl">{formatBytes(metrics.bytesConsumed)}</div>
+			<div class="tile animate-fade-up anim-delay" style="--i: 2">
+				<div class="tile-title">{$t('metrics.downloaded')}</div>
+				<div class="tile-value">{formatBytes(Math.round(bytesTween.current))}</div>
 			</div>
-
-			<!-- Elapsed -->
-			<div class="stat bg-base-100 rounded-lg shadow-sm">
-				<div class="stat-figure text-info">
-					<Activity class="w-8 h-8" />
-				</div>
-				<div class="stat-title">{$t('metrics.elapsed')}</div>
-				<div class="stat-value text-info text-2xl">{formatElapsed(metrics.elapsed) || "—"}</div>
+			<div class="tile animate-fade-up anim-delay" style="--i: 3">
+				<div class="tile-title">{$t('metrics.elapsed')}</div>
+				<div class="tile-value">{formatElapsed(metrics.elapsed) || "—"}</div>
 			</div>
-
-			<!-- Total Errors -->
-			<div class="stat bg-base-100 rounded-lg shadow-sm">
-				<div class="stat-figure text-error">
-					<AlertTriangle class="w-8 h-8" />
-				</div>
-				<div class="stat-title">{$t('metrics.total_errors')}</div>
-				<div class="stat-value text-error">{formatNumber(metrics.totalErrors)}</div>
+			<div class="tile animate-fade-up anim-delay" style="--i: 4">
+				<div class="tile-title">{$t('metrics.total_errors')}</div>
+				<div class="tile-value" class:text-error={metrics.totalErrors > 0}>{formatNumber(Math.round(errorsTween.current))}</div>
 			</div>
-		</div>
+		</section>
 
 		<!-- NNTP Server Details -->
-		<div class="card bg-base-100 shadow-sm">
-			<div class="card-body">
-				<h2 class="card-title flex items-center gap-2">
-					<Server class="w-5 h-5" />
-					{$t('metrics.nntp_servers')} ({metrics.providers.length})
-				</h2>
-
-				<div class="overflow-x-auto">
-					<table class="table table-zebra w-full">
-						<thead>
+		<section class="animate-fade-up anim-delay" style="--i: 5">
+			<div class="section-label">{$t('metrics.nntp_servers')} ({metrics.providers.length})</div>
+			<div class="overflow-x-auto settings-group">
+				<table class="table table-sm w-full tabular-nums">
+					<thead>
+						<tr>
+							<th>{$t('metrics.server_host')}</th>
+							<th>{$t('metrics.connections')}</th>
+							<th>{$t('metrics.free_slots')}</th>
+							<th>{$t('metrics.current_speed')}</th>
+							<th>{$t('metrics.avg_speed')}</th>
+							<th>{$t('metrics.downloaded')}</th>
+							<th>{$t('metrics.missing')}</th>
+							<th>{$t('metrics.ttfb')}</th>
+							<th>{$t('metrics.ping_rtt')}</th>
+							<th>{$t('metrics.errors')}</th>
+							<th>{$t('metrics.quota')}</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each metrics.providers as provider}
 							<tr>
-								<th>{$t('metrics.server_host')}</th>
-								<th>{$t('metrics.connections')}</th>
-								<th>{$t('metrics.free_slots')}</th>
-								<th>{$t('metrics.current_speed')}</th>
-								<th>{$t('metrics.avg_speed')}</th>
-								<th>{$t('metrics.downloaded')}</th>
-								<th>{$t('metrics.missing')}</th>
-								<th>{$t('metrics.ttfb')}</th>
-								<th>{$t('metrics.ping_rtt')}</th>
-								<th>{$t('metrics.errors')}</th>
-								<th>{$t('metrics.quota')}</th>
-							</tr>
-						</thead>
-						<tbody>
-							{#each metrics.providers as provider}
-								<tr>
-									<td>
-										<div class="font-semibold">{provider.name || provider.host}</div>
-									</td>
-									<td>
-										<div class="text-sm">
-											{provider.activeConnections}/{provider.maxConnections}
-										</div>
-									</td>
-									<td>
-										<div class="text-sm">
-											{formatNumber(provider.availableSlots)}
-										</div>
-									</td>
-									<td>
-										<div class="text-sm text-success">
-											{provider.speedEwma > 0 ? formatSpeed(provider.speedEwma) : "—"}
-										</div>
-									</td>
-									<td>
-										<div class="text-sm text-success">
-											{formatSpeed(provider.avgSpeed)}
-										</div>
-									</td>
-									<td>
-										<div class="text-sm">
-											{provider.bytesConsumed > 0 ? formatBytes(provider.bytesConsumed) : "—"}
-										</div>
-									</td>
-									<td>
-										<div class="text-sm">
-											{formatNumber(provider.missing)}
-										</div>
-									</td>
-									<td>
-										<div class="text-sm">
-											{provider.ttfb || "—"}
-										</div>
-									</td>
-									<td>
-										<div class="text-sm">
-											{provider.pingRTT || "—"}
-										</div>
-									</td>
-									<td>
-										<div class="text-sm font-mono {provider.totalErrors > 0 ? 'text-error' : 'text-success'}">
-											{formatNumber(provider.totalErrors)}
-										</div>
-									</td>
-									<td>
-										{#if provider.quotaBytes > 0}
-											<div class="text-sm {provider.quotaExceeded ? 'text-error' : ''}">
-												{formatBytes(provider.quotaUsed)} / {formatBytes(provider.quotaBytes)}
-												{#if provider.quotaExceeded}
-													<span class="badge badge-error badge-xs ml-1">{$t('metrics.quota_exceeded')}</span>
-												{/if}
-											</div>
-										{:else}
-											<div class="text-sm">—</div>
+								<td class="font-medium">{provider.name || provider.host}</td>
+								<td>{provider.activeConnections}/{provider.maxConnections}</td>
+								<td>{formatNumber(provider.availableSlots)}</td>
+								<td>{provider.speedEwma > 0 ? formatSpeed(provider.speedEwma) : "—"}</td>
+								<td>{formatSpeed(provider.avgSpeed)}</td>
+								<td>{provider.bytesConsumed > 0 ? formatBytes(provider.bytesConsumed) : "—"}</td>
+								<td>{formatNumber(provider.missing)}</td>
+								<td>{provider.ttfb || "—"}</td>
+								<td>{provider.pingRTT || "—"}</td>
+								<td class:text-error={provider.totalErrors > 0}>{formatNumber(provider.totalErrors)}</td>
+								<td class:text-error={provider.quotaExceeded}>
+									{#if provider.quotaBytes > 0}
+										{formatBytes(provider.quotaUsed)} / {formatBytes(provider.quotaBytes)}
+										{#if provider.quotaExceeded}
+											<span class="badge badge-error badge-xs ml-1">{$t('metrics.quota_exceeded')}</span>
 										{/if}
-									</td>
-								</tr>
-							{/each}
-						</tbody>
-					</table>
-				</div>
+									{:else}
+										—
+									{/if}
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
 			</div>
-		</div>
+		</section>
 	{/if}
 </div>
+
+<style>
+	.tile {
+		min-width: 0;
+		padding: 0.75rem 0.875rem;
+		border-radius: var(--radius-box);
+		background: var(--color-base-100);
+		box-shadow: var(--ui-shadow-sm);
+	}
+	.tile-title {
+		font-size: 0.75rem;
+		color: color-mix(in oklab, var(--color-base-content) 62%, transparent);
+	}
+	.tile-value {
+		margin-top: 0.125rem;
+		font-size: 1.375rem;
+		font-weight: var(--ui-font-weight-strong);
+		line-height: 1.3;
+		font-variant-numeric: tabular-nums;
+		overflow-wrap: anywhere;
+	}
+	.tile-desc {
+		font-size: 0.75rem;
+		font-variant-numeric: tabular-nums;
+		color: color-mix(in oklab, var(--color-base-content) 65%, transparent);
+	}
+</style>

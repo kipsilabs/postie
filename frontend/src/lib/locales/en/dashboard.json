@@ -158,6 +158,7 @@
 		"job_failed": "Upload failed: {fileName}",
 		"file_explorer": {
 			"title": "Add Files from Server to Queue",
+			"close": "Close",
 			"import_success": "Files added to queue successfully",
 			"no_files_selected": "No files selected",
 			"import_success_description": "Successfully added {count} {count, plural, =1 {file} other {files}} to queue",

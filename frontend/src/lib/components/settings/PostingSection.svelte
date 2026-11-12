@@ -5,7 +5,13 @@ import ThrottleRateInput from "$lib/components/inputs/ThrottleRateInput.svelte";
 import { t } from "$lib/i18n";
 import { advancedMode } from "$lib/stores/app";
 import { config as configType } from "$lib/wailsjs/go/models";
-import { CloudUpload, Plus, Trash2 } from "lucide-svelte";
+import { Plus, Trash2 } from "lucide-svelte";
+import FieldRow from "$lib/components/inputs/FieldRow.svelte";
+import NumberField from "$lib/components/inputs/NumberField.svelte";
+import ToggleRow from "$lib/components/inputs/ToggleRow.svelte";
+import { fly } from "$lib/motion";
+import SettingsSection from "./SettingsSection.svelte";
+import { collapse } from "./collapse";
   import SizeInput from "$lib/components/inputs/SizeInput.svelte";
 
 // Types
@@ -162,361 +168,194 @@ function updateThrottleRate() {
 
 </script>
 
-<!-- Main Container -->
-<div class="card bg-base-100 shadow-sm">
-  <div class="card-body space-y-6">
-    <!-- Section Header -->
-    <div class="flex items-center gap-3 pb-2">
-      <CloudUpload class="w-5 h-5 text-success" />
-      <h2 class="text-lg font-semibold text-base-content">
-        {$t('settings.posting.title')}
-      </h2>
-    </div>
+<div class="space-y-6">
+	<SettingsSection title={$t('settings.posting.title')}>
+		<NumberField
+			id="max-retries"
+			bind:value={maxRetries}
+			label={$t('settings.posting.max_retries')}
+			description={$t('settings.posting.max_retries_description')}
+			minValue={0}
+			maxValue={10}
+		/>
+		<DurationInput
+			bind:value={retryDelay}
+			label={$t('settings.posting.retry_delay')}
+			description={$t('settings.posting.retry_delay_description')}
+			presets={retryDelayPresets}
+			id="retry-delay"
+		/>
+		<SizeInput
+			bind:value={articleSizeInBytes}
+			label={$t('settings.posting.article_size')}
+			description={$t('settings.posting.article_size_description')}
+			presets={articleSizePresets}
+			minValue={1000}
+			maxValue={10000000}
+			id="article-size"
+		/>
 
-    <!-- Basic Configuration Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <!-- Max Retries -->
-      <div>
-        <label for="max-retries" class="label">
-          <span class="label-text">{$t('settings.posting.max_retries')}</span>
-        </label>
-        <input
-          id="max-retries"
-          type="number"
-          class="input input-bordered w-full"
-          bind:value={maxRetries}
-          min="0"
-          max="10"
-        />
-        <p class="text-sm text-base-content/70 mt-1">
-          {$t('settings.posting.max_retries_description')}
-        </p>
-      </div>
-      <!-- Retry Delay -->
-      <DurationInput
-        bind:value={retryDelay}
-        label={$t('settings.posting.retry_delay')}
-        description={$t('settings.posting.retry_delay_description')}
-        presets={retryDelayPresets}
-        id="retry-delay"
-      />
+		{#if $advancedMode}
+			<div transition:collapse class="border-t border-(--ui-hairline)">
+				<ThrottleRateInput
+					bind:value={throttleRateMB}
+					onchange={updateThrottleRate}
+					label={$t('settings.posting.throttle_rate')}
+					description={$t('settings.posting.throttle_rate_description')}
+					presets={throttleRatePresets}
+					id="throttle-rate"
+				/>
+				<SizeInput
+					bind:value={uploadBufferMemoryLimit}
+					label={$t('settings.posting.upload_buffer_memory_limit')}
+					description={$t('settings.posting.upload_buffer_memory_limit_description')}
+					minValue={0}
+					id="upload-buffer-memory-limit"
+				/>
+				<FieldRow
+					label={$t('settings.posting.obfuscation_policy')}
+					description={obfuscationPolicy === 'none' || obfuscationPolicy === 'partial' || obfuscationPolicy === 'full' ? $t(`settings.posting.obfuscation.${obfuscationPolicy}_description`) : ''}
+					html
+					id="obfuscation"
+				>
+					<select id="obfuscation" class="select select-sm w-auto min-w-40" bind:value={obfuscationPolicy}>
+						{#each obfuscationOptions as option}
+							<option value={option.value}>{option.name}</option>
+						{/each}
+					</select>
+				</FieldRow>
+				<FieldRow
+					label={$t('settings.posting.par2_obfuscation_policy')}
+					description={par2ObfuscationPolicy === 'none' || par2ObfuscationPolicy === 'partial' || par2ObfuscationPolicy === 'full' ? $t(`settings.posting.par2_obfuscation.${par2ObfuscationPolicy}_description`) : ''}
+					html
+					id="par2-obfuscation"
+				>
+					<select id="par2-obfuscation" class="select select-sm w-auto min-w-40" bind:value={par2ObfuscationPolicy}>
+						{#each obfuscationOptions as option}
+							<option value={option.value}>{option.name}</option>
+						{/each}
+					</select>
+				</FieldRow>
+				<FieldRow
+					label={$t('settings.posting.message_id_format')}
+					description={$t('settings.posting.message_id_format_description')}
+					id="message-id-format"
+				>
+					<select id="message-id-format" class="select select-sm w-auto min-w-40" bind:value={messageIdFormat}>
+						{#each messageIdOptions as option}
+							<option value={option.value}>{option.name}</option>
+						{/each}
+					</select>
+				</FieldRow>
+				<FieldRow
+					label={$t('settings.posting.group_policy')}
+					description={$t('settings.posting.group_policy_description')}
+					id="group-policy"
+				>
+					<select id="group-policy" class="select select-sm w-auto min-w-40" bind:value={groupPolicy}>
+						{#each groupPolicyOptions as option}
+							<option value={option.value}>{option.name}</option>
+						{/each}
+					</select>
+				</FieldRow>
+			</div>
+		{/if}
 
-      <!-- Article Size -->
-      <SizeInput
-        bind:value={articleSizeInBytes}
-        label={$t('settings.posting.article_size')}
-        description={$t('settings.posting.article_size_description')}
-        presets={articleSizePresets}
-        minValue={1000}
-        maxValue={10000000}
-        id="article-size"
-      />
+		<ToggleRow
+			id="waitforpar2"
+			bind:checked={waitForPar2}
+			label={$t('settings.posting.wait_for_par2')}
+			description={$t('settings.posting.wait_for_par2_description')}
+		/>
+	</SettingsSection>
 
-      <!-- Advanced Settings (conditionally shown) -->
-      {#if $advancedMode}
-        <!-- Throttle Rate -->
-        <ThrottleRateInput
-          bind:value={throttleRateMB}
-          onchange={updateThrottleRate}
-          label={$t('settings.posting.throttle_rate')}
-          description={$t('settings.posting.throttle_rate_description')}
-          presets={throttleRatePresets}
-          id="throttle-rate"
-        />
+	{#if $advancedMode}
+		<div transition:collapse>
+			<SettingsSection title={$t('settings.posting.headers.title')}>
+				<FieldRow
+					label={$t('settings.posting.headers.default_from')}
+					description={$t('settings.posting.headers.default_from_description')}
+					id="default-from"
+				>
+					<input
+						id="default-from"
+						class="input input-sm w-72 max-sm:w-full"
+						bind:value={defaultFrom}
+						placeholder="Poster <poster@example.com>"
+						type="text"
+					/>
+				</FieldRow>
+				<FieldRow label={$t('settings.posting.headers.add_nxg_header')} id="addNgxHeader">
+					{#snippet note()}
+						<a href="https://github.com/javi11/nxg" class="settings-row-desc link" target="_blank" rel="noreferrer">github.com/javi11/nxg</a>
+					{/snippet}
+					<input id="addNgxHeader" name="addNgxHeader" type="checkbox" class="toggle toggle-primary" bind:checked={addNgxHeader} />
+				</FieldRow>
+				<FieldRow
+					label={$t('settings.posting.headers.custom_headers.title')}
+					description={$t('settings.posting.headers.custom_headers.description')}
+				>
+					<button type="button" class="btn btn-sm" onclick={addCustomHeader}>
+						<Plus class="w-4 h-4" />
+						{$t('settings.posting.headers.custom_headers.add_header')}
+					</button>
+				</FieldRow>
+				{#if customHeaders.length > 0}
+					<div class="settings-row flex-col items-stretch gap-2 border-t border-(--ui-hairline)">
+						{#each customHeaders as _header, index (index)}
+							<div class="flex items-center gap-2 max-sm:flex-col max-sm:items-stretch" in:fly={{ y: 6, speed: "fast" }}>
+								<input
+									class="input input-sm flex-1"
+									bind:value={customHeaders[index].name}
+									placeholder={$t('settings.posting.headers.custom_headers.header_name_placeholder')}
+								/>
+								<input
+									class="input input-sm flex-1"
+									bind:value={customHeaders[index].value}
+									placeholder={$t('settings.posting.headers.custom_headers.header_value_placeholder')}
+								/>
+								<button type="button" class="btn btn-sm btn-ghost text-error" onclick={() => removeCustomHeader(index)}>
+									<Trash2 class="w-4 h-4" />
+									{$t('settings.posting.headers.custom_headers.remove')}
+								</button>
+							</div>
+						{/each}
+					</div>
+				{/if}
+			</SettingsSection>
+		</div>
+	{/if}
 
-        <!-- Upload Buffer Memory Limit -->
-        <SizeInput
-          bind:value={uploadBufferMemoryLimit}
-          label={$t('settings.posting.upload_buffer_memory_limit')}
-          description={$t('settings.posting.upload_buffer_memory_limit_description')}
-          minValue={0}
-          id="upload-buffer-memory-limit"
-        />
-
-
-        <!-- Obfuscation Policy -->
-        <div>
-          <label for="obfuscation" class="label">
-            <span class="label-text">{$t('settings.posting.obfuscation_policy')}</span>
-          </label>
-          <select
-            id="obfuscation"
-            class="select select-bordered w-full"
-            bind:value={obfuscationPolicy}
-          >
-            {#each obfuscationOptions as option}
-              <option value={option.value}>{option.name}</option>
-            {/each}
-          </select>
-          <div class="mt-2 p-3 bg-base-200 rounded text-xs">
-            {#if obfuscationPolicy === "none"}
-              <p class="text-base-content/70">
-                {@html $t('settings.posting.obfuscation.none_description')}
-              </p>
-            {:else if obfuscationPolicy === "partial"}
-              <p class="text-base-content/70">
-                {@html $t('settings.posting.obfuscation.partial_description')}
-              </p>
-            {:else if obfuscationPolicy === "full"}
-              <p class="text-base-content/70">
-                {@html $t('settings.posting.obfuscation.full_description')}
-              </p>
-            {/if}
-          </div>
-        </div>
-
-        <!-- PAR2 Obfuscation Policy -->
-        <div>
-          <label for="par2-obfuscation" class="label">
-            <span class="label-text">{$t('settings.posting.par2_obfuscation_policy')}</span>
-          </label>
-          <select
-            id="par2-obfuscation"
-            class="select select-bordered w-full"
-            bind:value={par2ObfuscationPolicy}
-          >
-            {#each obfuscationOptions as option}
-              <option value={option.value}>{option.name}</option>
-            {/each}
-          </select>
-          <div class="mt-2 p-3 bg-base-200 rounded text-xs">
-            {#if par2ObfuscationPolicy === "none"}
-              <p class="text-base-content/70">
-                {@html $t('settings.posting.par2_obfuscation.none_description')}
-              </p>
-            {:else if par2ObfuscationPolicy === "partial"}
-              <p class="text-base-content/70">
-                {@html $t('settings.posting.par2_obfuscation.partial_description')}
-              </p>
-            {:else if par2ObfuscationPolicy === "full"}
-              <p class="text-base-content/70">
-                {@html $t('settings.posting.par2_obfuscation.full_description')}
-              </p>
-            {/if}
-          </div>
-        </div>
-
-        <!-- Message ID Format -->
-        <div>
-          <label for="message-id-format" class="label">
-            <span class="label-text">{$t('settings.posting.message_id_format')}</span>
-          </label>
-          <select
-            id="message-id-format"
-            class="select select-bordered w-full"
-            bind:value={messageIdFormat}
-          >
-            {#each messageIdOptions as option}
-              <option value={option.value}>{option.name}</option>
-            {/each}
-          </select>
-          <p class="text-sm text-base-content/70 mt-1">
-            {$t('settings.posting.message_id_format_description')}
-          </p>
-        </div>
-
-        <!-- Group Policy -->
-        <div>
-          <label for="group-policy" class="label">
-            <span class="label-text">{$t('settings.posting.group_policy')}</span>
-          </label>
-          <select
-            id="group-policy"
-            class="select select-bordered w-full"
-            bind:value={groupPolicy}
-          >
-            {#each groupPolicyOptions as option}
-              <option value={option.value}>{option.name}</option>
-            {/each}
-          </select>
-          <p class="text-sm text-base-content/70 mt-1">
-            {$t('settings.posting.group_policy_description')}
-          </p>
-        </div>
-      {/if}
-    </div>
-
-    <!-- PAR2 Wait Option -->
-    <div class="space-y-4">
-      <div class="flex items-center gap-3">
-        <input 
-          name="waitforpar2" 
-          type="checkbox" 
-          class="checkbox checkbox-primary" 
-          bind:checked={waitForPar2} 
-        />
-        <label for="waitforpar2" class="text-sm font-medium text-base-content">
-          {$t('settings.posting.wait_for_par2')}
-        </label>
-      </div>
-      <p class="text-sm text-base-content/70 ml-6">
-        {$t('settings.posting.wait_for_par2_description')}
-      </p>
-    </div>
-
-    <!-- Advanced Sections (Headers & Custom Headers) -->
-    {#if $advancedMode}
-      <!-- Post Headers Section -->
-      <div class="space-y-4 pt-2 border-t border-base-300">
-        <h3 class="text-md font-medium text-base-content">
-          {$t('settings.posting.headers.title')}
-        </h3>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <!-- Default From -->
-          <div>
-            <label for="default-from" class="label mb-2">
-              <span class="label-text">{$t('settings.posting.headers.default_from')}</span>
-            </label>
-            <input
-              id="default-from"
-              class="input input-bordered w-full"
-              bind:value={defaultFrom}
-              placeholder="Poster <poster@example.com>"
-              type="text"
-            />
-            <p class="text-sm text-base-content/70 mt-1">
-              {$t('settings.posting.headers.default_from_description')}
-            </p>
-          </div>
-
-          <!-- NXG Header Toggle -->
-          <div class="flex items-center gap-3">
-            <input 
-              name="addNgxHeader" 
-              type="checkbox" 
-              class="checkbox checkbox-primary" 
-              bind:checked={addNgxHeader} 
-            />
-            <label for="addNgxHeader" class="label-text text-sm font-medium">
-              {$t('settings.posting.headers.add_nxg_header')} <a href="https://github.com/javi11/nxg" class="text-secondary">?</a>
-            </label>
-          </div>
-        </div>
-
-        <!-- Custom Headers -->
-        <div class="space-y-4">
-          <div class="flex items-center justify-between">
-            <div>
-              <h4 class="text-sm font-medium text-base-content">
-                {$t('settings.posting.headers.custom_headers.title')}
-              </h4>
-              <p class="text-sm text-base-content/70">
-                {$t('settings.posting.headers.custom_headers.description')}
-              </p>
-            </div>
-            <button
-              type="button"
-              class="btn btn-sm btn-primary flex items-center gap-2"
-              onclick={addCustomHeader}
-            >
-              <Plus class="w-4 h-4" />
-              {$t('settings.posting.headers.custom_headers.add_header')}
-            </button>
-          </div>
-
-          {#if customHeaders.length > 0}
-            <div class="space-y-3">
-              {#each customHeaders as header, index (index)}
-                <div class="flex items-center gap-3">
-                  <div class="flex-1">
-                    <input 
-                      class="input input-bordered w-full" 
-                      bind:value={customHeaders[index].name} 
-                      placeholder={$t('settings.posting.headers.custom_headers.header_name_placeholder')} 
-                    />
-                  </div>
-                  <div class="flex-1">
-                    <input 
-                      class="input input-bordered w-full" 
-                      bind:value={customHeaders[index].value} 
-                      placeholder={$t('settings.posting.headers.custom_headers.header_value_placeholder')} 
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    class="btn btn-sm btn-error btn-outline flex items-center gap-1"
-                    onclick={() => removeCustomHeader(index)}
-                  >
-                    <Trash2 class="w-3 h-3" />
-                    {$t('settings.posting.headers.custom_headers.remove')}
-                  </button>
-                </div>
-              {/each}
-            </div>
-          {/if}
-        </div>
-      </div>
-    {/if}
-
-    <!-- Newsgroups Section -->
-    <div class="space-y-4 pt-2 border-t border-base-300">
-      <div class="flex items-center justify-between">
-        <div>
-          <h3 class="text-md font-medium text-base-content">
-            {$t('settings.posting.newsgroups.title')}
-          </h3>
-          <p class="text-sm text-base-content/70">
-            {$t('settings.posting.newsgroups.description')}
-          </p>
-        </div>
-        <button
-          type="button"
-          class="btn btn-sm btn-primary flex items-center gap-2"
-          onclick={addGroup}
-        >
-          <Plus class="w-4 h-4" />
-          {$t('settings.posting.newsgroups.add_group')}
-        </button>
-      </div>
-
-      <div class="space-y-3">
-        {#each groups as group, index (index)}
-          <div class="flex items-center gap-3">
-            <!-- Enable/Disable Toggle for Individual Newsgroup -->
-            <div class="form-control">
-              <label class="label cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  class="toggle toggle-sm toggle-primary" 
-                  bind:checked={groups[index].enabled}
-                />
-              </label>
-            </div>
-            
-            <!-- Newsgroup Name Input -->
-            <div class="flex-1">
-              <input
-                class="input input-bordered w-full"
-                class:opacity-50={!groups[index].enabled}
-                bind:value={groups[index].name}
-                placeholder={$t('settings.posting.newsgroups.placeholder')}
-                disabled={!groups[index].enabled}
-                required
-              />
-            </div>
-            
-            <!-- Remove Button -->
-            {#if groups.length > 1}
-              <button
-                type="button"
-                class="btn btn-sm btn-error btn-outline flex items-center gap-1"
-                onclick={() => removeGroup(index)}
-              >
-                <Trash2 class="w-3 h-3" />
-                {$t('settings.posting.newsgroups.remove')}
-              </button>
-            {/if}
-          </div>
-        {/each}
-      </div>
-
-      <div class="alert alert-info">
-        <p class="text-sm">
-          {@html $t('settings.posting.newsgroups.info')}
-        </p>
-      </div>
-    </div>
-
-  </div>
+	<SettingsSection title={$t('settings.posting.newsgroups.title')} description={$t('settings.posting.newsgroups.description')} footer={$t('settings.posting.newsgroups.info')}>
+		{#each groups as _group, index (index)}
+			<div class="settings-row" in:fly={{ y: 6, speed: "fast" }}>
+				<input
+					type="checkbox"
+					class="toggle toggle-sm toggle-primary"
+					aria-label={$t('settings.posting.newsgroups.title')}
+					bind:checked={groups[index].enabled}
+				/>
+				<input
+					class="input input-sm flex-1 transition-opacity"
+					class:opacity-50={!groups[index].enabled}
+					bind:value={groups[index].name}
+					placeholder={$t('settings.posting.newsgroups.placeholder')}
+					disabled={!groups[index].enabled}
+					required
+				/>
+				{#if groups.length > 1}
+					<button type="button" class="btn btn-sm btn-ghost text-error" onclick={() => removeGroup(index)}>
+						<Trash2 class="w-4 h-4" />
+						{$t('settings.posting.newsgroups.remove')}
+					</button>
+				{/if}
+			</div>
+		{/each}
+		<div class="settings-row justify-start">
+			<button type="button" class="btn btn-sm" onclick={addGroup}>
+				<Plus class="w-4 h-4" />
+				{$t('settings.posting.newsgroups.add_group')}
+			</button>
+		</div>
+	</SettingsSection>
 </div>

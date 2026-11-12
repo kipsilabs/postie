@@ -1,5 +1,9 @@
 {
 	"settings": {
+		"config_status": {
+			"applied": "Aplicada",
+			"editing_pending": "Edición pendiente"
+		},
 		"duplicate_lookup": {
 			"title": "Búsqueda de duplicados",
 			"description": "Reutiliza un NZB antes de publicar archivos individuales mediante el nombre original exacto, tamaño y muestras del contenido. Las carpetas omiten la búsqueda. Los errores detienen la publicación; los originales reutilizados se conservan.",
@@ -24,6 +28,7 @@
 			"advanced_mode": "Modo Avanzado",
 			"advanced_mode_description": "Mostrar opciones de configuración avanzadas para ajuste fino",
 			"unsaved_changes": "Cambios sin guardar",
+			"discard_changes": "Descartar",
 			"status": {
 				"configuration_error": "Error de Configuración",
 				"configuration_required": "Configuración Requerida",
@@ -107,6 +112,7 @@
 			"saved_success_description": "¡Su configuración de nomenclatura de archivos se ha guardado exitosamente!"
 		},
 		"nzb_compression": {
+			"save_button": "Guardar ajustes de compresión NZB",
 			"title": "Configuración de Compresión NZB",
 			"enable": "Habilitar Compresión NZB",
 			"enable_description": "Comprimir archivos NZB generados para reducir el tamaño del archivo",
