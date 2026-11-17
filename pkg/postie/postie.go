@@ -53,6 +53,10 @@ type Postie struct {
 	// after successful verification (persisted into the transfer's cleanup
 	// policy at completion). Set by the caller before Post.
 	deleteOriginal bool
+	// sourcePaths holds every source file of the current Post call. In
+	// individual-file mode a reused PAR2 file that is itself a source gets its
+	// own NZB, so it must not also be attached to a sibling's NZB.
+	sourcePaths []string
 }
 
 // par2Reserver is the subset of Runtime used to protect in-flight PAR2 files.
@@ -314,6 +318,10 @@ func (p *Postie) Post(ctx context.Context, files []fileinfo.FileInfo, rootDir st
 	}
 
 	p.reusedSources = make(map[string]bool)
+	p.sourcePaths = make([]string, len(files))
+	for i, f := range files {
+		p.sourcePaths[i] = f.Path
+	}
 
 	// On a successful upload, mark the transfer's files uploaded so the durable
 	// verification service picks them up and the queue slot can be released.
@@ -454,7 +462,10 @@ func (p *Postie) postInParallel(
 		}
 		p.trackGenerated(par2Res)
 
-		par2Paths := par2Res.All()
+		par2Paths := additionalPar2Paths(par2Res.All(), p.sourcePaths)
+		if len(par2Paths) == 0 {
+			return nil
+		}
 		if err := p.poster.Post(ctx, par2Paths, rootDir, nzbGen); err != nil {
 			if !errors.Is(err, context.Canceled) {
 				slog.ErrorContext(ctx, fmt.Sprintf("Error during upload of par2 files: %s. Upload will continue without par2.", par2Paths), "error", err)
@@ -568,7 +579,7 @@ func (p *Postie) post(
 		}
 		p.trackGenerated(par2Res)
 
-		filesPath = append(filesPath, par2Res.All()...)
+		filesPath = append(filesPath, additionalPar2Paths(par2Res.All(), p.sourcePaths)...)
 	}
 
 	var deferredErr *poster.DeferredCheckError
@@ -896,6 +907,10 @@ func runPostUploadScript(ctx context.Context, cfg config.PostUploadScriptConfig,
 		cmd = exec.CommandContext(timeoutCtx, "sh", "-c", command)
 	}
 	cmd.Dir = filepath.Dir(nzbPath)
+	// After the timeout kills the shell, stop waiting on output pipes that a
+	// leftover child process still holds open; otherwise CombinedOutput (and the
+	// worker slot) blocks forever.
+	cmd.WaitDelay = 5 * time.Second
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {

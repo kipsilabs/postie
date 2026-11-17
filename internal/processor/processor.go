@@ -34,7 +34,7 @@ type Processor struct {
 	cfg          config.QueueConfig
 	poolManager  *pool.Manager
 	outputFolder string
-	isRunning    bool
+	slots        *slotRunner
 	runningMux   sync.Mutex
 	// Track running jobs and their contexts for cancellation
 	runningJobs               map[string]*RunningJob
@@ -119,6 +119,7 @@ func New(opts ProcessorOptions) *Processor {
 	providerCtx, providerCancel := context.WithCancel(context.Background())
 
 	processor := &Processor{
+		slots:                     newSlotRunner(),
 		queue:                     opts.Queue,
 		config:                    opts.Config,
 		cfg:                       opts.QueueConfig,
@@ -205,6 +206,11 @@ func (p *Processor) Start(ctx context.Context) error {
 			if err := p.processQueueItems(ctx); err != nil {
 				slog.ErrorContext(ctx, "Error processing queue", "error", err)
 			}
+		case <-p.slots.wake:
+			// An item finished: refill its slot now instead of at the next tick.
+			if err := p.processQueueItems(ctx); err != nil {
+				slog.ErrorContext(ctx, "Error processing queue", "error", err)
+			}
 		case <-watchdogTicker.C:
 			var ms runtime.MemStats
 			runtime.ReadMemStats(&ms)
@@ -245,37 +251,17 @@ func (p *Processor) processQueueItems(ctx context.Context) error {
 		return nil // Skip processing when callback indicates we should wait
 	}
 
-	if p.isRunning {
-		return nil
-	}
-
-	p.isRunning = true
-	defer func() {
-		p.isRunning = false
-	}()
-
-	// Process items with configurable concurrency
-	semaphore := make(chan struct{}, p.cfg.MaxConcurrentUploads)
-	var wg sync.WaitGroup
-
-	// Process multiple items concurrently
-	for range p.cfg.MaxConcurrentUploads {
-		wg.Add(1)
-		semaphore <- struct{}{} // Acquire
-
-		go func() {
-			defer wg.Done()
-			defer func() { <-semaphore }() // Release
-
-			if err := p.processNextItem(ctx); err != nil {
-				if !errors.Is(err, context.Canceled) {
-					slog.ErrorContext(ctx, "Error processing item", "error", err)
-				}
+	// Refill free slots. A slot finishing does not wait for the others, so one
+	// slow item cannot idle the remaining workers; guards above still run once
+	// per dispatch, so pause, auto-block and pending-config draining behave as
+	// before.
+	p.slots.fill(p.cfg.MaxConcurrentUploads, func() {
+		if err := p.processNextItem(ctx); err != nil {
+			if !errors.Is(err, context.Canceled) {
+				slog.ErrorContext(ctx, "Error processing item", "error", err)
 			}
-		}()
-	}
-
-	wg.Wait()
+		}
+	})
 	return nil
 }
 
@@ -329,6 +315,9 @@ func (p *Processor) processNextItem(ctx context.Context) error {
 	// IMMEDIATELY reserve the path to prevent duplicates from watcher
 	// This closes the race condition gap between ReceiveFile() and processFile()
 	p.reservePath(job.Path)
+	// Only a real item wakes the dispatcher; an empty receive must not, or an
+	// idle queue would spin.
+	defer p.slots.signal()
 
 	slog.Info("Processing file", "msg", msg.ID, "path", job.Path, "priority", job.Priority)
 
