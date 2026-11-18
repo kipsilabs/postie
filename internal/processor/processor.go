@@ -632,9 +632,9 @@ func (p *Processor) processFile(ctx context.Context, msg *goqite.Message, job *q
 				return actualNzbPath, jobPostie, nil
 			}
 		}
-		for _, fileInfo := range filesToProcess {
-			if err := os.Remove(fileInfo.Path); err != nil {
-				slog.WarnContext(ctx, "Could not delete original file", "path", fileInfo.Path, "error", err)
+		for _, path := range originalsToDelete(filesToProcess, jobPostie.ReusedPar2Files()) {
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				slog.WarnContext(ctx, "Could not delete original file", "path", path, "error", err)
 			}
 		}
 	}
@@ -1159,4 +1159,32 @@ func getFileName(path string) string {
 		}
 	}
 	return path
+}
+
+// originalsToDelete returns the job's source files plus the pre-existing PAR2
+// files it posted from those sources' own directories. The watcher no longer
+// queues such PAR2 files separately (issue #184), so leaving them behind would
+// make the next scan post them again as orphans. PAR2 files reused from
+// elsewhere (the work dir, the output dir) are not originals and are kept.
+func originalsToDelete(sources []fileinfo.FileInfo, reusedPar2 []string) []string {
+	out := make([]string, 0, len(sources)+len(reusedPar2))
+	seen := make(map[string]bool, len(sources)+len(reusedPar2))
+	dirs := make(map[string]bool, len(sources))
+	for _, f := range sources {
+		key := filepath.Clean(f.Path)
+		dirs[filepath.Dir(key)] = true
+		if !seen[key] {
+			seen[key] = true
+			out = append(out, f.Path)
+		}
+	}
+	for _, path := range reusedPar2 {
+		key := filepath.Clean(path)
+		if seen[key] || !dirs[filepath.Dir(key)] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, path)
+	}
+	return out
 }

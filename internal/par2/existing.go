@@ -241,3 +241,27 @@ func setInputNames(inputs []fileinfo.FileInfo, folderDir string) []par2go.InputF
 	}
 	return out
 }
+
+// setMemberRe splits a per-file PAR2 set member name into the source file name
+// and the PAR2 suffix: "movie.rar.par2" and "movie.rar.vol00+01.par2" both
+// belong to "movie.rar". The suffix forms match par2SetOnDisk exactly.
+var setMemberRe = regexp.MustCompile(`^(.+?)(\.vol\d+\+\d+)?\.par2$`)
+
+// SetSourceFor returns the path of the source file whose per-file PAR2 set
+// par2Path would belong to ("<dir>/<base>" for "<dir>/<base>.par2" or
+// "<dir>/<base>.volN+M.par2"). ok is false when par2Path is not a PAR2 name.
+func SetSourceFor(par2Path string) (source string, ok bool) {
+	m := setMemberRe.FindStringSubmatch(filepath.Base(par2Path))
+	if m == nil {
+		return "", false
+	}
+	return filepath.Join(filepath.Dir(par2Path), m[1]), true
+}
+
+// ReusableSetFor returns the PAR2 set next to sourcePath that one-NZB-per-file
+// posting reuses for it instead of generating new parity. It applies the same
+// check as CreateInDirectory, so a caller deciding not to post these files
+// separately agrees with the job that will attach them to sourcePath's NZB.
+func ReusableSetFor(ctx context.Context, sourcePath string) ([]string, bool) {
+	return checkExistingPar2FilesInPath(ctx, fileinfo.FileInfo{Path: sourcePath}, filepath.Dir(sourcePath))
+}
