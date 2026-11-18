@@ -106,3 +106,82 @@ func TestIntegration_IndividualModeSourcePar2PostedOnce(t *testing.T) {
 		})
 	}
 }
+
+// With SingleNzbPerFolder off the watcher queues only the source file (its PAR2
+// files are skipped, issue #184), so the source's own NZB must carry every
+// existing PAR2 file exactly once.
+func TestIntegration_IndividualModeSourceAloneCarriesExistingPar2(t *testing.T) {
+	for _, wait := range []bool{true, false} {
+		t.Run(fmt.Sprintf("wait=%t", wait), func(t *testing.T) {
+			ctx := context.Background()
+			root := t.TempDir()
+			folder := filepath.Join(root, "Release")
+			if err := os.MkdirAll(folder, 0755); err != nil {
+				t.Fatal(err)
+			}
+			file := writeBenchFile(t, folder, "payload.rar", 1)
+			file.RelativePath = "Release/payload.rar"
+			srv := startSinkNNTPServer(t, false)
+			cfg := benchConfig(srv.port(), 2, true, wait, t.TempDir())
+			cfg.Servers[0].SSL = false
+			cfg.Servers[0].InsecureSSL = false
+			cfg.Par2.MaintainPar2Files = boolPtr(true)
+			cfg.Par2.SkipIfPar2Exists = boolPtr(true)
+			pm, err := pool.New(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = pm.Close() })
+
+			post := func() {
+				t.Helper()
+				p, err := New(ctx, cfg, pm, noopProgress{}, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer p.Close()
+				if _, err := p.Post(ctx, []fileinfo.FileInfo{file}, root, root, false); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			post() // generates the PAR2 set next to the source
+			par2s, err := filepath.Glob(filepath.Join(folder, "*.par2"))
+			if err != nil || len(par2s) < 2 {
+				t.Fatalf("expected generated PAR2 files, got %v (err %v)", par2s, err)
+			}
+			nzbs, _ := filepath.Glob(filepath.Join(folder, "*.nzb"))
+			for _, n := range nzbs {
+				if err := os.Remove(n); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			post() // reuses the set
+			nzbs, err = filepath.Glob(filepath.Join(folder, "*.nzb"))
+			if err != nil || len(nzbs) != 1 {
+				t.Fatalf("got NZBs %v (err %v), want exactly one", nzbs, err)
+			}
+			data, err := os.ReadFile(nzbs[0])
+			if err != nil {
+				t.Fatal(err)
+			}
+			parsed, err := nzbparser.ParseString(string(data))
+			if err != nil {
+				t.Fatal(err)
+			}
+			seen := map[string]int{}
+			for _, f := range parsed.Files {
+				seen[f.Filename]++
+			}
+			if len(seen) != 1+len(par2s) {
+				t.Errorf("NZB references %d files, want source + %d PAR2: %v", len(seen), len(par2s), seen)
+			}
+			for name, c := range seen {
+				if c != 1 {
+					t.Errorf("%q appears %d times, want 1", name, c)
+				}
+			}
+		})
+	}
+}

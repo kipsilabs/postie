@@ -49,6 +49,19 @@ type Watcher struct {
 	cacheMutex    sync.RWMutex
 	nextRunTime   time.Time
 	nextRunMutex  sync.RWMutex
+	// par2Config returns the current PAR2 settings, or nil when unknown. It is
+	// read at scan time so a config change applies without a restart.
+	par2Config func() *config.Par2Config
+}
+
+// Option configures optional Watcher behaviour.
+type Option func(*Watcher)
+
+// WithPar2Config lets the watcher see the PAR2 settings. In one-NZB-per-file
+// mode a source file's job posts its existing PAR2 set inside its own NZB, so
+// the watcher must not queue those PAR2 files as separate jobs (issue #184).
+func WithPar2Config(get func() *config.Par2Config) Option {
+	return func(w *Watcher) { w.par2Config = get }
 }
 
 type fileCacheEntry struct {
@@ -61,14 +74,19 @@ func New(
 	q queue.QueueInterface,
 	processor ProcessorInterface,
 	watchFolder string,
+	opts ...Option,
 ) *Watcher {
-	return &Watcher{
+	w := &Watcher{
 		cfg:           cfg,
 		queue:         q,
 		processor:     processor,
 		watchFolder:   watchFolder,
 		fileSizeCache: make(map[string]fileCacheEntry),
 	}
+	for _, opt := range opts {
+		opt(w)
+	}
+	return w
 }
 
 // isSymlink checks if the given path is a symbolic link using Lstat.
@@ -156,6 +174,7 @@ func (w *Watcher) scanDirectory(ctx context.Context) error {
 	}
 
 	// Process all files in directory (traditional mode - one NZB per file)
+	sets := newSiblingSetCache()
 	return w.walkFiles(ctx, func(path string, info os.FileInfo) error {
 
 		slog.DebugContext(ctx, "Processing file", "path", path, "size", info.Size(), "mod_time", info.ModTime())
@@ -164,6 +183,10 @@ func (w *Watcher) scanDirectory(ctx context.Context) error {
 		if !w.shouldProcessFile(path, info) {
 			slog.DebugContext(ctx, "File does not meet criteria, skipping", "path", path)
 
+			return nil
+		}
+
+		if w.postedWithSibling(ctx, path, sets) {
 			return nil
 		}
 
@@ -318,7 +341,12 @@ func (w *Watcher) scanDirectoryGroupByFolder(ctx context.Context) error {
 	}
 
 	// Process files that are directly in the watch folder (not in any subdirectory)
+	sets := newSiblingSetCache()
 	for path, size := range individualFiles {
+		if w.postedWithSibling(ctx, path, sets) {
+			continue
+		}
+
 		// Check if file is currently being processed
 		if w.processor != nil && w.processor.IsPathBeingProcessed(path) {
 			slog.InfoContext(ctx, "File is currently being processed, ignoring", "path", path)
@@ -394,6 +422,21 @@ func (w *Watcher) walkFiles(ctx context.Context, fn func(path string, info os.Fi
 }
 
 func (w *Watcher) shouldProcessFile(path string, info os.FileInfo) bool {
+	if !w.passesFilters(path, info) {
+		return false
+	}
+
+	// Check if file is stable (not being written to)
+	if !w.isFileStable(path, info) {
+		return false
+	}
+
+	return true
+}
+
+// passesFilters applies the size and ignore-pattern rules, without the
+// stability check (which records state in the size cache).
+func (w *Watcher) passesFilters(path string, info os.FileInfo) bool {
 	// Check minimum file size
 	if info.Size() < int64(w.cfg.MinFileSize) {
 		return false
@@ -409,11 +452,6 @@ func (w *Watcher) shouldProcessFile(path string, info os.FileInfo) bool {
 		if matched {
 			return false
 		}
-	}
-
-	// Check if file is stable (not being written to)
-	if !w.isFileStable(path, info) {
-		return false
 	}
 
 	return true

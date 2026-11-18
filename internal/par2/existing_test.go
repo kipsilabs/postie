@@ -231,3 +231,23 @@ func TestWorkDir(t *testing.T) {
 		t.Errorf("WorkDir = %q, want %q", got, want)
 	}
 }
+
+func TestSetSourceFor(t *testing.T) {
+	tests := []struct {
+		in, want string
+		ok       bool
+	}{
+		{"/d/movie.rar.par2", "/d/movie.rar", true},
+		{"/d/movie.rar.vol00+01.par2", "/d/movie.rar", true},
+		{"/d/movie.rar.vol127+64.par2", "/d/movie.rar", true},
+		{"/d/movie.par2", "/d/movie", true},
+		{"/d/movie.rar", "", false},
+		{"/d/.par2", "", false},
+	}
+	for _, tt := range tests {
+		got, ok := SetSourceFor(filepath.FromSlash(tt.in))
+		if ok != tt.ok || got != filepath.FromSlash(tt.want) && tt.ok {
+			t.Errorf("SetSourceFor(%q) = %q, %v; want %q, %v", tt.in, got, ok, tt.want, tt.ok)
+		}
+	}
+}

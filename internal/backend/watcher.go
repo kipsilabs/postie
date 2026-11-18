@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/kipsilabs/postie/internal/config"
 	"github.com/kipsilabs/postie/internal/watcher"
 )
 
@@ -65,7 +66,13 @@ func (a *App) initializeWatchers() error {
 			continue
 		}
 
-		w := watcher.New(watcherCfg, a.queue, a.processor, watchDir)
+		w := watcher.New(watcherCfg, a.queue, a.processor, watchDir,
+			watcher.WithPar2Config(func() *config.Par2Config {
+				if a.config == nil {
+					return nil
+				}
+				return &a.config.Par2
+			}))
 		a.watchers = append(a.watchers, w)
 
 		// Start watcher in its own goroutine using shared parent context

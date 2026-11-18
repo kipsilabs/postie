@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -49,6 +50,9 @@ type Postie struct {
 	// reservedPar2 accumulates the PAR2 files reserved for this job, for release.
 	reservedMu   sync.Mutex
 	reservedPar2 []string
+	// reusedPar2 lists the pre-existing PAR2 files this job posted. They are
+	// originals, so they share the source file's delete-original fate.
+	reusedPar2 []string
 	// deleteOriginal records whether this job's originals should be deleted
 	// after successful verification (persisted into the transfer's cleanup
 	// policy at completion). Set by the caller before Post.
@@ -213,7 +217,15 @@ func (p *Postie) trackGenerated(res par2.Result) {
 	}
 	p.reservedMu.Lock()
 	p.reservedPar2 = append(p.reservedPar2, all...)
+	p.reusedPar2 = append(p.reusedPar2, res.Reused...)
 	p.reservedMu.Unlock()
+}
+
+// ReusedPar2Files returns the pre-existing PAR2 files posted by the last Post.
+func (p *Postie) ReusedPar2Files() []string {
+	p.reservedMu.Lock()
+	defer p.reservedMu.Unlock()
+	return slices.Clone(p.reusedPar2)
 }
 
 // completeTransferUpload marks the transfer's files uploaded so the durable
