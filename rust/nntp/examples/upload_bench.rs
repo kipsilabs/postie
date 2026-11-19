@@ -2,13 +2,32 @@
 //! `tests/bench/rust-post` prototype) so the real crate can be timed against the Go sink.
 //! usage: upload_bench --file F [--host H] [--port P] [--tls] [--conns N] [--depth D] [--article B]
 
+#[cfg(unix)]
 use std::os::unix::fs::FileExt;
+#[cfg(windows)]
+use std::os::windows::fs::FileExt;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::Instant;
 
 use postie_nntp::Endpoint;
 use postie_nntp::pool::{Client, ProviderConfig};
+
+/// Positional read that works on both Unix and Windows.
+fn read_exact_at(file: &std::fs::File, mut buf: &mut [u8], mut offset: u64) -> std::io::Result<()> {
+    while !buf.is_empty() {
+        #[cfg(unix)]
+        let n = file.read_at(buf, offset)?;
+        #[cfg(windows)]
+        let n = file.seek_read(buf, offset)?;
+        if n == 0 {
+            return Err(std::io::ErrorKind::UnexpectedEof.into());
+        }
+        buf = &mut buf[n..];
+        offset += n as u64;
+    }
+    Ok(())
+}
 
 fn arg<T: std::str::FromStr>(a: &[String], k: &str, d: T) -> T {
     a.iter()
@@ -56,7 +75,7 @@ async fn main() {
                     }
                     let begin = (idx * article) as u64;
                     let len = ((size - begin) as usize).min(article);
-                    file.read_exact_at(&mut raw[..len], begin).expect("read");
+                    read_exact_at(&file, &mut raw[..len], begin).expect("read");
                     let header = format!("From: bench <bench@example.com>\r\nNewsgroups: alt.binaries.test\r\nSubject: [{}/{}] \"{}\" yEnc ({}/{})\r\nMessage-ID: <{:016x}.{}@bench>\r\n", idx + 1, total, name, idx + 1, total, (idx as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15), idx);
                     let wire = postie_yenc::encode_wire(&header, &name, size as i64, idx as i64 + 1, total as i64, begin as i64, len as i64, &raw[..len]).expect("encode");
                     sent.fetch_add(wire.len() as u64, Ordering::Relaxed);
