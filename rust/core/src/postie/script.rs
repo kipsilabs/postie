@@ -207,6 +207,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)] // fixture uses Unix paths or sh
     #[tokio::test]
     async fn disabled_or_empty_is_a_no_op_and_success_marks_completed() {
         let q = Rec::default();
@@ -266,6 +267,7 @@ mod tests {
         assert!(t.elapsed() < Duration::from_secs(5));
     }
 
+    #[cfg(unix)] // fixture uses Unix paths or sh
     #[tokio::test]
     async fn the_command_runs_in_the_nzb_directory_with_expanded_paths() {
         let d = std::env::temp_dir().join(format!(

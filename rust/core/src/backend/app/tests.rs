@@ -91,8 +91,8 @@ async fn a_first_start_creates_the_default_config_and_starts_nothing() {
     );
     assert!(a.get_running_jobs().is_empty() && a.get_watcher_status().is_empty());
     assert!(
-        a.get_watch_directory().ends_with("data/watch")
-            && a.get_output_directory().ends_with("data/output")
+        std::path::Path::new(&a.get_watch_directory()).ends_with("data/watch")
+            && std::path::Path::new(&a.get_output_directory()).ends_with("data/output")
     );
     let json = serde_json::to_value(&s).unwrap();
     assert!(

@@ -388,7 +388,7 @@ impl App {
                 "relative_path must be an absolute path: {relative_path:?}"
             ));
         }
-        if clean_root == clean_file || !clean_file.starts_with(&format!("{clean_root}/")) {
+        if !crate::postie::paths::is_strictly_inside(&clean_root, &clean_file) {
             return Err(format!(
                 "relative_path {relative_path:?} is not a parent directory of file {file:?}"
             ));
@@ -632,30 +632,7 @@ impl App {
     }
 }
 
-/// Go's `filepath.Clean` on a Unix path string.
-pub fn clean_path(p: &str) -> String {
-    let abs = p.starts_with('/');
-    let mut out: Vec<&str> = Vec::new();
-    for part in p.split('/') {
-        match part {
-            "" | "." => {}
-            ".." => {
-                if out.last().is_some_and(|l| *l != "..") {
-                    out.pop();
-                } else if !abs {
-                    out.push("..");
-                }
-            }
-            other => out.push(other),
-        }
-    }
-    let joined = out.join("/");
-    match (abs, joined.is_empty()) {
-        (true, _) => format!("/{joined}"),
-        (false, true) => ".".into(),
-        (false, false) => joined,
-    }
-}
+pub use crate::postie::paths::clean_path;
 
 #[cfg(test)]
 mod tests {

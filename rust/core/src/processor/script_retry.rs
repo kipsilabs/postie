@@ -347,6 +347,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)] // fixture uses Unix paths or sh
     #[tokio::test]
     async fn a_failing_run_schedules_a_retry_then_fails_permanently() {
         let dir = tmp();

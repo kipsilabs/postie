@@ -172,7 +172,11 @@ async fn maintain_par2_writes_them_to_the_output_dir_and_keeps_them() {
         )
         .await
         .unwrap();
-    assert!(o.nzb_path.contains("/sub/a.bin.nzb"), "{}", o.nzb_path);
+    assert!(
+        o.nzb_path.replace('\\', "/").contains("/sub/a.bin.nzb"),
+        "{}",
+        o.nzb_path
+    );
     assert!(out.join("sub/a.bin.par2").exists());
 }
 
@@ -235,7 +239,11 @@ async fn a_folder_is_one_nzb_with_a_single_par2_set_and_relative_subjects() {
         )
         .await
         .unwrap();
-    assert!(o.nzb_path.ends_with("Show/Show.nzb"), "{}", o.nzb_path);
+    assert!(
+        o.nzb_path.replace('\\', "/").ends_with("Show/Show.nzb"),
+        "{}",
+        o.nzb_path
+    );
     let nzb = nzb_text(&o.nzb_path);
     assert!(
         nzb.contains("Show.par2") && nzb.contains("extras/bonus.bin"),

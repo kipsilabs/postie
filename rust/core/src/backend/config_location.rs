@@ -116,6 +116,7 @@ mod tests {
         p
     }
 
+    #[cfg(unix)] // fixture uses Unix paths or sh
     #[test]
     fn resolves_default_saved_and_rejects_relative_locations() {
         let d = tmp();

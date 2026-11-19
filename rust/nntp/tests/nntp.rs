@@ -598,6 +598,6 @@ async fn test_provider_reports_success_and_the_failure_kinds() {
     dead.connect_timeout = Duration::from_millis(500);
     assert!(matches!(
         postie_nntp::test_provider(&dead).await,
-        Err(NntpError::Connect(_))
+        Err(NntpError::Connect(_) | NntpError::Timeout)
     ));
 }

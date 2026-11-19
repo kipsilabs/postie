@@ -263,9 +263,9 @@ fn folder_mode_queues_top_level_subfolders_as_jobs_and_loose_files_individually(
         .map(|(p, s, _)| {
             format!(
                 "{}:{s}",
-                p.rsplit_once('/').map_or(p.as_str(), |(h, t)| {
+                p.rsplit_once(['/', '\\']).map_or(p.as_str(), |(h, t)| {
                     if let Some(f) = p.strip_prefix("FOLDER:") {
-                        f.rsplit('/').next().unwrap_or(h)
+                        f.rsplit(['/', '\\']).next().unwrap_or(h)
                     } else {
                         t
                     }

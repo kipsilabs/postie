@@ -561,6 +561,7 @@ mod tests {
         assert_eq!(names, ["extras/bonus.mkv", "ep.mkv", "z.mkv"]);
     }
 
+    #[cfg(unix)] // fixture uses Unix paths or sh
     #[test]
     fn set_source_for_strips_the_par2_suffixes() {
         assert_eq!(
@@ -579,6 +580,7 @@ mod tests {
         assert_eq!(set_source_for("/d/.par2"), None);
     }
 
+    #[cfg(unix)] // fixture uses Unix paths or sh
     #[test]
     fn work_dir_and_result_ordering() {
         let mut cfg = Par2Config::default();

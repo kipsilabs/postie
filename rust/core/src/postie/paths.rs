@@ -1,34 +1,65 @@
 //! Path helpers of `pkg/postie`: Go's `filepath.Rel` semantics plus the folder/relative-path rules.
 
-use std::path::{Component, Path};
+use std::path::Path;
 
 use crate::fileinfo::FileInfo;
 
-fn clean_parts(p: &str) -> Vec<String> {
+fn is_sep(c: char) -> bool {
+    c == '/' || (cfg!(windows) && c == '\\')
+}
+
+/// Splits a Windows drive prefix (`C:`) off; elsewhere the whole path is the rest.
+fn volume(p: &str) -> (String, &str) {
+    let b = p.as_bytes();
+    if cfg!(windows) && b.len() >= 2 && b[1] == b':' && b[0].is_ascii_alphabetic() {
+        return (p[..2].to_ascii_uppercase(), &p[2..]);
+    }
+    (String::new(), p)
+}
+
+fn rooted(rest: &str) -> bool {
+    rest.starts_with(is_sep)
+}
+
+fn clean_parts(rest: &str) -> Vec<String> {
+    let abs = rooted(rest);
     let mut out: Vec<String> = Vec::new();
-    for c in Path::new(p).components() {
-        match c {
-            Component::CurDir | Component::RootDir | Component::Prefix(_) => {}
-            Component::ParentDir => {
+    for part in rest.split(is_sep) {
+        match part {
+            "" | "." => {}
+            ".." => {
                 if out.last().is_some_and(|l| l != "..") {
                     out.pop();
-                } else if !p.starts_with('/') {
+                } else if !abs {
                     out.push("..".into());
                 }
             }
-            Component::Normal(s) => out.push(s.to_string_lossy().into_owned()),
+            other => out.push(other.to_string()),
         }
     }
     out
 }
 
-/// Go's `filepath.Rel(base, target)`: `.` when equal, `../x` for siblings, `None` when one path is
-/// absolute and the other is not or `base` climbs above the common root.
+/// Go's `filepath.Clean`: separators become the platform's, `.`/`..`/empty elements collapse.
+pub fn clean_path(p: &str) -> String {
+    let (vol, rest) = volume(p);
+    let sep = if cfg!(windows) { "\\" } else { "/" };
+    let joined = clean_parts(rest).join(sep);
+    match (rooted(rest), joined.is_empty()) {
+        (true, _) => format!("{vol}{sep}{joined}"),
+        (false, true) => format!("{vol}."),
+        (false, false) => format!("{vol}{joined}"),
+    }
+}
+
+/// Go's `filepath.Rel(base, target)`: `.` when equal, `../x` for siblings, `None` when the volumes
+/// differ, one path is rooted and the other is not, or `base` climbs above the common root.
 pub fn filepath_rel(base: &str, target: &str) -> Option<String> {
-    if Path::new(base).is_absolute() != Path::new(target).is_absolute() {
+    let ((bv, br), (tv, tr)) = (volume(base), volume(target));
+    if !bv.eq_ignore_ascii_case(&tv) || rooted(br) != rooted(tr) {
         return None;
     }
-    let (b, t) = (clean_parts(base), clean_parts(target));
+    let (b, t) = (clean_parts(br), clean_parts(tr));
     let common = b.iter().zip(&t).take_while(|(x, y)| x == y).count();
     if b[common..].iter().any(|s| s == "..") {
         return None;
@@ -40,6 +71,11 @@ pub fn filepath_rel(base: &str, target: &str) -> Option<String> {
     } else {
         parts.join("/")
     })
+}
+
+/// Whether `file` lies strictly inside `root` (both cleaned or not).
+pub fn is_strictly_inside(root: &str, file: &str) -> bool {
+    filepath_rel(root, file).is_some_and(|r| r != "." && r != ".." && !r.starts_with("../"))
 }
 
 /// Directory of `file_path` relative to `root_dir`; empty when equal or not expressible (output then
@@ -78,7 +114,14 @@ pub fn derive_folder_name(root_dir: &str, files: &[FileInfo]) -> String {
 /// `paths` minus anything already in `source_paths` (and duplicates): reused source PAR2 files keep
 /// their relative paths and are uploaded once.
 pub fn additional_par2_paths(paths: &[String], source_paths: &[String]) -> Vec<String> {
-    let key = |p: &str| clean_parts(p).join("/") + if p.starts_with('/') { "#abs" } else { "" };
+    let key = |p: &str| {
+        let (vol, rest) = volume(p);
+        format!(
+            "{vol}{}{}",
+            clean_parts(rest).join("/"),
+            if rooted(rest) { "#abs" } else { "" }
+        )
+    };
     let mut seen: std::collections::HashSet<String> = source_paths.iter().map(|p| key(p)).collect();
     paths
         .iter()
@@ -98,6 +141,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)] // fixture uses Unix paths or sh
     #[test]
     fn rel_matches_go() {
         for (b, t, want) in [
@@ -116,6 +160,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)] // fixture uses Unix paths or sh
     #[test]
     fn relative_path_from_is_empty_for_the_root_itself() {
         assert_eq!(relative_path_from("/root", "/root/f.bin"), "");
@@ -158,5 +203,17 @@ mod tests {
             &["/a/y.par2".into()],
         );
         assert_eq!(got, ["/a/x.par2", "/a/z.par2"]);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_paths_use_volumes_and_backslashes() {
+        assert_eq!(clean_path("C:/a//b/../c"), "C:\\a\\c");
+        assert_eq!(clean_path("c:"), "C:.");
+        assert_eq!(filepath_rel("C:\\a\\b", "c:/a/b/c").as_deref(), Some("c"));
+        assert_eq!(filepath_rel("C:\\a", "D:\\a"), None);
+        assert_eq!(filepath_rel("C:\\a", "b"), None);
+        assert!(is_strictly_inside("C:\\root", "C:\\root\\sub\\f"));
+        assert!(!is_strictly_inside("C:\\root", "C:\\root"));
     }
 }

@@ -114,6 +114,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)] // fixture uses Unix paths or sh
     #[test]
     fn linux_uses_xdg_with_separate_config_and_data() {
         let none = |_: &str| None;
@@ -156,6 +157,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)] // fixture uses Unix paths or sh
     #[test]
     fn macos_windows_and_docker() {
         let none = |_: &str| None;

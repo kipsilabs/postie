@@ -333,7 +333,7 @@ pub fn save_existing(
             f.sync_all()?;
         } else {
             compress_to(&tmp, kind, cfg.level, data, &name)?;
-            File::open(&tmp)?.sync_all()?;
+            fs::OpenOptions::new().write(true).open(&tmp)?.sync_all()?;
         }
         if cancel.is_cancelled() {
             return Err(SaveError::Canceled);
@@ -521,6 +521,7 @@ mod tests {
         assert!(!xml.contains(">b</segment>") && xml.contains(">a</segment>"));
     }
 
+    #[cfg(unix)] // fixture uses Unix paths or sh
     #[test]
     fn path_naming_matches_go() {
         let n = |p: &str, keep| {

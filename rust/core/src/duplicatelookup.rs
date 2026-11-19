@@ -86,6 +86,10 @@ fn stamp(m: &Metadata) -> Stamp {
 
 /// Fingerprint of `path`; checks size/mtime/identity around all sample reads.
 pub fn fingerprint(cancel: &CancellationToken, path: &Path) -> Result<Request, LookupError> {
+    // a directory cannot be opened as a file on Windows, so reject it before opening
+    if !std::fs::metadata(path)?.is_file() {
+        return Err(LookupError::NotRegular);
+    }
     let mut f = File::open(path)?;
     let before = stamp(&f.metadata()?);
     if !f.metadata()?.is_file() {
