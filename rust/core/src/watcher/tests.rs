@@ -248,10 +248,12 @@ fn folder_mode_queues_top_level_subfolders_as_jobs_and_loose_files_individually(
     write(&dir, "ShowB/ep1.bin", 5);
     write(&dir, "ShowC/ep1.bin", 5);
     write(&dir, "ShowD/ep1.bin", 5);
-    q.tracked
-        .lock()
-        .unwrap()
-        .insert(dir.join("ShowB/ep1.bin").to_string_lossy().into_owned());
+    q.tracked.lock().unwrap().insert(
+        dir.join("ShowB")
+            .join("ep1.bin")
+            .to_string_lossy()
+            .into_owned(),
+    );
     busy.0
         .lock()
         .unwrap()

@@ -520,6 +520,7 @@ async fn the_wizard_validates_then_saves_and_clears_first_start() {
     );
 }
 
+#[cfg(unix)] // fixture uses Unix paths
 #[tokio::test]
 async fn api_uploads_validate_paths_and_apply_options() {
     let (a, dir) = ready().await;

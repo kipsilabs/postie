@@ -653,6 +653,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)] // fixture uses Unix paths
     #[test]
     fn clean_path_matches_go() {
         for (i, o) in [
