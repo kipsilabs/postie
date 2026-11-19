@@ -8,7 +8,7 @@ written 2026-11-18, unverified by me beyond agent reports: `research/nntp.md`, `
 
 ## Units (state: open | claimed by <session> <date> | done)
 wave 0 (all done except frontend client swap): frontend/ (keep: Tauri client swap), pkg/fileinfo [trivial struct, ported with poster], config [done 2026-11-19: 59 Go load cases + duration/address oracles in rust/core], internal/apikey [done 2026-11-19, rust/core], article [done 2026-11-19: gate pass, 2269/2269 recorded cases; crates rust/article-rs, rust/yenc, rust/rapidyenc-sys], config, duplicatelookup, pausable, progress [done 2026-11-19, rust/core], transferstore [done 2026-11-19, rust/core], webauth [done 2026-11-19, rust/core; Go<->Rust token+hash interop verified], wshub [done 2026-11-19, rust/core; axum socket driver lives in cmd/web unit] — all open
-wave 1: internal/arr, database [done 2026-11-19, rust/core: goose-compatible runner, Go-migrated fixture DB], manifest, nzb, par2, pool — open
+wave 1: internal/arr [done 2026-11-19, rust/core: REST client replaces starr; mock-server tests], database [done 2026-11-19, rust/core: goose-compatible runner, Go-migrated fixture DB], manifest, nzb, par2, pool — open
 wave 2: par2sweep, poster, queue, transfercleaner, transferwriter, verification — open (mocks -> Rust test mocks)
 wave 3: watcher, pkg/postie — open
 wave 4: processor — open

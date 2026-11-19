@@ -16,7 +16,7 @@ rand = "0.10"
 rusqlite = { version = "0.37", features = ["bundled"] }
 duplicatelookup-rs = { path = "../duplicatelookup-rs" }
 hex = "0.4"
-reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json"] }
 postie-yenc = { path = "../yenc" }
 zstd = "0.14"
 serde = { version = "1", features = ["derive"] }

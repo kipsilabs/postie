@@ -1,6 +1,7 @@
 //! Postie core: units ported from the Go `internal/` packages (ADR-017).
 
 pub mod apikey;
+pub mod arr;
 pub mod article;
 pub mod config;
 pub mod database;
