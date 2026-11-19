@@ -254,8 +254,33 @@ impl Web {
         Self::serve(dir, app).await
     }
 
+    /// Like `start`, with web authentication switched on (as `--auth`).
+    pub async fn start_with_auth(dir: &Path, fake: &Fake) -> Web {
+        let cfg = fast_config(dir, fake.addr.port());
+        let app = App::new(paths(dir), Arc::new(NntpTester));
+        app.set_web_mode(true);
+        app.startup();
+        app.save_config(cfg).await.expect("save config");
+        let db_path = dir.join("config/postie.db");
+        let db = postie_core::database::open("sqlite", &db_path.to_string_lossy()).unwrap();
+        postie_core::database::MigrationRunner::new(db.clone())
+            .ensure_migration_compatibility()
+            .unwrap();
+        let auth = Arc::new(postie_core::webauth::Service::new(db).unwrap());
+        Self::serve_with(dir, app, Some(auth), true).await
+    }
+
     async fn serve(dir: &Path, app: Arc<App>) -> Web {
-        let srv = Srv::new(app.clone(), None, false, PathBuf::from("/nonexistent"));
+        Self::serve_with(dir, app, None, false).await
+    }
+
+    async fn serve_with(
+        dir: &Path,
+        app: Arc<App>,
+        auth: Option<Arc<postie_core::webauth::Service>>,
+        required: bool,
+    ) -> Web {
+        let srv = Srv::new(app.clone(), auth, required, PathBuf::from("/nonexistent"));
         let running = postie_web::serve(srv, "127.0.0.1:0").await.unwrap();
         Web {
             base: format!("http://{}", running.addr),

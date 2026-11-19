@@ -216,3 +216,138 @@ async fn a_completed_items_nzb_can_be_downloaded() {
     assert!(body.contains("<nzb"), "{}", &body[..body.len().min(200)]);
     web.stop().await;
 }
+
+#[tokio::test]
+async fn with_auth_on_the_api_is_closed_until_registering_and_logging_in() {
+    let fake = fake_nntp().await;
+    let dir = temp_dir("auth");
+    let web = Web::start_with_auth(&dir, &fake).await;
+    let anon = web
+        .http
+        .get(format!("{}/api/queue/stats", web.base))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(anon.status(), 401, "no session, no API");
+    let page = web
+        .http
+        .get(format!("{}/settings", web.base))
+        .send()
+        .await
+        .unwrap();
+    assert!(
+        page.status().is_redirection(),
+        "pages go to /login: {}",
+        page.status()
+    );
+    let st = web.get("/api/auth/registration-status").await;
+    assert_eq!(st["registration_enabled"], true, "{st}");
+    let creds = json!({"username": "admin", "password": "correct horse battery"});
+    let bad = web
+        .post_json(
+            "/api/auth/login",
+            &json!({"username": "admin", "password": "wrong"}),
+        )
+        .await;
+    assert!(bad.status().is_client_error(), "{}", bad.status());
+    let reg = web.post_json("/api/auth/register", &creds).await;
+    assert!(reg.status().is_success(), "{}", reg.status());
+    let cookie = reg
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .map(|c| c.split(';').next().unwrap_or("").to_string())
+        .collect::<Vec<_>>()
+        .join("; ");
+    assert!(!cookie.is_empty(), "registering logs in");
+    let ok = web
+        .http
+        .get(format!("{}/api/queue/stats", web.base))
+        .header("cookie", &cookie)
+        .header("origin", &web.base)
+        .send()
+        .await
+        .unwrap();
+    assert!(ok.status().is_success(), "{}", ok.status());
+    let st = web.get("/api/auth/registration-status").await;
+    assert_eq!(st["registration_enabled"], false, "one admin only: {st}");
+    web.stop().await;
+}
+
+#[tokio::test]
+async fn a_server_that_rejects_the_credentials_blocks_saving_the_config_with_a_clear_error() {
+    let fake = fake_nntp().await;
+    *fake.ctl.bad_auth.lock().unwrap() = true;
+    let dir = temp_dir("badauth");
+    let app_dir = dir.clone();
+    let mut cfg = fast_config(&app_dir, fake.addr.port());
+    cfg.servers.as_mut().unwrap()[0].username = "me".into();
+    cfg.servers.as_mut().unwrap()[0].password = "wrong".into();
+    let app = postie_core::backend::app::App::new(
+        postie_core::backend::paths::AppPaths {
+            config: dir.join("config/config.yaml"),
+            database: dir.join("config/postie.db"),
+            data: dir.join("data"),
+            log: dir.join("data/postie.log"),
+        },
+        std::sync::Arc::new(postie_core::backend::app::NntpTester),
+    );
+    std::fs::create_dir_all(dir.join("config")).unwrap();
+    std::fs::create_dir_all(dir.join("data")).unwrap();
+    app.set_web_mode(true);
+    app.startup();
+    let e = app.save_config(cfg).await.unwrap_err();
+    assert!(e.contains("Failed to connect"), "{e}");
+    assert!(app.queue().is_none(), "nothing was applied");
+    app.shutdown().await;
+}
+
+#[tokio::test]
+async fn par2_files_are_generated_posted_and_listed_in_the_nzb() {
+    let fake = fake_nntp().await;
+    let dir = temp_dir("par2");
+    let mut cfg = fast_config(&dir, fake.addr.port());
+    cfg.par2.enabled = Some(true);
+    cfg.par2.redundancy = "10".into();
+    cfg.posting.wait_for_par2 = Some(true);
+    let web = Web::start_with(&dir, cfg).await;
+    web.upload(vec![("withpar.bin".into(), blob(1_200_000))])
+        .await;
+    let item = web.wait_status("withpar.bin", "complete", 90).await;
+    let nzb = std::fs::read_to_string(item["nzbPath"].as_str().unwrap()).unwrap();
+    assert!(nzb.contains(".par2"), "par2 volumes are in the NZB");
+    assert!(
+        fake.posts() > 12 + 1,
+        "file articles plus par2 articles: {}",
+        fake.posts()
+    );
+    web.stop().await;
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn the_post_upload_script_runs_with_the_nzb_path_after_a_completed_upload() {
+    let fake = fake_nntp().await;
+    let dir = temp_dir("script");
+    let marker = dir.join("marker.txt");
+    let mut cfg = fast_config(&dir, fake.addr.port());
+    cfg.post_upload_script = postie_core::config::PostUploadScriptConfig {
+        enabled: true,
+        command: format!("echo {{nzb_path}} > {}", marker.display()),
+        timeout: postie_core::config::Duration::new("10s"),
+        retry_delay: postie_core::config::Duration::new("1s"),
+        ..Default::default()
+    };
+    let web = Web::start_with(&dir, cfg).await;
+    web.upload(vec![("s.bin".into(), blob(100_000))]).await;
+    web.wait_status("s.bin", "complete", 60).await;
+    let out = wait("script wrote its marker", 30, || async {
+        std::fs::read_to_string(&marker)
+            .ok()
+            .filter(|s| !s.is_empty())
+    })
+    .await;
+    assert!(out.trim().ends_with(".nzb"), "{out}");
+    web.stop().await;
+}
