@@ -1,6 +1,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::*;
+use crate::queue::PaginationParams;
 
 struct Tester(AtomicBool);
 
@@ -340,4 +341,255 @@ async fn test_provider_connectivity_validates_input_with_the_real_tester() {
         !r.valid && r.error.starts_with("Connection test failed:"),
         "{r:?}"
     );
+}
+
+async fn ready() -> (Arc<App>, PathBuf) {
+    let (a, _, dir) = app(true);
+    a.startup();
+    a.save_config(with_server(&a, 1)).await.unwrap();
+    (a, dir)
+}
+
+#[tokio::test]
+async fn queue_api_returns_items_without_script_fields_and_caches_stats() {
+    let (a, dir) = ready().await;
+    a.pause_processing();
+    let f = dir.join("data/a.bin");
+    std::fs::write(&f, b"hello").unwrap();
+    a.handle_dropped_files(&[f.to_string_lossy().into_owned()])
+        .unwrap();
+    let r = a
+        .get_queue_items(PaginationParams {
+            page: 1,
+            limit: 25,
+            sort_by: "created".into(),
+            order: "desc".into(),
+            status: String::new(),
+        })
+        .unwrap();
+    assert_eq!(
+        (
+            r.total_items,
+            r.items[0].file_name.as_str(),
+            r.items[0].status.as_str()
+        ),
+        (1, "a.bin", "pending")
+    );
+    let json = serde_json::to_value(&r.items[0]).unwrap();
+    assert!(
+        json.get("scriptStatus").is_none()
+            && json.get("verifiedArticles").is_none()
+            && json["errorMessage"].is_null(),
+        "{json}"
+    );
+    let s = a.get_queue_stats().unwrap();
+    assert_eq!((s.total, s.pending), (1, 1));
+    a.queue().unwrap().add_file("/x/b.bin", 1).unwrap();
+    assert_eq!(
+        a.get_queue_stats().unwrap().total,
+        1,
+        "served from the 2 s cache"
+    );
+    let id = r.items[0].id.clone();
+    a.set_queue_item_priority(&id, 5).unwrap();
+    a.remove_from_queue(&id).unwrap();
+    a.clear_queue().unwrap();
+    assert_eq!(
+        a.get_queue_items(PaginationParams {
+            page: 1,
+            limit: 25,
+            sort_by: "created".into(),
+            order: "desc".into(),
+            status: String::new()
+        })
+        .unwrap()
+        .total_items,
+        0
+    );
+    assert!(
+        a.get_nzb("nope")
+            .unwrap_err()
+            .starts_with("failed to get NZB path")
+    );
+}
+
+#[tokio::test]
+async fn dropped_folders_become_one_folder_job_and_empty_ones_fail() {
+    let (a, dir) = ready().await;
+    a.pause_processing();
+    let folder = dir.join("data/Show");
+    std::fs::create_dir_all(folder.join("sub")).unwrap();
+    std::fs::write(folder.join("e1.bin"), b"12345").unwrap();
+    std::fs::write(folder.join("sub/e2.bin"), b"123").unwrap();
+    a.handle_dropped_files(&[folder.to_string_lossy().into_owned()])
+        .unwrap();
+    let items = a
+        .get_queue_items(PaginationParams {
+            page: 1,
+            limit: 25,
+            ..Default::default()
+        })
+        .unwrap()
+        .items;
+    assert_eq!(
+        (
+            items.len(),
+            items[0].path.starts_with("FOLDER:"),
+            items[0].size
+        ),
+        (1, true, 8)
+    );
+    let empty = dir.join("data/Empty");
+    std::fs::create_dir_all(&empty).unwrap();
+    assert_eq!(
+        a.handle_dropped_files(&[empty.to_string_lossy().into_owned()])
+            .unwrap_err(),
+        "no valid files or folders could be added to queue"
+    );
+    assert_eq!(a.handle_dropped_files(&[]).unwrap_err(), "no files dropped");
+}
+
+#[tokio::test]
+async fn needing_configuration_blocks_dropped_files() {
+    let (a, _, _) = app(true);
+    a.startup();
+    assert!(
+        a.handle_dropped_files(&["/x".into()])
+            .unwrap_err()
+            .starts_with("configuration required")
+    );
+}
+
+#[tokio::test]
+async fn the_wizard_validates_then_saves_and_clears_first_start() {
+    let (a, _, _) = app(true);
+    a.startup();
+    let s = |host: &str, port: i64, role: &str| ServerData {
+        host: host.into(),
+        port,
+        role: role.into(),
+        max_connections: 0,
+        ..Default::default()
+    };
+    let w = |servers: Vec<ServerData>, out: &str| api::SetupWizardData {
+        servers,
+        output_directory: out.into(),
+        watch_directory: String::new(),
+    };
+    assert_eq!(
+        a.setup_wizard_complete(w(vec![], "/o")).await.unwrap_err(),
+        "at least one server must be configured"
+    );
+    assert_eq!(
+        a.setup_wizard_complete(w(vec![s("h", 1, "")], ""))
+            .await
+            .unwrap_err(),
+        "output directory must be specified"
+    );
+    assert_eq!(
+        a.setup_wizard_complete(w(vec![s("h", 1, "verify")], "/o"))
+            .await
+            .unwrap_err(),
+        "at least one upload server is required"
+    );
+    assert_eq!(
+        a.setup_wizard_complete(w(vec![s("", 1, "")], "/o"))
+            .await
+            .unwrap_err(),
+        "server 1: host is required"
+    );
+    assert_eq!(
+        a.setup_wizard_complete(w(vec![s("h", 0, "")], "/o"))
+            .await
+            .unwrap_err(),
+        "server 1: port must be between 1 and 65535"
+    );
+    assert!(a.get_app_status().is_first_start);
+    a.setup_wizard_complete(w(vec![s("127.0.0.1", 1, "")], "/tmp/postie-wizard-out"))
+        .await
+        .unwrap();
+    let st = a.get_app_status();
+    assert!(!st.is_first_start && st.config_valid, "{st:?}");
+    let cfg = a.get_config().unwrap();
+    assert_eq!(
+        (
+            cfg.servers.as_ref().unwrap()[0].max_connections,
+            cfg.output_dir.as_str()
+        ),
+        (5, "/tmp/postie-wizard-out")
+    );
+}
+
+#[tokio::test]
+async fn api_uploads_validate_paths_and_apply_options() {
+    let (a, dir) = ready().await;
+    a.pause_processing();
+    let root = dir.join("data/lib");
+    std::fs::create_dir_all(&root).unwrap();
+    let f = root.join("x.bin");
+    std::fs::write(&f, b"abc").unwrap();
+    let (f, root) = (
+        f.to_string_lossy().into_owned(),
+        root.to_string_lossy().into_owned(),
+    );
+    let ok = a.enqueue_api_upload(&f, &root, 3, true).unwrap();
+    assert_eq!(ok["status"], "queued");
+    for (file, rel, want) in [
+        ("", "/r", "file is required"),
+        ("/f", "", "relative_path is required"),
+        ("rel", "/r", "file must be an absolute path: \"rel\""),
+        (
+            "/r/f",
+            "rel",
+            "relative_path must be an absolute path: \"rel\"",
+        ),
+    ] {
+        assert_eq!(a.enqueue_api_upload(file, rel, 0, false).unwrap_err(), want);
+    }
+    assert!(
+        a.enqueue_api_upload("/r/f", "/r/f", 0, false)
+            .unwrap_err()
+            .contains("is not a parent directory of file")
+    );
+    assert!(
+        a.enqueue_api_upload(&format!("{root}/missing"), &root, 0, false)
+            .unwrap_err()
+            .starts_with("file not found")
+    );
+    assert!(
+        a.enqueue_api_upload(&root, root.rsplit_once('/').unwrap().0, 0, false)
+            .unwrap_err()
+            .starts_with("file must be a regular file")
+    );
+    let job: String = a
+        .db()
+        .unwrap()
+        .lock()
+        .query_row("SELECT CAST(body AS TEXT) FROM goqite", [], |r| r.get(0))
+        .unwrap();
+    assert!(
+        job.contains("\"deleteOriginal\":true") && job.contains("\"priority\":3"),
+        "{job}"
+    );
+}
+
+#[tokio::test]
+async fn logs_metrics_and_api_key() {
+    let (a, dir) = ready().await;
+    std::fs::write(dir.join("data/postie.log"), "l1\nl2\nl3\n").unwrap();
+    assert_eq!(a.get_logs_paginated(2, 0).unwrap(), "l2\nl3");
+    assert_eq!(a.get_logs().unwrap(), "l1\nl2\nl3\n");
+    std::fs::remove_file(dir.join("data/postie.log")).unwrap();
+    assert!(
+        a.get_logs()
+            .unwrap_err()
+            .starts_with("failed to open log file at")
+    );
+    let m = a.get_nntp_pool_metrics().unwrap();
+    assert_eq!((m.providers.len(), m.active_connections), (1, 0));
+    assert_eq!(m.providers[0].host, "127.0.0.1:1");
+    let key = a.get_api_key().unwrap();
+    assert!(!key.is_empty());
+    assert_ne!(a.regenerate_api_key().unwrap(), key);
+    assert!(!a.is_api_enabled());
 }

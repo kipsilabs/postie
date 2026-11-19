@@ -27,6 +27,8 @@ use crate::processor::runner::{
 use crate::queue::Queue;
 use crate::watcher::{Watcher, WatcherScheduleInfo, WatcherStatusInfo};
 
+pub mod api;
+
 type Emitter = Arc<dyn Fn(&str, Option<Value>) + Send + Sync>;
 
 /// The frontend's server form data.
@@ -156,6 +158,7 @@ pub struct App {
     applying: std::sync::atomic::AtomicBool,
     me: Mutex<Weak<App>>,
     web_mode: std::sync::atomic::AtomicBool,
+    stats_cache: Mutex<api::StatsCache>,
 }
 
 fn valid_server_count(c: &ConfigData) -> usize {
@@ -192,6 +195,7 @@ impl App {
             applying: std::sync::atomic::AtomicBool::new(false),
             me: Mutex::new(Weak::new()),
             web_mode: std::sync::atomic::AtomicBool::new(false),
+            stats_cache: Mutex::new(api::StatsCache::default()),
         });
         *lock(&app.me) = Arc::downgrade(&app);
         app
