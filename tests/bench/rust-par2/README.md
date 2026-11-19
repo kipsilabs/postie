@@ -13,3 +13,12 @@ Phase timings via the progress callback (1 GiB, Postie defaults): SourceScan (re
 KERNEL=simd, MEM_MB=256 and WEAVER_PAR2_CREATE_THREADS=10 all gave the same 2.0-2.1 s. CPU 2.45 s user over 2.1 s wall: the scan is effectively serial.
 Reading: ~500 MB/s scan = roughly two MD5 passes (whole-file MD5 + per-slice MD5) at ~1 GB/s each on one thread. par2go reaches ~790 MiB/s by running the full-file MD5 on its own goroutine, leaving the single-stream MD5 floor.
 So a ParPar GF16 FFI would not help; the lever is the scan pipeline.
+
+## Own PAR2 creator (ADR-021), 2026-11-19
+`rust/core/src/par2/create.rs`, 1 GiB random file, slice 10 MiB, 5% (6 recovery slices), Apple M4, `cargo run --release --example par2_bench` (3 runs, page cache warm):
+| tool | wall ms | CPU s | peak RSS MiB |
+| --- | ---: | ---: | ---: |
+| par2go (Go) | 1301 | 3.77 | 596 |
+| par2-rs 0.13.0 | 2100 | 2.62 | 1335 |
+| rust/core par2 (own scan + reedsolomon-rs GF16) | 1300-1335 | 3.4 | 439 |
+Parity with par2go on wall time; the remaining floor is the single-stream whole-file MD5 (md-5 crate: ~890 MB/s = 1.15 s per GiB). Output is byte-identical to par2go for single-file sets; par2cmdline repairs multi-file sets after multi-block damage (par2go's multi-file sets do not, see ADR-022).
