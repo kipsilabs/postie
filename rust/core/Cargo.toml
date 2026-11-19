@@ -7,6 +7,8 @@ description = "Postie core library: stateful and IO units ported from the Go int
 
 [dependencies]
 base64 = "0.22"
+bcrypt = "0.19"
+jsonwebtoken = { version = "12", default-features = false, features = ["rust_crypto"] }
 rand = "0.10"
 rusqlite = { version = "0.37", features = ["bundled"] }
 duplicatelookup-rs = { path = "../duplicatelookup-rs" }
@@ -18,6 +20,7 @@ sha2 = "0.11"
 thiserror = "2"
 tokio = { version = "1", features = ["sync", "time", "macros", "rt", "net", "io-util"] }
 tokio-util = "0.7"
+uuid = { version = "1", features = ["v4", "serde"] }
 
 [lints.clippy]
 all = { level = "warn", priority = -1 }
