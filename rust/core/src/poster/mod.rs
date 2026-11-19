@@ -110,6 +110,9 @@ pub enum PostError {
     FilesFailed(u64),
     #[error("{}/{} articles deferred for later verification", .0.failed_articles.len(), .0.total_articles)]
     Deferred(DeferredCheckError),
+    /// The re-post source file no longer exists (re-posting can never succeed).
+    #[error("{0}")]
+    SourceMissing(String),
     #[error("{0}")]
     Other(String),
 }

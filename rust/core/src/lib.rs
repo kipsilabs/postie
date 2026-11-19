@@ -17,5 +17,6 @@ pub mod progress;
 pub mod throttle;
 pub mod transferstore;
 pub mod uploadmeter;
+pub mod verification;
 pub mod webauth;
 pub mod wshub;
