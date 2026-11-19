@@ -371,8 +371,10 @@ impl Processor {
                 self.unreserve_path(&job.path);
                 if matches!(e, ProcessError::Canceled) {
                     eprintln!("processor: job cancelled: msg={msg_id} path={}", job.path);
-                    // only a user cancellation cleans up; on app shutdown keep in_progress for crash recovery
-                    if !cancel.is_cancelled() {
+                    // only a user cancellation cleans up; on app shutdown keep in_progress for crash recovery.
+                    // `close()` cancels the running jobs before the dispatcher's token fires, so the flag
+                    // is what tells the two apart
+                    if !cancel.is_cancelled() && !self.shutting_down.load(Ordering::SeqCst) {
                         if let Err(ce) = self.queue.cancel_file(&msg_id) {
                             eprintln!(
                                 "processor: failed to clean up in-progress item after cancel: {ce} id={msg_id}"
