@@ -58,7 +58,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile && bun run build
+        working-directory: frontend
       - run: cargo build --release -p postie-cli -p postie-web
+      - name: Bundle frontend beside the binaries
+        shell: bash
+        run: cp -r ../frontend/build target/release/frontend
       - uses: actions/upload-artifact@v4
         with:
           name: postie-rust-${{ matrix.os }}
@@ -67,4 +73,5 @@ jobs:
             rust/target/release/postie.exe
             rust/target/release/postie-web
             rust/target/release/postie-web.exe
+            rust/target/release/frontend
           if-no-files-found: ignore

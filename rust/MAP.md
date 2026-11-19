@@ -19,7 +19,7 @@ dropped: tests/bench/nyuu/sink
 ## Steps
 - [x] research subagents (see Research); requirement: pipelined POST and pipelined STAT (own window impl.)
 - [x] `app record --http` on cmd/web: 232 cases (22 hand-picked API requests + 210 traps), Go replay 232/232 (2026-11-18). Build needs a stub `frontend/build/index.html` (gitignored); run with hermetic HOME/XDG dirs. Noise: `05-get-api-logs` body (lines) — ask user if log content is contract.
-- [x] front door (axum) scaffolded in rust/app (binary currently named `home`: rename to postie); replay 232/232, fallback 100%; original launched via rust/original/run.sh (build: go build -o rust/original/postie-web ./cmd/web)
+- [x] front door (rust/app) removed; replaced by standalone postie-web (ADR-023/024)
 - [ ] units by wave, checkpoint after each (PAR2: see ADR-016; upload path first)
 - [ ] lift
 

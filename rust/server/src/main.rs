@@ -67,6 +67,19 @@ async fn shutdown_signal() {
     }
 }
 
+/// `POSTIE_FRONTEND_DIR`, else a `frontend/` directory next to the executable (release archives),
+/// else the source tree's build output.
+fn frontend_dir() -> PathBuf {
+    if let Some(d) = std::env::var_os("POSTIE_FRONTEND_DIR") {
+        return PathBuf::from(d);
+    }
+    let beside = std::env::current_exe()
+        .ok()
+        .and_then(|e| e.parent().map(|p| p.join("frontend")))
+        .filter(|p| p.join("index.html").is_file());
+    beside.unwrap_or_else(|| PathBuf::from("../../frontend/build"))
+}
+
 #[tokio::main]
 async fn main() {
     let args = match parse_args() {
@@ -105,9 +118,7 @@ async fn main() {
     }
     let db_path = paths.database.clone();
     let app = App::new(paths, Arc::new(NntpTester));
-    let build_dir: PathBuf = std::env::var_os("POSTIE_FRONTEND_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("../../frontend/build"));
+    let build_dir = frontend_dir();
     app.set_web_mode(true);
     app.startup();
     // authentication must work before NNTP setup and outlive posting queue restarts: it owns a separate
