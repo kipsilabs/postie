@@ -1,0 +1,5 @@
+[workspace]
+resolver = "3"
+members = ["core", "nntp", "server", "cli", "yenc", "article-rs", "duplicatelookup-rs", "rapidyenc-sys"]
+# desktop needs the Tauri system libraries; app is the superseded proxy front door (ADR-023)
+exclude = ["desktop", "app"]
