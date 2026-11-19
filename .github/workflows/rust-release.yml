@@ -101,9 +101,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          ls -la artifacts
-          gh release create "$GITHUB_REF_NAME" artifacts/* \
-            --repo "$GITHUB_REPOSITORY" \
-            --prerelease \
-            --title "$GITHUB_REF_NAME (Rust port, release candidate)" \
-            --notes "Release candidate of the Rust port (see rust/DECISIONS.md). Headless binaries (\`postie\` CLI and \`postie-web\` with its \`frontend/\` directory) and desktop bundles for Linux, macOS and Windows. Bundles are unsigned."
+          find artifacts -type f | sort
+          mapfile -t files < <(find artifacts -type f | sort)
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "${files[@]}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --prerelease \
+              --title "$GITHUB_REF_NAME (Rust port, release candidate)" \
+              --notes "Release candidate of the Rust port (see rust/DECISIONS.md). Headless binaries (\`postie\` CLI and \`postie-web\` with its \`frontend/\` directory) and desktop bundles for Linux, macOS and Windows. Bundles are unsigned."
+          fi
