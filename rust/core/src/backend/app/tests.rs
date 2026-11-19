@@ -230,9 +230,9 @@ async fn pause_resume_retry_and_events() {
     a.set_event_emitter(Arc::new(move |k, _| e2.lock().unwrap().push(k.to_string())));
     a.startup();
     a.save_config(with_server(&a, 1)).await.unwrap();
-    a.pause_processing();
+    a.pause_processing().unwrap();
     assert_eq!(a.pause_state()["paused"], true);
-    a.resume_processing();
+    a.resume_processing().unwrap();
     assert_eq!(a.pause_state()["paused"], false);
     let q = a.queue().unwrap();
     q.add_file("/x/err.bin", 5).unwrap();
@@ -263,8 +263,8 @@ async fn pause_resume_retry_and_events() {
     assert_eq!(st, "pending_retry");
     let kinds = events.lock().unwrap().clone();
     for k in [
-        "processing-paused",
-        "processing-resumed",
+        "processing:paused",
+        "processing:resumed",
         "queue:updated",
         "config-updated",
     ] {
@@ -353,7 +353,7 @@ async fn ready() -> (Arc<App>, PathBuf) {
 #[tokio::test]
 async fn queue_api_returns_items_without_script_fields_and_caches_stats() {
     let (a, dir) = ready().await;
-    a.pause_processing();
+    a.pause_processing().unwrap();
     let f = dir.join("data/a.bin");
     std::fs::write(&f, b"hello").unwrap();
     a.handle_dropped_files(&[f.to_string_lossy().into_owned()])
@@ -416,7 +416,7 @@ async fn queue_api_returns_items_without_script_fields_and_caches_stats() {
 #[tokio::test]
 async fn dropped_folders_become_one_folder_job_and_empty_ones_fail() {
     let (a, dir) = ready().await;
-    a.pause_processing();
+    a.pause_processing().unwrap();
     let folder = dir.join("data/Show");
     std::fs::create_dir_all(folder.join("sub")).unwrap();
     std::fs::write(folder.join("e1.bin"), b"12345").unwrap();
@@ -523,7 +523,7 @@ async fn the_wizard_validates_then_saves_and_clears_first_start() {
 #[tokio::test]
 async fn api_uploads_validate_paths_and_apply_options() {
     let (a, dir) = ready().await;
-    a.pause_processing();
+    a.pause_processing().unwrap();
     let root = dir.join("data/lib");
     std::fs::create_dir_all(&root).unwrap();
     let f = root.join("x.bin");

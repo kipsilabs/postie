@@ -28,6 +28,7 @@ use crate::queue::Queue;
 use crate::watcher::{Watcher, WatcherScheduleInfo, WatcherStatusInfo};
 
 pub mod api;
+mod arr;
 
 type Emitter = Arc<dyn Fn(&str, Option<Value>) + Send + Sync>;
 
@@ -948,18 +949,32 @@ impl App {
 
     // ---- processor and queue actions ----
 
-    pub fn pause_processing(&self) {
-        if let Some(p) = self.processor() {
-            p.pause_processing();
-            self.emit("processing-paused", Some(self.pause_state()));
-        }
+    pub fn pause_processing(&self) -> Result<(), String> {
+        let p = self.processor().ok_or("processor not initialized")?;
+        p.pause_processing();
+        self.emit("processing:paused", Some(self.pause_state()));
+        Ok(())
     }
 
-    pub fn resume_processing(&self) {
-        if let Some(p) = self.processor() {
-            p.resume_processing();
-            self.emit("processing-resumed", Some(self.pause_state()));
-        }
+    pub fn resume_processing(&self) -> Result<(), String> {
+        let p = self.processor().ok_or("processor not initialized")?;
+        p.resume_processing();
+        self.emit("processing:resumed", Some(self.pause_state()));
+        Ok(())
+    }
+
+    pub fn is_processing_paused(&self) -> bool {
+        self.processor().is_some_and(|p| p.is_paused())
+    }
+
+    pub fn is_processing_auto_paused(&self) -> bool {
+        self.processor().is_some_and(|p| p.is_auto_paused())
+    }
+
+    pub fn auto_pause_reason(&self) -> String {
+        self.processor()
+            .map(|p| p.auto_pause_reason())
+            .unwrap_or_default()
     }
 
     pub fn pause_state(&self) -> Value {
