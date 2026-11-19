@@ -367,7 +367,8 @@ mod tests {
         let signed = s.login("admin", PW).unwrap();
         let base = s.validate(&signed).unwrap();
         let now = now_unix();
-        let cases: Vec<(&str, Box<dyn Fn(&mut Claims)>)> = vec![
+        type Case = (&'static str, Box<dyn Fn(&mut Claims)>);
+        let cases: Vec<Case> = vec![
             ("issuer", Box::new(|c| c.iss = "altmount".into())),
             (
                 "audience",
