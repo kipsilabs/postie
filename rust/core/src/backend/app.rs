@@ -227,6 +227,22 @@ impl App {
         }
     }
 
+    /// Desktop only: copies the saved configuration into `directory/config.yaml` and makes it the
+    /// active location (Go's `relocateConfig`). Returns the active path.
+    pub fn relocate_config(&self, directory: &str) -> Result<String, String> {
+        if self.web_mode.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err("configuration relocation is only available in the desktop app".into());
+        }
+        let current = self.config_path();
+        let dest = super::config_location::relocate_config(
+            &self.paths.config,
+            &current,
+            Path::new(directory),
+        )?;
+        lock(&self.state).config_path.clone_from(&dest);
+        Ok(dest.to_string_lossy().into_owned())
+    }
+
     pub fn set_event_emitter(&self, f: Emitter) {
         *lock(&self.emitter) = Some(f);
     }

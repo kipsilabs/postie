@@ -2,6 +2,8 @@
 //! shows it, so the desktop and web builds share one backend and one frontend. Desktop mode keeps the
 //! saved configuration location (the web server pins the default one).
 
+mod commands;
+
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -46,6 +48,14 @@ fn main() {
     let b2 = backend.clone();
     let tauri_app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(tauri::generate_handler![
+            commands::select_folder,
+            commands::select_folders,
+            commands::upload_folders,
+            commands::select_config_directory,
+            commands::download_nzb,
+            commands::get_config_path,
+        ])
         .setup(move |tauri_app| {
             let dir = frontend_dir(tauri_app.handle());
             let (app, running) = tauri::async_runtime::block_on(async {
@@ -63,16 +73,39 @@ fn main() {
                 "Desktop server started",
                 &[("addr", running.addr.to_string().into())],
             );
+            tauri_app.manage(app.clone());
+            let app_for_drop = app.clone();
             *b2.lock().unwrap_or_else(|p| p.into_inner()) = Some(Backend {
                 app,
                 shutdown: running.shutdown,
             });
             let parsed = url.parse().map_err(|e: url::ParseError| e.to_string())?;
-            WebviewWindowBuilder::new(tauri_app, "main", WebviewUrl::External(parsed))
+            let window = WebviewWindowBuilder::new(tauri_app, "main", WebviewUrl::External(parsed))
                 .title("Postie")
                 .inner_size(1280.0, 820.0)
                 .min_inner_size(900.0, 600.0)
                 .build()?;
+            // files dropped on the window are queued by path (no copy through HTTP)
+            let dropped = app_for_drop;
+            window.on_window_event(move |event| {
+                if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) =
+                    event
+                {
+                    let paths: Vec<String> = paths
+                        .iter()
+                        .map(|p| p.to_string_lossy().into_owned())
+                        .collect();
+                    let app = dropped.clone();
+                    std::thread::spawn(move || {
+                        if let Err(e) = app.handle_dropped_files(&paths) {
+                            postie_core::logx::error(
+                                "Dropped files rejected",
+                                &[("error", e.into())],
+                            );
+                        }
+                    });
+                }
+            });
             Ok(())
         })
         .build(tauri::generate_context!())

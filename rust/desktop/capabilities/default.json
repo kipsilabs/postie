@@ -1,7 +1,22 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Postie's main window",
-  "windows": ["main"],
-  "permissions": ["core:default", "dialog:default"]
+  "description": "Postie's main window; the page is the loopback server this app starts",
+  "windows": [
+    "main"
+  ],
+  "remote": {
+    "urls": [
+      "http://127.0.0.1:*/*"
+    ]
+  },
+  "permissions": [
+    "core:default",
+    "allow-select-folder",
+    "allow-select-folders",
+    "allow-upload-folders",
+    "allow-select-config-directory",
+    "allow-download-nzb",
+    "allow-get-config-path"
+  ]
 }

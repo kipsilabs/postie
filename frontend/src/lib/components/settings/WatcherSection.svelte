@@ -108,13 +108,12 @@ async function selectWatchDirectory(index: number) {
 	try {
 		await apiClient.initialize();
 
-		if (apiClient.environment !== "wails") {
+		if (!apiClient.isDesktop) {
 			toastStore.warning($t("common.messages.wails_only_feature"));
 			return;
 		}
 
-		const { SelectWatchDirectory } = await import("$lib/wailsjs/go/backend/App");
-		const dir = await SelectWatchDirectory();
+		const dir = await apiClient.selectWatchDirectory();
 
 		if (dir) {
 			config.watchers[index].watch_directory = dir;
