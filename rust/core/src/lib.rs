@@ -27,5 +27,6 @@ pub mod transferstore;
 pub mod transferwriter;
 pub mod uploadmeter;
 pub mod verification;
+pub mod watcher;
 pub mod webauth;
 pub mod wshub;
