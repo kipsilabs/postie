@@ -1,0 +1,109 @@
+name: Rust release candidate
+
+on:
+  push:
+    tags:
+      - "v*.*.*-rc*"
+
+permissions:
+  contents: write
+
+jobs:
+  binaries:
+    name: binaries (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: linux-x86_64, exe: "" }
+          - { os: macos-latest, target: macos-arm64, exe: "" }
+          - { os: windows-latest, target: windows-x86_64, exe: ".exe" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile && bun run build
+        working-directory: frontend
+      - run: cargo build --release -p postie-cli -p postie-web
+        working-directory: rust
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="postie-rust-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          mkdir -p "dist/$name"
+          cp "rust/target/release/postie${{ matrix.exe }}" "rust/target/release/postie-web${{ matrix.exe }}" "dist/$name/"
+          cp -r frontend/build "dist/$name/frontend"
+          cd dist
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            7z a "$name.zip" "$name" >/dev/null
+          else
+            tar -czf "$name.tar.gz" "$name"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.target }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+
+  desktop:
+    name: desktop (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Linux system libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust/desktop
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile && bun run build
+        working-directory: frontend
+      - run: cargo install tauri-cli --version "^2" --locked
+      - run: cargo tauri build
+        working-directory: rust/desktop
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.os }}
+          path: |
+            rust/desktop/target/release/bundle/**/*.dmg
+            rust/desktop/target/release/bundle/**/*.msi
+            rust/desktop/target/release/bundle/**/*-setup.exe
+            rust/desktop/target/release/bundle/**/*.deb
+            rust/desktop/target/release/bundle/**/*.rpm
+            rust/desktop/target/release/bundle/**/*.AppImage
+          if-no-files-found: error
+
+  publish:
+    name: GitHub pre-release
+    needs: [binaries, desktop]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Create pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ls -la artifacts
+          gh release create "$GITHUB_REF_NAME" artifacts/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --prerelease \
+            --title "$GITHUB_REF_NAME (Rust port, release candidate)" \
+            --notes "Release candidate of the Rust port (see rust/DECISIONS.md). Headless binaries (\`postie\` CLI and \`postie-web\` with its \`frontend/\` directory) and desktop bundles for Linux, macOS and Windows. Bundles are unsigned."
