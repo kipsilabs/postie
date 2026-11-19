@@ -15,6 +15,8 @@ rusqlite = { version = "0.37", features = ["bundled"] }
 duplicatelookup-rs = { path = "../duplicatelookup-rs" }
 hex = "0.4"
 reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
+postie-yenc = { path = "../yenc" }
+zstd = "0.14"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml_ng = "0.10"
