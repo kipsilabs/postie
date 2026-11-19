@@ -7,6 +7,7 @@ pub mod database;
 pub mod db;
 pub mod duplicatelookup;
 pub mod manifest;
+pub mod nzb;
 pub mod pausable;
 pub mod progress;
 pub mod transferstore;

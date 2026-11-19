@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE nzb PUBLIC "-//newzBin//DTD NZB 1.1//EN" "http://www.newzbin.com/DTD/nzb/nzb-1.1.dtd">
+<nzb xmlns="http://www.newzbin.com/DTD/2003/nzb">
+  <head>
+    <meta type="date">2026-11-19T10:19:59+01:00</meta>
+    <meta type="chunk_size">1000</meta>
+  </head>
+  <file poster="Poster &lt;p@example.com&gt;" date="1795079999" subject="[1/2] &#34;a.bin&#34; &amp; &lt;yEnc&gt; &#39;x&#39;" bytes="2250" filehash="abcdef">
+    <groups>
+      <group>alt.test</group>
+      <group>alt.binaries.&#34;x&#34;</group>
+    </groups>
+    <segments>
+      <segment bytes="1000" number="1">a@h</segment>
+      <segment bytes="1000" number="2">b@h</segment>
+      <segment bytes="250" number="3">c@h</segment>
+    </segments>
+  </file>
+  <file poster="Poster &lt;p@example.com&gt;" date="1795079999" subject="[2/2] &#34;b.bin&#34;" bytes="700" filehash="">
+    <groups>
+      <group>alt.test</group>
+      <group>alt.binaries.&#34;x&#34;</group>
+    </groups>
+    <segments>
+      <segment bytes="700" number="1">z@h</segment>
+    </segments>
+  </file>
+</nzb>
