@@ -415,14 +415,14 @@ async fn min_size_to_start_and_the_callback_hold_back_new_jobs() {
     assert_eq!(count(&held, "completed_items"), 1);
 }
 
-#[cfg(unix)]
 #[tokio::test]
 async fn folder_jobs_post_all_files_as_one_nzb() {
     let e = env();
     let root = e.src.join("Show");
     write(&root, "ep1.bin", 3000);
     write(&root, "extras/bonus.bin", 2000);
-    std::os::unix::fs::symlink(root.join("ep1.bin"), root.join("link.bin")).unwrap();
+    // a symlink in the folder is skipped (best effort where symlinks need a privilege)
+    let _ = crate::testutil::symlink_file(&root.join("ep1.bin"), &root.join("link.bin"));
     let job_path = format!("FOLDER:{}", root.display());
     e.q.add_file(&job_path, 5000).unwrap();
     e.p.process_next_item(&CancellationToken::new())
@@ -433,7 +433,10 @@ async fn folder_jobs_post_all_files_as_one_nzb() {
             .lock()
             .query_row("SELECT nzb_path FROM completed_items", [], |r| r.get(0))
             .unwrap();
-    assert!(nzb.ends_with("Show/Show.nzb"), "{nzb}");
+    assert!(
+        crate::testutil::slash(&nzb).ends_with("Show/Show.nzb"),
+        "{nzb}"
+    );
     let text = std::fs::read_to_string(nzb).unwrap();
     assert!(
         text.contains("Show/extras/bonus.bin")

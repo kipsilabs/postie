@@ -561,32 +561,28 @@ mod tests {
         assert_eq!(names, ["extras/bonus.mkv", "ep.mkv", "z.mkv"]);
     }
 
-    #[cfg(unix)] // fixture uses Unix paths or sh
     #[test]
     fn set_source_for_strips_the_par2_suffixes() {
+        let src = |p: &str| set_source_for(p).map(crate::testutil::slash);
+        assert_eq!(src("/d/movie.rar.par2").as_deref(), Some("/d/movie.rar"));
         assert_eq!(
-            set_source_for("/d/movie.rar.par2").as_deref(),
+            src("/d/movie.rar.vol00+01.par2").as_deref(),
             Some("/d/movie.rar")
         );
         assert_eq!(
-            set_source_for("/d/movie.rar.vol00+01.par2").as_deref(),
-            Some("/d/movie.rar")
-        );
-        assert_eq!(
-            set_source_for("/d/a.vol1+2.vol3+4.par2").as_deref(),
+            src("/d/a.vol1+2.vol3+4.par2").as_deref(),
             Some("/d/a.vol1+2")
         );
-        assert_eq!(set_source_for("/d/movie.mkv"), None);
-        assert_eq!(set_source_for("/d/.par2"), None);
+        assert_eq!(src("/d/movie.mkv"), None);
+        assert_eq!(src("/d/.par2"), None);
     }
 
-    #[cfg(unix)] // fixture uses Unix paths or sh
     #[test]
     fn work_dir_and_result_ordering() {
         let mut cfg = Par2Config::default();
         assert_eq!(work_dir(&cfg), "");
         cfg.temp_dir = "/tmp/x".into();
-        assert_eq!(work_dir(&cfg), "/tmp/x/postie-par2");
+        assert_eq!(crate::testutil::slash(work_dir(&cfg)), "/tmp/x/postie-par2");
         let r = Par2Result {
             created: vec!["c".into()],
             reused: vec!["r".into()],

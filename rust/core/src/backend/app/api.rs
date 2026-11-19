@@ -653,7 +653,6 @@ mod tests {
         );
     }
 
-    #[cfg(unix)] // fixture uses Unix paths
     #[test]
     fn clean_path_matches_go() {
         for (i, o) in [
@@ -664,7 +663,11 @@ mod tests {
             ("", "."),
             ("/", "/"),
         ] {
-            assert_eq!(clean_path(i), o, "{i:?}");
+            assert_eq!(
+                clean_path(i),
+                o.replace('/', std::path::MAIN_SEPARATOR_STR),
+                "{i:?}"
+            );
         }
     }
 }

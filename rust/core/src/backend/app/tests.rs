@@ -520,15 +520,15 @@ async fn the_wizard_validates_then_saves_and_clears_first_start() {
     );
 }
 
-#[cfg(unix)] // fixture uses Unix paths
 #[tokio::test]
 async fn api_uploads_validate_paths_and_apply_options() {
     let (a, dir) = ready().await;
     a.pause_processing().unwrap();
-    let root = dir.join("data/lib");
+    let root = dir.join("data").join("lib");
     std::fs::create_dir_all(&root).unwrap();
     let f = root.join("x.bin");
     std::fs::write(&f, b"abc").unwrap();
+    let abs = |p: &str| dir.join(p).to_string_lossy().into_owned();
     let (f, root) = (
         f.to_string_lossy().into_owned(),
         root.to_string_lossy().into_owned(),
@@ -536,29 +536,46 @@ async fn api_uploads_validate_paths_and_apply_options() {
     let ok = a.enqueue_api_upload(&f, &root, 3, true).unwrap();
     assert_eq!(ok["status"], "queued");
     for (file, rel, want) in [
-        ("", "/r", "file is required"),
-        ("/f", "", "relative_path is required"),
-        ("rel", "/r", "file must be an absolute path: \"rel\""),
+        (String::new(), abs("r"), "file is required".to_string()),
         (
-            "/r/f",
-            "rel",
-            "relative_path must be an absolute path: \"rel\"",
+            abs("f"),
+            String::new(),
+            "relative_path is required".to_string(),
+        ),
+        (
+            "rel".into(),
+            abs("r"),
+            "file must be an absolute path: \"rel\"".to_string(),
+        ),
+        (
+            abs("r/f"),
+            "rel".into(),
+            "relative_path must be an absolute path: \"rel\"".to_string(),
         ),
     ] {
-        assert_eq!(a.enqueue_api_upload(file, rel, 0, false).unwrap_err(), want);
+        assert_eq!(
+            a.enqueue_api_upload(&file, &rel, 0, false).unwrap_err(),
+            want
+        );
     }
     assert!(
-        a.enqueue_api_upload("/r/f", "/r/f", 0, false)
+        a.enqueue_api_upload(&abs("r/f"), &abs("r/f"), 0, false)
             .unwrap_err()
             .contains("is not a parent directory of file")
     );
+    let missing = std::path::Path::new(&root).join("missing");
     assert!(
-        a.enqueue_api_upload(&format!("{root}/missing"), &root, 0, false)
+        a.enqueue_api_upload(&missing.to_string_lossy(), &root, 0, false)
             .unwrap_err()
             .starts_with("file not found")
     );
+    let parent = std::path::Path::new(&root)
+        .parent()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
     assert!(
-        a.enqueue_api_upload(&root, root.rsplit_once('/').unwrap().0, 0, false)
+        a.enqueue_api_upload(&root, &parent, 0, false)
             .unwrap_err()
             .starts_with("file must be a regular file")
     );

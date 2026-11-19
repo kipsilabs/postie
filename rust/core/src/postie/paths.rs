@@ -141,7 +141,6 @@ mod tests {
         }
     }
 
-    #[cfg(unix)] // fixture uses Unix paths or sh
     #[test]
     fn rel_matches_go() {
         for (b, t, want) in [
@@ -160,7 +159,6 @@ mod tests {
         }
     }
 
-    #[cfg(unix)] // fixture uses Unix paths or sh
     #[test]
     fn relative_path_from_is_empty_for_the_root_itself() {
         assert_eq!(relative_path_from("/root", "/root/f.bin"), "");

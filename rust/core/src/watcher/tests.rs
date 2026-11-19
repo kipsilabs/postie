@@ -194,7 +194,6 @@ fn size_threshold_min_size_and_ignore_patterns_filter_files() {
     );
 }
 
-#[cfg(unix)]
 #[test]
 fn tracked_and_running_paths_are_skipped_and_symlinks_follow_the_setting() {
     let (w, q, busy, dir) = setup(cfg());
@@ -203,7 +202,9 @@ fn tracked_and_running_paths_are_skipped_and_symlinks_follow_the_setting() {
     write(&dir, "new.bin", 10);
     q.tracked.lock().unwrap().insert(queued);
     busy.0.lock().unwrap().insert(running);
-    std::os::unix::fs::symlink(dir.join("new.bin"), dir.join("link.bin")).unwrap();
+    if !crate::testutil::symlink_file(&dir.join("new.bin"), &dir.join("link.bin")) {
+        return; // symlinks need a privilege on this platform
+    }
     scan_twice(&w);
     assert_eq!(q.added.lock().unwrap().len(), 1);
     let (w2, q2, _, dir2) = setup(WatcherConfig {
@@ -211,7 +212,10 @@ fn tracked_and_running_paths_are_skipped_and_symlinks_follow_the_setting() {
         ..cfg()
     });
     write(&dir2, "real.bin", 10);
-    std::os::unix::fs::symlink(dir2.join("real.bin"), dir2.join("link.bin")).unwrap();
+    assert!(crate::testutil::symlink_file(
+        &dir2.join("real.bin"),
+        &dir2.join("link.bin")
+    ));
     std::thread::sleep(Duration::from_millis(10)); // a symlink's own mtime is its creation time
     scan_twice(&w2);
     assert_eq!(

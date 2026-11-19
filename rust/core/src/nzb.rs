@@ -521,13 +521,14 @@ mod tests {
         assert!(!xml.contains(">b</segment>") && xml.contains(">a</segment>"));
     }
 
-    #[cfg(unix)] // fixture uses Unix paths or sh
     #[test]
     fn path_naming_matches_go() {
         let n = |p: &str, keep| {
-            final_nzb_path(Path::new(p), keep)
-                .to_string_lossy()
-                .into_owned()
+            crate::testutil::slash(
+                final_nzb_path(Path::new(p), keep)
+                    .to_string_lossy()
+                    .as_ref(),
+            )
         };
         assert_eq!(n("/o/Sun.Moments.nzb", false), "/o/Sun.Moments.nzb");
         assert_eq!(n("/o/UP.NZB", true), "/o/UP.NZB");

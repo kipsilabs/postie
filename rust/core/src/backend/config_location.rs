@@ -116,16 +116,17 @@ mod tests {
         p
     }
 
-    #[cfg(unix)] // fixture uses Unix paths or sh
     #[test]
     fn resolves_default_saved_and_rejects_relative_locations() {
         let d = tmp();
         let default = d.join("config.yaml");
         assert_eq!(resolve_config_path(&default).unwrap(), default);
-        std::fs::write(d.join("config-location"), "/srv/cfg/../app/config.yaml").unwrap();
+        let base = tmp();
+        let saved = format!("{}/cfg/../app/config.yaml", base.display());
+        std::fs::write(d.join("config-location"), saved).unwrap();
         assert_eq!(
             resolve_config_path(&default).unwrap(),
-            PathBuf::from("/srv/app/config.yaml")
+            base.join("app").join("config.yaml")
         );
         std::fs::write(d.join("config-location"), "relative/config.yaml").unwrap();
         assert!(

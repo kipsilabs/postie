@@ -156,6 +156,9 @@ pub async fn run_post_upload_script(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A command that succeeds under both `sh -c` and `cmd /C`.
+    const OK_CMD: &str = "exit 0";
     use crate::config::Duration as D;
     use std::sync::Mutex;
 
@@ -207,7 +210,6 @@ mod tests {
         );
     }
 
-    #[cfg(unix)] // fixture uses Unix paths or sh
     #[tokio::test]
     async fn disabled_or_empty_is_a_no_op_and_success_marks_completed() {
         let q = Rec::default();
@@ -216,7 +218,7 @@ mod tests {
             &c,
             &PostUploadScriptConfig {
                 enabled: false,
-                ..cfg("true")
+                ..cfg(OK_CMD)
             },
             Some(&q),
             "/o/a.nzb",
@@ -229,9 +231,17 @@ mod tests {
             .await
             .unwrap();
         assert!(q.0.lock().unwrap().is_empty());
-        run_post_upload_script(&c, &cfg("true"), Some(&q), "/tmp/a.nzb", "/s/f", "item1")
-            .await
-            .unwrap();
+        let nzb = std::env::temp_dir().join("a.nzb");
+        run_post_upload_script(
+            &c,
+            &cfg(OK_CMD),
+            Some(&q),
+            nzb.to_str().unwrap(),
+            "/s/f",
+            "item1",
+        )
+        .await
+        .unwrap();
         assert_eq!(q.0.lock().unwrap().as_slice(), ["done item1"]);
     }
 
@@ -267,7 +277,6 @@ mod tests {
         assert!(t.elapsed() < Duration::from_secs(5));
     }
 
-    #[cfg(unix)] // fixture uses Unix paths or sh
     #[tokio::test]
     async fn the_command_runs_in_the_nzb_directory_with_expanded_paths() {
         let d = std::env::temp_dir().join(format!(
@@ -279,7 +288,11 @@ mod tests {
         let nzb = d.join("a.nzb");
         run_post_upload_script(
             &CancellationToken::new(),
-            &cfg("pwd > out.txt; echo {source_dir} >> out.txt"),
+            &cfg(if cfg!(windows) {
+                "cd > out.txt & echo {source_dir} >> out.txt"
+            } else {
+                "pwd > out.txt; echo {source_dir} >> out.txt"
+            }),
             None,
             nzb.to_str().unwrap(),
             "/src/dir/f.mkv",

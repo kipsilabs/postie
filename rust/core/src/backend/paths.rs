@@ -105,6 +105,17 @@ pub fn get_app_paths() -> Result<AppPaths, String> {
 mod tests {
     use super::*;
 
+    /// The layout for a simulated OS with `/` separators, whatever the host's separator is.
+    fn app_paths_n(env: &Env<'_>) -> Result<AppPaths, String> {
+        let n = |p: PathBuf| PathBuf::from(crate::testutil::slash(p.to_string_lossy()));
+        app_paths_for(env).map(|p| AppPaths {
+            config: n(p.config),
+            database: n(p.database),
+            data: n(p.data),
+            log: n(p.log),
+        })
+    }
+
     fn env<'a>(os: &'a str, vars: &'a dyn Fn(&str) -> Option<String>, docker: bool) -> Env<'a> {
         Env {
             os,
@@ -114,11 +125,10 @@ mod tests {
         }
     }
 
-    #[cfg(unix)] // fixture uses Unix paths or sh
     #[test]
     fn linux_uses_xdg_with_separate_config_and_data() {
         let none = |_: &str| None;
-        let p = app_paths_for(&env("linux", &none, false)).unwrap();
+        let p = app_paths_n(&env("linux", &none, false)).unwrap();
         assert_eq!(
             (
                 p.config.to_str(),
@@ -138,7 +148,7 @@ mod tests {
             "XDG_DATA_HOME" => Some("/x/data".into()),
             _ => None,
         };
-        let p = app_paths_for(&env("linux", &xdg, false)).unwrap();
+        let p = app_paths_n(&env("linux", &xdg, false)).unwrap();
         assert_eq!(
             (p.config.to_str(), p.log.to_str()),
             (
@@ -148,7 +158,7 @@ mod tests {
         );
         let empty = |_: &str| Some(String::new());
         assert_eq!(
-            app_paths_for(&env("linux", &empty, false))
+            app_paths_n(&env("linux", &empty, false))
                 .unwrap()
                 .config
                 .to_str(),
@@ -157,11 +167,10 @@ mod tests {
         );
     }
 
-    #[cfg(unix)] // fixture uses Unix paths or sh
     #[test]
     fn macos_windows_and_docker() {
         let none = |_: &str| None;
-        let m = app_paths_for(&env("macos", &none, false)).unwrap();
+        let m = app_paths_n(&env("macos", &none, false)).unwrap();
         assert_eq!(
             (m.config.to_str(), m.data.to_str()),
             (
@@ -171,20 +180,20 @@ mod tests {
         );
         let appdata = |k: &str| (k == "APPDATA").then(|| "/AppData".to_string());
         assert_eq!(
-            app_paths_for(&env("windows", &appdata, false))
+            app_paths_n(&env("windows", &appdata, false))
                 .unwrap()
                 .database
                 .to_str(),
             Some("/AppData/Postie/postie.db")
         );
         assert_eq!(
-            app_paths_for(&env("windows", &none, false))
+            app_paths_n(&env("windows", &none, false))
                 .unwrap()
                 .data
                 .to_str(),
             Some("/home/u/AppData/Roaming/Postie")
         );
-        let d = app_paths_for(&env("linux", &none, true)).unwrap();
+        let d = app_paths_n(&env("linux", &none, true)).unwrap();
         assert_eq!(
             (d.config.to_str(), d.database.to_str(), d.log.to_str()),
             (
@@ -194,7 +203,7 @@ mod tests {
             )
         );
         assert!(
-            app_paths_for(&Env {
+            app_paths_n(&Env {
                 os: "linux",
                 home: None,
                 var: &none,

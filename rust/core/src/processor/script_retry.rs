@@ -347,13 +347,16 @@ mod tests {
         );
     }
 
-    #[cfg(unix)] // fixture uses Unix paths or sh
     #[tokio::test]
     async fn a_failing_run_schedules_a_retry_then_fails_permanently() {
         let dir = tmp();
         let (w, q) = worker(PostUploadScriptConfig {
             max_retries: 2,
-            ..cfg("echo nope; exit 3")
+            ..cfg(if cfg!(windows) {
+                "echo nope & exit 3"
+            } else {
+                "echo nope; exit 3"
+            })
         });
         let item = completed(&q, &dir);
         assert!(
