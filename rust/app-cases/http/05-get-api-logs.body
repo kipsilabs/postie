@@ -1,0 +1,61 @@
+{"time":"[..]","level":"INFO","msg":"Logging initialized successfully","logPath":"[..]","os":"darwin","compression":true}
+{"time":"[..]","level":"INFO","msg":"Using OS-specific paths","config":"[..]","database":"[..]","data":"[..]","log":"[..]","actualLogPath":"[..]"}
+{"time":"[..]","level":"INFO","msg":"Setting web mode","isWeb":true}
+{"time":"[..]","level":"INFO","msg":"Application starting with OS-specific paths","config":"[..]","database":"[..]"}
+{"time":"[..]","level":"INFO","msg":"Config file does not exist, treating as first start","configPath":"[..]"}
+{"time":"[..]","level":"INFO","msg":"First start determination","isFirstStart":true}
+{"time":"[..]","level":"INFO","msg":"Config file not found or invalid, creating default config","path":"[..]","error":"error reading config file: open [..]"}
+{"time":"[..]","level":"INFO","msg":"Default config file created","path":"[..]"}
+{"time":"[..]","level":"INFO","msg":"Default config created successfully","path":"[..]"}
+{"time":"[..]","level":"DEBUG","msg":"Default config validation pending (expected on first start)","error":"invalid configuration: at least one upload server is required"}
+{"time":"[..]","level":"INFO","msg":"Skipping component initialization: configuration required"}
+{"time":"[..]","level":"INFO","msg":"Web server started","addr":"0.0.0.0:64496"}
+{"time":"[..]","level":"INFO","msg":"Received interrupt signal, shutting down gracefully"}
+{"time":"[..]","level":"INFO","msg":"Server shut down successfully"}
+{"time":"[..]","level":"INFO","msg":"Application shutdown initiated"}
+{"time":"[..]","level":"INFO","msg":"Application shutdown completed"}
+{"time":"[..]","level":"INFO","msg":"Logging initialized successfully","logPath":"[..]","os":"darwin","compression":true}
+{"time":"[..]","level":"INFO","msg":"Using OS-specific paths","config":"[..]","database":"[..]","data":"[..]","log":"[..]","actualLogPath":"[..]"}
+{"time":"[..]","level":"INFO","msg":"Setting web mode","isWeb":true}
+{"time":"[..]","level":"INFO","msg":"Application starting with OS-specific paths","config":"[..]","database":"[..]"}
+{"time":"[..]","level":"INFO","msg":"Config file exists but cannot be loaded, treating as first start","error":"invalid configuration: at least one upload server is required"}
+{"time":"[..]","level":"INFO","msg":"First start determination","isFirstStart":true}
+{"time":"[..]","level":"INFO","msg":"Config file not found or invalid, creating default config","path":"[..]","error":"invalid configuration: at least one upload server is required"}
+{"time":"[..]","level":"INFO","msg":"Default config file created","path":"[..]"}
+{"time":"[..]","level":"INFO","msg":"Default config created successfully","path":"[..]"}
+{"time":"[..]","level":"DEBUG","msg":"Default config validation pending (expected on first start)","error":"invalid configuration: at least one upload server is required"}
+{"time":"[..]","level":"INFO","msg":"Skipping component initialization: configuration required"}
+{"time":"[..]","level":"INFO","msg":"Web server started","addr":"0.0.0.0:64742"}
+{"time":"[..]","level":"INFO","msg":"Received interrupt signal, shutting down gracefully"}
+{"time":"[..]","level":"INFO","msg":"Server shut down successfully"}
+{"time":"[..]","level":"INFO","msg":"Application shutdown initiated"}
+{"time":"[..]","level":"INFO","msg":"Application shutdown completed"}
+{"time":"[..]","level":"INFO","msg":"Logging initialized successfully","logPath":"[..]","os":"darwin","compression":true}
+{"time":"[..]","level":"INFO","msg":"Using OS-specific paths","config":"[..]","database":"[..]","data":"[..]","log":"[..]","actualLogPath":"[..]"}
+{"time":"[..]","level":"INFO","msg":"Setting web mode","isWeb":true}
+{"time":"[..]","level":"INFO","msg":"Application starting with OS-specific paths","config":"[..]","database":"[..]"}
+{"time":"[..]","level":"INFO","msg":"Config file exists but cannot be loaded, treating as first start","error":"invalid configuration: at least one upload server is required"}
+{"time":"[..]","level":"INFO","msg":"First start determination","isFirstStart":true}
+{"time":"[..]","level":"INFO","msg":"Config file not found or invalid, creating default config","path":"[..]","error":"invalid configuration: at least one upload server is required"}
+{"time":"[..]","level":"INFO","msg":"Default config file created","path":"[..]"}
+{"time":"[..]","level":"INFO","msg":"Default config created successfully","path":"[..]"}
+{"time":"[..]","level":"DEBUG","msg":"Default config validation pending (expected on first start)","error":"invalid configuration: at least one upload server is required"}
+{"time":"[..]","level":"INFO","msg":"Skipping component initialization: configuration required"}
+{"time":"[..]","level":"INFO","msg":"Web server started","addr":"0.0.0.0:64984"}
+{"time":"[..]","level":"INFO","msg":"Received interrupt signal, shutting down gracefully"}
+{"time":"[..]","level":"INFO","msg":"Server shut down successfully"}
+{"time":"[..]","level":"INFO","msg":"Application shutdown initiated"}
+{"time":"[..]","level":"INFO","msg":"Application shutdown completed"}
+{"time":"[..]","level":"INFO","msg":"Logging initialized successfully","logPath":"[..]","os":"darwin","compression":true}
+{"time":"[..]","level":"INFO","msg":"Using OS-specific paths","config":"[..]","database":"[..]","data":"[..]","log":"[..]","actualLogPath":"[..]"}
+{"time":"[..]","level":"INFO","msg":"Setting web mode","isWeb":true}
+{"time":"[..]","level":"INFO","msg":"Application starting with OS-specific paths","config":"[..]","database":"[..]"}
+{"time":"[..]","level":"INFO","msg":"Config file exists but cannot be loaded, treating as first start","error":"invalid configuration: at least one upload server is required"}
+{"time":"[..]","level":"INFO","msg":"First start determination","isFirstStart":true}
+{"time":"[..]","level":"INFO","msg":"Config file not found or invalid, creating default config","path":"[..]","error":"invalid configuration: at least one upload server is required"}
+{"time":"[..]","level":"INFO","msg":"Default config file created","path":"[..]"}
+{"time":"[..]","level":"INFO","msg":"Default config created successfully","path":"[..]"}
+{"time":"[..]","level":"DEBUG","msg":"Default config validation pending (expected on first start)","error":"invalid configuration: at least one upload server is required"}
+{"time":"[..]","level":"INFO","msg":"Skipping component initialization: configuration required"}
+{"time":"[..]","level":"INFO","msg":"Web server started","addr":"0.0.0.0:49640"}
+...

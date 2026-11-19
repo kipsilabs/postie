@@ -1,0 +1,12 @@
+[request]
+method = "GET"
+path = "/api/%F0%9F%91%A8%E2%80%8D%F0%9F%91%A9%E2%80%8D%F0%9F%91%A7%20family/registration-status"
+
+[response]
+status = 301
+
+[response.headers]
+access-control-allow-headers = "Content-Type, Authorization"
+access-control-allow-methods = "GET, POST, PUT, DELETE, OPTIONS"
+access-control-allow-origin = "*"
+location = "./"

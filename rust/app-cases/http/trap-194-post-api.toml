@@ -1,0 +1,9 @@
+[request]
+method = "POST"
+path = "/api//pause"
+
+[response]
+status = 301
+
+[response.headers]
+location = "/api/pause"
