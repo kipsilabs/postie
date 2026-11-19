@@ -16,6 +16,7 @@ pub mod nzb;
 pub mod par2;
 pub mod pausable;
 pub mod poster;
+pub mod postie;
 pub mod processor;
 pub mod progress;
 pub mod queue;
