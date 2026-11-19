@@ -1,5 +1,6 @@
 //! PAR2 support. Grows unit by unit (ADR-016); today: file-name classification and the work-dir sweeper.
 
+pub mod binary;
 pub mod create;
 pub mod executor;
 pub mod existing;

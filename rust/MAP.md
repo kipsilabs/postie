@@ -30,4 +30,4 @@ dropped: tests/bench/nyuu/sink
 ## NNTP
 - `rust/nntp` (postie-nntp): done 2026-11-19, 18 tests, bench on par with prototype. Remaining: pool Manager glue (UpdateConfig with incremental provider add/remove, metrics shape), wired in by the poster/verification ports.
 
-- par2: native creator, existing-set detection, native executor and scheduler [done 2026-11-19, rust/core/src/par2; 1 GiB at par2go parity]; open: BinaryExecutor (ParPar binary)
+- par2: native creator, existing-set detection, native executor and scheduler [done 2026-11-19, rust/core/src/par2; 1 GiB at par2go parity]; BinaryExecutor [done]
