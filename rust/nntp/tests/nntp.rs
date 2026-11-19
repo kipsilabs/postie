@@ -589,3 +589,15 @@ async fn providers_can_be_added_and_removed_while_running() {
     assert!(client.remove_provider(&b.endpoint().key()));
     assert!(client.post(article(9)).await.is_err(), "no providers left");
 }
+
+#[tokio::test]
+async fn test_provider_reports_success_and_the_failure_kinds() {
+    let ok = fake(Behavior::default()).await;
+    assert!(postie_nntp::test_provider(&ok.endpoint()).await.is_ok());
+    let mut dead = Endpoint::new("127.0.0.1", 1);
+    dead.connect_timeout = Duration::from_millis(500);
+    assert!(matches!(
+        postie_nntp::test_provider(&dead).await,
+        Err(NntpError::Connect(_))
+    ));
+}

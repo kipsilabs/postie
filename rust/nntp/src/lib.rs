@@ -49,6 +49,13 @@ impl NntpError {
     }
 }
 
+/// Connects, reads the greeting and authenticates once, then hangs up; the elapsed time is the
+/// round trip a settings page shows. Used to validate a server before saving it.
+pub async fn test_provider(endpoint: &Endpoint) -> Result<Duration, NntpError> {
+    let start = std::time::Instant::now();
+    conn::open(endpoint).await.map(|_| start.elapsed())
+}
+
 /// SOCKS5 proxy (`socks5://user:pass@host:port` or plain `host:port`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Socks5 {
