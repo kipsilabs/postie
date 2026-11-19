@@ -28,16 +28,22 @@ pub enum ProgressType {
 pub struct ProgressState {
     pub max: i64,
     pub current_num: i64,
+    #[serde(serialize_with = "crate::gofloat::serialize")]
     pub current_percent: f64,
+    #[serde(serialize_with = "crate::gofloat::serialize")]
     pub current_bytes: f64,
+    #[serde(serialize_with = "crate::gofloat::serialize")]
     pub seconds_since: f64,
+    #[serde(serialize_with = "crate::gofloat::serialize")]
     pub seconds_left: f64,
     #[serde(rename = "KBsPerSecond")]
+    #[serde(serialize_with = "crate::gofloat::serialize")]
     pub kbs_per_second: f64,
     pub description: String,
     pub r#type: ProgressType,
     pub is_started: bool,
     pub is_waiting: bool,
+    #[serde(serialize_with = "crate::gofloat::serialize")]
     pub wait_seconds_remaining: f64,
     pub is_paused: bool,
 }

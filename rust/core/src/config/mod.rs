@@ -363,15 +363,20 @@ pub struct ProgressStatus {
     pub details: String,
     pub is_running: bool,
     pub last_update: i64,
+    #[serde(serialize_with = "crate::gofloat::serialize")]
     pub percentage: f64,
+    #[serde(serialize_with = "crate::gofloat::serialize")]
     pub current_file_progress: f64,
     #[serde(rename = "jobID")]
     pub job_id: String,
     pub total_bytes: i64,
     pub transferred_bytes: i64,
     pub current_file_bytes: i64,
+    #[serde(serialize_with = "crate::gofloat::serialize")]
     pub speed: f64,
+    #[serde(serialize_with = "crate::gofloat::serialize")]
     pub seconds_left: f64,
+    #[serde(serialize_with = "crate::gofloat::serialize")]
     pub elapsed_time: f64,
 }
 
@@ -379,7 +384,7 @@ pub struct ProgressStatus {
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
     #[error("error reading config file: {0}")]
-    Read(std::io::Error),
+    Read(String),
     #[error("error parsing config file: {0}")]
     Parse(String),
     #[error(
@@ -913,8 +918,19 @@ impl ConfigData {
 }
 
 /// Loads, migrates, defaults and validates the configuration file (`config.Load`).
+/// Go's `syscall.Errno` text for the common file errors.
+pub fn go_io_text(e: &std::io::Error) -> String {
+    match e.kind() {
+        std::io::ErrorKind::NotFound => "no such file or directory".into(),
+        std::io::ErrorKind::PermissionDenied => "permission denied".into(),
+        std::io::ErrorKind::AlreadyExists => "file exists".into(),
+        _ => e.to_string().to_lowercase(),
+    }
+}
+
 pub fn load(path: &Path) -> Result<ConfigData, ConfigError> {
-    let data = std::fs::read_to_string(path).map_err(ConfigError::Read)?;
+    let data = std::fs::read_to_string(path)
+        .map_err(|e| ConfigError::Read(format!("open {}: {}", path.display(), go_io_text(&e))))?;
     let mut cfg = ConfigData::from_yaml(&data).map_err(ConfigError::Parse)?;
     if is_config_version_too_new(cfg.version) {
         return Err(ConfigError::TooNew(cfg.version));

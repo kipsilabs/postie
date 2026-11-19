@@ -85,7 +85,9 @@ pub struct NntpProviderMetrics {
     pub max_connections: i64,
     pub available_slots: i64,
     pub total_errors: i64,
+    #[serde(serialize_with = "crate::gofloat::serialize")]
     pub avg_speed: f64,
+    #[serde(serialize_with = "crate::gofloat::serialize")]
     pub speed_ewma: f64,
     pub bytes_consumed: i64,
     pub missing: i64,
@@ -105,10 +107,13 @@ pub struct NntpPoolMetrics {
     pub timestamp: String,
     pub active_connections: i64,
     pub total_errors: i64,
+    #[serde(serialize_with = "crate::gofloat::serialize")]
     pub avg_speed: f64,
     pub bytes_consumed: i64,
     pub bytes_uploaded: i64,
+    #[serde(serialize_with = "crate::gofloat::serialize")]
     pub upload_speed: f64,
+    #[serde(serialize_with = "crate::gofloat::serialize")]
     pub upload_avg_speed: f64,
     pub elapsed: String,
     pub provider_errors: BTreeMap<String, i64>,
@@ -432,7 +437,12 @@ impl App {
     // ---- logs ----
 
     fn log_path(&self) -> std::path::PathBuf {
-        self.paths.log.clone()
+        let actual = crate::logx::current_path();
+        if actual.as_os_str().is_empty() {
+            self.paths.log.clone()
+        } else {
+            actual
+        }
     }
 
     /// `limit == 0`: the last 1 MiB; otherwise `limit` lines after skipping `offset` from the end.

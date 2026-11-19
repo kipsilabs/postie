@@ -13,7 +13,7 @@ wave 2: par2sweep [done 2026-11-19], poster [done 2026-11-19, rust/core::poster 
 wave 3: watcher [done 2026-11-19, rust/core::watcher + Go filepath.Match port], pkg/postie [done]
 wave 4: processor [done 2026-11-19, rust/core::processor]
 wave 5: cmd/postie, internal/backend — open
-wave 6: cmd/web, main.go — open
+wave 6: cmd/web [done 2026-11-19, rust/server: 232/232 replay], main.go — open
 dropped: tests/bench/nyuu/sink
 
 ## Steps

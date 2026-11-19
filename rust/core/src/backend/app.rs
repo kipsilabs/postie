@@ -199,11 +199,25 @@ impl App {
             stats_cache: Mutex::new(api::StatsCache::default()),
         });
         *lock(&app.me) = Arc::downgrade(&app);
+        crate::logx::info(
+            "Using OS-specific paths",
+            &[
+                ("config", app.paths.config.to_string_lossy().into()),
+                ("database", app.paths.database.to_string_lossy().into()),
+                ("data", app.paths.data.to_string_lossy().into()),
+                ("log", app.paths.log.to_string_lossy().into()),
+                (
+                    "actualLogPath",
+                    crate::logx::current_path().to_string_lossy().into(),
+                ),
+            ],
+        );
         app
     }
 
     /// The web server keeps using the default location (relocation is desktop-only).
     pub fn set_web_mode(&self, web: bool) {
+        crate::logx::info("Setting web mode", &[("isWeb", web.into())]);
         self.web_mode
             .store(web, std::sync::atomic::Ordering::SeqCst);
         if web {
@@ -274,9 +288,9 @@ impl App {
             return false;
         }
         if !path.exists() {
-            eprintln!(
-                "backend: config file does not exist, treating as first start: {}",
-                path.display()
+            crate::logx::info(
+                "Config file does not exist, treating as first start",
+                &[("configPath", path.to_string_lossy().into())],
             );
             return true;
         }
@@ -297,12 +311,28 @@ impl App {
         let mut cfg = config::default_config();
         cfg.database.database_path = self.paths.database.to_string_lossy().into_owned();
         self.save_config_file(&cfg)
-            .map_err(|e| format!("failed to save default config: {e}"))
+            .map_err(|e| format!("failed to save default config: {e}"))?;
+        crate::logx::info(
+            "Default config file created",
+            &[("path", self.config_path().to_string_lossy().into())],
+        );
+        Ok(())
     }
 
     /// Loads or creates the config, then brings up the components (all skipped on first start).
     pub fn startup(self: &Arc<Self>) {
+        crate::logx::info(
+            "Application starting with OS-specific paths",
+            &[
+                ("config", self.paths.config.to_string_lossy().into()),
+                ("database", self.paths.database.to_string_lossy().into()),
+            ],
+        );
         let first = self.determine_first_start();
+        crate::logx::info(
+            "First start determination",
+            &[("isFirstStart", first.into())],
+        );
         lock(&self.state).first_start = first;
         let (loc_err, path) = {
             let s = lock(&self.state);
@@ -312,15 +342,34 @@ impl App {
             eprintln!("backend: cannot load saved configuration location: {e}");
         } else if let Err(e) = self.load_config() {
             if path == self.paths.config {
-                eprintln!(
-                    "backend: config file not found or invalid, creating default config: {} ({e})",
-                    path.display()
+                crate::logx::info(
+                    "Config file not found or invalid, creating default config",
+                    &[
+                        ("path", path.to_string_lossy().into()),
+                        ("error", e.clone().into()),
+                    ],
                 );
                 match self.create_default_config() {
                     Ok(()) => {
-                        let _ = self.load_config();
+                        crate::logx::info(
+                            "Default config created successfully",
+                            &[("path", path.to_string_lossy().into())],
+                        );
+                        // on first start this is expected to fail validation (no servers yet)
+                        match self.load_config() {
+                            Ok(()) => crate::logx::info("Default config loaded successfully", &[]),
+                            Err(e) => crate::logx::debug(
+                                "Default config validation pending (expected on first start)",
+                                &[("error", e.into())],
+                            ),
+                        }
                     }
-                    Err(e) => eprintln!("backend: failed to create default config: {e}"),
+                    Err(e) => {
+                        crate::logx::error(
+                            "Failed to create default config",
+                            &[("error", e.into())],
+                        );
+                    }
                 }
             } else {
                 let msg = format!("Cannot load configuration at {}: {e}", path.display());
@@ -339,7 +388,10 @@ impl App {
         }
         let skip = lock(&self.state).first_start || self.applied_config().is_none();
         if skip {
-            eprintln!("backend: skipping component initialization: configuration required");
+            crate::logx::info(
+                "Skipping component initialization: configuration required",
+                &[],
+            );
             return;
         }
         if let Err(e) = self.initialize_queue() {
@@ -885,7 +937,10 @@ impl App {
             valid_server_count: valid,
             config_valid: has_servers && valid > 0,
             needs_configuration: !has_servers || valid == 0,
-            version: option_env!("POSTIE_VERSION").unwrap_or("dev").to_string(),
+            version: std::env::var("POSTIE_VERSION")
+                .ok()
+                .filter(|v| !v.is_empty())
+                .unwrap_or_else(|| option_env!("POSTIE_VERSION").unwrap_or("dev").to_string()),
         }
     }
 

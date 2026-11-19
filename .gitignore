@@ -31,3 +31,6 @@ postie-cli
 example/
 # CocoIndex Code (ccc)
 /.cocoindex_code/
+
+# Rust build output
+rust/**/target/

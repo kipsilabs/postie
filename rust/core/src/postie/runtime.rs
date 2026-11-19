@@ -188,7 +188,9 @@ pub struct RuntimeMetrics {
     pub upload_reserved_bytes: i64,
     pub upload_budget_bytes: i64,
     pub upload_bytes: i64,
+    #[serde(serialize_with = "crate::gofloat::serialize")]
     pub upload_speed_bps: f64,
+    #[serde(serialize_with = "crate::gofloat::serialize")]
     pub upload_avg_speed_bps: f64,
     pub par2_active_jobs: i64,
     pub par2_queued_jobs: i64,
