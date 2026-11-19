@@ -180,4 +180,7 @@ async fn main() {
     let _ = running.task.await;
     postie_core::logx::info("Received interrupt signal, shutting down gracefully", &[]);
     app.shutdown().await;
+    // everything is stopped and flushed: do not let the runtime's drop wait on a straggling blocking
+    // task (a scan or a connect that is still in flight) and keep the process alive after Ctrl-C
+    std::process::exit(0);
 }
