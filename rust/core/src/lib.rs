@@ -8,6 +8,7 @@ pub mod database;
 pub mod db;
 pub mod duplicatelookup;
 pub mod engine;
+pub mod fileinfo;
 pub mod goqite;
 pub mod manifest;
 pub mod nxg;

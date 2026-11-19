@@ -1,7 +1,10 @@
 //! PAR2 support. Grows unit by unit (ADR-016); today: file-name classification and the work-dir sweeper.
 
 pub mod create;
+pub mod executor;
+pub mod existing;
 pub mod packets;
+pub mod scheduler;
 pub mod sweep;
 
 /// True when the name ends in `.par2` (any case), which also covers `.volNN+MM.par2` volumes.
