@@ -73,6 +73,7 @@ pub struct StatsSnapshot {
 
 pub struct ProviderPool {
     name: String,
+    max_connections: usize,
     queue: async_channel::Sender<Request>,
     stats: Arc<ProviderStats>,
     scaler: Arc<Scaler>,
@@ -102,6 +103,7 @@ impl ProviderPool {
         }
         Arc::new(Self {
             name: cfg.endpoint.key(),
+            max_connections: cfg.connections.max(1),
             queue: tx,
             stats,
             scaler,
@@ -110,6 +112,11 @@ impl ProviderPool {
 
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// The configured connection limit.
+    pub fn max_connections(&self) -> usize {
+        self.max_connections
     }
 
     async fn submit(&self, kind: Kind) -> Result<Answer, NntpError> {
@@ -316,6 +323,11 @@ impl Client {
 
     pub fn stats(&self) -> Vec<StatsSnapshot> {
         self.providers.iter().map(|p| p.stats()).collect()
+    }
+
+    /// Total configured connections across providers.
+    pub fn max_connections(&self) -> usize {
+        self.providers.iter().map(|p| p.max_connections()).sum()
     }
 
     pub fn close(&self) {

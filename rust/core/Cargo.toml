@@ -7,6 +7,7 @@ description = "Postie core library: stateful and IO units ported from the Go int
 
 [dependencies]
 base64 = "0.22"
+aes-gcm = "0.10"
 brotli = "9"
 zip = { version = "9", default-features = false, features = ["deflate"] }
 bcrypt = "0.19"
@@ -14,7 +15,10 @@ chrono = { version = "0.4", default-features = false, features = ["std", "clock"
 jsonwebtoken = { version = "12", default-features = false, features = ["rust_crypto"] }
 rand = "0.10"
 rusqlite = { version = "0.37", features = ["bundled"] }
+article-rs = { path = "../article-rs" }
 duplicatelookup-rs = { path = "../duplicatelookup-rs" }
+md-5 = "0.11"
+postie-nntp = { path = "../nntp" }
 hex = "0.4"
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "json"] }
 postie-yenc = { path = "../yenc" }
