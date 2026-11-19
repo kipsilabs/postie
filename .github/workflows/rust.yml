@@ -75,3 +75,34 @@ jobs:
             rust/target/release/postie-web.exe
             rust/target/release/frontend
           if-no-files-found: ignore
+
+  desktop:
+    name: desktop bundle (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: [check, test]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Linux system libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust/desktop
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile && bun run build
+        working-directory: frontend
+      - run: cargo install tauri-cli --version "^2" --locked
+      - run: cargo tauri build
+        working-directory: rust/desktop
+      - uses: actions/upload-artifact@v4
+        with:
+          name: postie-desktop-${{ matrix.os }}
+          path: rust/desktop/target/release/bundle/**/*
+          if-no-files-found: error
