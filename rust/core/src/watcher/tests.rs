@@ -194,6 +194,7 @@ fn size_threshold_min_size_and_ignore_patterns_filter_files() {
     );
 }
 
+#[cfg(unix)]
 #[test]
 fn tracked_and_running_paths_are_skipped_and_symlinks_follow_the_setting() {
     let (w, q, busy, dir) = setup(cfg());

@@ -408,7 +408,8 @@ pub fn new_executor(
     }
 }
 
-#[cfg(test)]
+// the fake parpar is a shell script
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use std::os::unix::fs::PermissionsExt;

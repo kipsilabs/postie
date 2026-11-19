@@ -415,6 +415,7 @@ async fn min_size_to_start_and_the_callback_hold_back_new_jobs() {
     assert_eq!(count(&held, "completed_items"), 1);
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn folder_jobs_post_all_files_as_one_nzb() {
     let e = env();
