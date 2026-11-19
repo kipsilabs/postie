@@ -110,7 +110,7 @@ Consequences: more code than patching a fork (~1.5k lines) but no fork to mainta
 Status: accepted (2026-11-19)
 Context: the PAR2 spec numbers a set's source slices in the order of the file IDs in the Main packet (sorted ascending). `par2go` sorts the IDs for the Main packet but encodes slices in *input* order, so a multi-file set whose inputs are not already in ID order carries recovery data that does not match the declared layout. Repro: three flat-named files, damage two blocks of one, `par2 r` fails with "Repair Failed" for both input orders tried (one damaged block still repairs because exponent 0 is a plain XOR, which hides the bug). Postie's folder mode (`CreateSet`) hits this whenever the directory listing is not in ID order.
 Decision: the Rust creator encodes in file-ID order. A Rust-created multi-file set repairs under par2cmdline in every input order tested. Single-file sets stay byte-identical to par2go.
-Consequences: multi-file output differs from the Go app's (it is correct, theirs is not). Worth fixing in Go too: sort `files` by ID before encoding in `par2go`, or make Postie pass inputs in ID order.
+Consequences: multi-file output differed from the Go app's (the Rust set was correct, the Go one was not). Fixed on the Go side in `internal/par2/order.go`: `CreateSet` hands par2go its inputs in file-ID order (`TestIntegration_CreateSet_MultiFileRepairsInEveryInputOrder` repairs all six orders of a 3-file set under par2cmdline; before the fix every order failed). Sets already created by older versions keep the bad layout. par2go itself still has the bug for other callers.
 
 ## ADR-023: The web server is a standalone Rust binary replayed against the recorded cases
 Status: accepted (2026-11-19)
