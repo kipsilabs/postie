@@ -8,10 +8,10 @@ written 2026-11-18, unverified by me beyond agent reports: `research/nntp.md`, `
 
 ## Units (state: open | claimed by <session> <date> | done)
 wave 0 (all done except frontend client swap): frontend/ (keep: Tauri client swap), pkg/fileinfo [trivial struct, ported with poster], config [done 2026-11-19: 59 Go load cases + duration/address oracles in rust/core], internal/apikey [done 2026-11-19, rust/core], article [done 2026-11-19: gate pass, 2269/2269 recorded cases; crates rust/article-rs, rust/yenc, rust/rapidyenc-sys], config, duplicatelookup, pausable, progress [done 2026-11-19, rust/core], transferstore [done 2026-11-19, rust/core], webauth [done 2026-11-19, rust/core; Go<->Rust token+hash interop verified], wshub [done 2026-11-19, rust/core; axum socket driver lives in cmd/web unit] — all open
-wave 1: internal/arr [done 2026-11-19, rust/core: REST client replaces starr; mock-server tests], database [done 2026-11-19, rust/core: goose-compatible runner, Go-migrated fixture DB], manifest, nzb, par2, pool — open
+wave 1: internal/arr [done 2026-11-19, rust/core: REST client replaces starr; mock-server tests], database [done], manifest [done], nzb [done], par2 [done], pool [done 2026-11-19, rust/core::pool + dynamic nntp Client]
 wave 2: par2sweep [done 2026-11-19], poster [done 2026-11-19, rust/core::poster + engine/throttle/uploadmeter/nxg; 25 poster tests, 133 core tests], queue [done 2026-11-19, rust/core: goqite + queue, 18 listing cases diffed against Go over the same DB], transfercleaner [done 2026-11-19], transferwriter [done 2026-11-19], verification [done 2026-11-19, rust/core: 16 tests with real store+manifests] — open (mocks -> Rust test mocks)
 wave 3: watcher, pkg/postie — open
-wave 4: processor — open
+wave 4: processor [done 2026-11-19, rust/core::processor]
 wave 5: cmd/postie, internal/backend — open
 wave 6: cmd/web, main.go — open
 dropped: tests/bench/nyuu/sink

@@ -264,36 +264,72 @@ async fn worker(
     }
 }
 
-/// Spreads work round-robin across providers.
+/// Spreads work round-robin across providers. Providers can be added and removed while running
+/// (a settings change), so the list sits behind a lock that is only held to clone a handle.
 pub struct Client {
-    providers: Vec<Arc<ProviderPool>>,
+    providers: std::sync::RwLock<Vec<Arc<ProviderPool>>>,
     next: AtomicUsize,
+    throttle: Option<Arc<Throttle>>,
 }
 
 impl Client {
     pub fn new(providers: Vec<Arc<ProviderPool>>) -> Self {
+        Self::with_throttle(providers, None)
+    }
+
+    fn with_throttle(providers: Vec<Arc<ProviderPool>>, throttle: Option<Arc<Throttle>>) -> Self {
         Self {
-            providers,
+            providers: std::sync::RwLock::new(providers),
             next: AtomicUsize::new(0),
+            throttle,
         }
     }
 
     /// Builds a client over `configs` sharing one throttle (`bytes_per_sec` 0 is unlimited).
     pub fn from_configs(configs: Vec<ProviderConfig>, bytes_per_sec: u64) -> Self {
         let throttle = (bytes_per_sec > 0).then(|| Arc::new(Throttle::new(bytes_per_sec)));
-        Self::new(
-            configs
-                .into_iter()
-                .map(|c| ProviderPool::start(c, throttle.clone()))
-                .collect(),
-        )
+        let providers = configs
+            .into_iter()
+            .map(|c| ProviderPool::start(c, throttle.clone()))
+            .collect();
+        Self::with_throttle(providers, throttle)
     }
 
-    fn pick(&self) -> Option<&Arc<ProviderPool>> {
-        if self.providers.is_empty() {
+    fn snapshot(&self) -> Vec<Arc<ProviderPool>> {
+        self.providers
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    }
+
+    /// Starts a provider and adds it to the rotation.
+    pub fn add_provider(&self, cfg: ProviderConfig) {
+        let p = ProviderPool::start(cfg, self.throttle.clone());
+        self.providers
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(p);
+    }
+
+    /// Stops and removes the provider with this key (`host:port[+user]`); `false` when unknown.
+    /// Requests already in flight on it finish.
+    pub fn remove_provider(&self, name: &str) -> bool {
+        let mut list = self.providers.write().unwrap_or_else(|e| e.into_inner());
+        match list.iter().position(|p| p.name() == name) {
+            Some(i) => {
+                list.remove(i).close();
+                true
+            }
+            None => false,
+        }
+    }
+
+    fn pick(&self) -> Option<Arc<ProviderPool>> {
+        let list = self.providers.read().unwrap_or_else(|e| e.into_inner());
+        if list.is_empty() {
             return None;
         }
-        Some(&self.providers[self.next.fetch_add(1, Ordering::Relaxed) % self.providers.len()])
+        Some(list[self.next.fetch_add(1, Ordering::Relaxed) % list.len()].clone())
     }
 
     /// Posts via the next provider in rotation.
@@ -305,14 +341,15 @@ impl Client {
     /// every provider answered `430`; if any provider failed and none had it, the error is returned
     /// (never "missing"), so verification cannot trigger false reposts.
     pub async fn stat(&self, message_id: &str) -> Result<bool, NntpError> {
-        let n = self.providers.len();
+        let providers = self.snapshot();
+        let n = providers.len();
         if n == 0 {
             return Err(NntpError::Closed);
         }
         let start = self.next.fetch_add(1, Ordering::Relaxed);
         let mut last_err = None;
         for i in 0..n {
-            match self.providers[(start + i) % n].stat(message_id).await {
+            match providers[(start + i) % n].stat(message_id).await {
                 Ok(true) => return Ok(true),
                 Ok(false) => {}
                 Err(e) => last_err = Some(e),
@@ -322,15 +359,15 @@ impl Client {
     }
 
     pub fn stats(&self) -> Vec<StatsSnapshot> {
-        self.providers.iter().map(|p| p.stats()).collect()
+        self.snapshot().iter().map(|p| p.stats()).collect()
     }
 
     /// Total configured connections across providers.
     pub fn max_connections(&self) -> usize {
-        self.providers.iter().map(|p| p.max_connections()).sum()
+        self.snapshot().iter().map(|p| p.max_connections()).sum()
     }
 
     pub fn close(&self) {
-        self.providers.iter().for_each(|p| p.close());
+        self.snapshot().iter().for_each(|p| p.close());
     }
 }

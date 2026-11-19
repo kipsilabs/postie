@@ -15,6 +15,7 @@ pub mod nxg;
 pub mod nzb;
 pub mod par2;
 pub mod pausable;
+pub mod pool;
 pub mod poster;
 pub mod postie;
 pub mod processor;

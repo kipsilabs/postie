@@ -559,3 +559,33 @@ async fn close_stops_new_work() {
         Err(NntpError::Closed)
     );
 }
+
+#[tokio::test]
+async fn providers_can_be_added_and_removed_while_running() {
+    let a = fake(Behavior::default()).await;
+    let b = fake(Behavior::default()).await;
+    let client = Client::from_configs(vec![cfg(&a)], 0);
+    client.post(article(0)).await.unwrap();
+    assert_eq!((a.posts().len(), b.posts().len()), (1, 0));
+    client.add_provider(cfg(&b));
+    assert_eq!(client.stats().len(), 2);
+    assert_eq!(client.max_connections(), 4);
+    for i in 0..6 {
+        client.post(article(i)).await.unwrap();
+    }
+    assert!(!b.posts().is_empty(), "the new provider takes its share");
+    let key = a.endpoint().key();
+    assert!(client.remove_provider(&key));
+    assert!(!client.remove_provider(&key), "already gone");
+    let before = a.posts().len();
+    for i in 0..4 {
+        client.post(article(i)).await.unwrap();
+    }
+    assert_eq!(
+        a.posts().len(),
+        before,
+        "a removed provider gets no more work"
+    );
+    assert!(client.remove_provider(&b.endpoint().key()));
+    assert!(client.post(article(9)).await.is_err(), "no providers left");
+}
