@@ -1,6 +1,6 @@
 //! `postie-web`: flags `--auth`, `--port/-p`, `--host`; env `POSTIE_AUTH_ENABLED`, `PORT`, `HOST`.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use postie_core::backend::app::{App, NntpTester};
@@ -68,16 +68,30 @@ async fn shutdown_signal() {
 }
 
 /// `POSTIE_FRONTEND_DIR`, else a `frontend/` directory next to the executable (release archives),
-/// else the source tree's build output.
+/// else the source tree's build output (found from the crate location, then from the working directory).
 fn frontend_dir() -> PathBuf {
     if let Some(d) = std::env::var_os("POSTIE_FRONTEND_DIR") {
         return PathBuf::from(d);
     }
     let beside = std::env::current_exe()
         .ok()
-        .and_then(|e| e.parent().map(|p| p.join("frontend")))
-        .filter(|p| p.join("index.html").is_file());
-    beside.unwrap_or_else(|| PathBuf::from("../../frontend/build"))
+        .and_then(|e| e.parent().map(|p| p.join("frontend")));
+    let candidates = [
+        beside,
+        Some(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../frontend/build")),
+        Some(PathBuf::from("frontend/build")),
+        Some(PathBuf::from("../frontend/build")),
+    ];
+    let dir = candidates
+        .into_iter()
+        .flatten()
+        .find(|p| p.join("index.html").is_file());
+    dir.unwrap_or_else(|| {
+        eprintln!(
+            "warning: frontend build not found; run `bun run build` in frontend/ or set POSTIE_FRONTEND_DIR"
+        );
+        PathBuf::from("frontend/build")
+    })
 }
 
 #[tokio::main]
