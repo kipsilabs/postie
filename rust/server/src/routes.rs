@@ -4,7 +4,9 @@ use std::sync::Arc;
 
 use axum::Router;
 use axum::body::Bytes;
-use axum::extract::{Multipart, Path, Query, Request, State, WebSocketUpgrade, ws};
+use axum::extract::{
+    DefaultBodyLimit, Multipart, Path, Query, Request, State, WebSocketUpgrade, ws,
+};
 use axum::http::{HeaderValue, Method, StatusCode, header};
 use axum::middleware;
 use axum::response::Response;
@@ -61,8 +63,14 @@ pub fn router(srv: Arc<Srv>) -> Router {
         .route("/api/queue/{id}/priority", post(set_priority))
         .route("/api/logs", get(get_logs))
         .route("/api/logs/download", get(download_logs))
-        .route("/api/upload", post(upload))
-        .route("/api/upload-folder", post(upload_folder))
+        .route(
+            "/api/upload",
+            post(upload).layer(DefaultBodyLimit::disable()),
+        )
+        .route(
+            "/api/upload-folder",
+            post(upload_folder).layer(DefaultBodyLimit::disable()),
+        )
         .route("/api/upload/cancel", post(cancel_upload))
         .route("/api/nzb/{id}/download", get(download_nzb))
         .route("/api/processor/status", get(processor_status))
