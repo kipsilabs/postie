@@ -1,0 +1,259 @@
+[
+ {
+  "in": "0",
+  "ok": true,
+  "out": "0s"
+ },
+ {
+  "in": "0s",
+  "ok": true,
+  "out": "0s"
+ },
+ {
+  "in": "1s",
+  "ok": true,
+  "out": "1s",
+  "ns": 1000000000
+ },
+ {
+  "in": "5s",
+  "ok": true,
+  "out": "5s",
+  "ns": 5000000000
+ },
+ {
+  "in": "5m",
+  "ok": true,
+  "out": "5m0s",
+  "ns": 300000000000
+ },
+ {
+  "in": "1h",
+  "ok": true,
+  "out": "1h0m0s",
+  "ns": 3600000000000
+ },
+ {
+  "in": "1h30m",
+  "ok": true,
+  "out": "1h30m0s",
+  "ns": 5400000000000
+ },
+ {
+  "in": "90s",
+  "ok": true,
+  "out": "1m30s",
+  "ns": 90000000000
+ },
+ {
+  "in": "500ms",
+  "ok": true,
+  "out": "500ms",
+  "ns": 500000000
+ },
+ {
+  "in": "1.5s",
+  "ok": true,
+  "out": "1.5s",
+  "ns": 1500000000
+ },
+ {
+  "in": "1.5h",
+  "ok": true,
+  "out": "1h30m0s",
+  "ns": 5400000000000
+ },
+ {
+  "in": "100us",
+  "ok": true,
+  "out": "100µs",
+  "ns": 100000
+ },
+ {
+  "in": "100µs",
+  "ok": true,
+  "out": "100µs",
+  "ns": 100000
+ },
+ {
+  "in": "100μs",
+  "ok": true,
+  "out": "100µs",
+  "ns": 100000
+ },
+ {
+  "in": "5ns",
+  "ok": true,
+  "out": "5ns",
+  "ns": 5
+ },
+ {
+  "in": "-5s",
+  "ok": true,
+  "out": "-5s",
+  "ns": -5000000000
+ },
+ {
+  "in": "+5s",
+  "ok": true,
+  "out": "5s",
+  "ns": 5000000000
+ },
+ {
+  "in": "1d",
+  "ok": false,
+  "err": "time: unknown unit \"d\" in duration \"1d\""
+ },
+ {
+  "in": "5",
+  "ok": false,
+  "err": "time: missing unit in duration \"5\""
+ },
+ {
+  "in": "",
+  "ok": false,
+  "err": "time: invalid duration \"\""
+ },
+ {
+  "in": "s",
+  "ok": false,
+  "err": "time: invalid duration \"s\""
+ },
+ {
+  "in": "1.s",
+  "ok": true,
+  "out": "1s",
+  "ns": 1000000000
+ },
+ {
+  "in": ".5s",
+  "ok": true,
+  "out": "500ms",
+  "ns": 500000000
+ },
+ {
+  "in": "1..5s",
+  "ok": false,
+  "err": "time: missing unit in duration \"1..5s\""
+ },
+ {
+  "in": "1h1h",
+  "ok": true,
+  "out": "2h0m0s",
+  "ns": 7200000000000
+ },
+ {
+  "in": "9223372036854775807ns",
+  "ok": true,
+  "out": "2562047h47m16.854775807s",
+  "ns": 9223372036854775807
+ },
+ {
+  "in": "9223372036854775808ns",
+  "ok": false,
+  "err": "time: invalid duration \"9223372036854775808ns\""
+ },
+ {
+  "in": "2562047h47m16.854775807s",
+  "ok": true,
+  "out": "2562047h47m16.854775807s",
+  "ns": 9223372036854775807
+ },
+ {
+  "in": "2562047h47m16.854775808s",
+  "ok": false,
+  "err": "time: invalid duration \"2562047h47m16.854775808s\""
+ },
+ {
+  "in": "1h-1m",
+  "ok": false,
+  "err": "time: unknown unit \"h-\" in duration \"1h-1m\""
+ },
+ {
+  "in": "5 s",
+  "ok": false,
+  "err": "time: unknown unit \" s\" in duration \"5 s\""
+ },
+ {
+  "in": " 5s",
+  "ok": false,
+  "err": "time: invalid duration \" 5s\""
+ },
+ {
+  "in": "5S",
+  "ok": false,
+  "err": "time: unknown unit \"S\" in duration \"5S\""
+ },
+ {
+  "in": "5mm",
+  "ok": false,
+  "err": "time: unknown unit \"mm\" in duration \"5mm\""
+ },
+ {
+  "in": "0.000000001s",
+  "ok": true,
+  "out": "1ns",
+  "ns": 1
+ },
+ {
+  "in": "1e3s",
+  "ok": false,
+  "err": "time: unknown unit \"e\" in duration \"1e3s\""
+ },
+ {
+  "in": "100.0000000000000001s",
+  "ok": true,
+  "out": "1m40s",
+  "ns": 100000000000
+ },
+ {
+  "in": "3h25m45.5s",
+  "ok": true,
+  "out": "3h25m45.5s",
+  "ns": 12345500000000
+ },
+ {
+  "in": "1000000h",
+  "ok": true,
+  "out": "1000000h0m0s",
+  "ns": 3600000000000000000
+ },
+ {
+  "in": "10000000h",
+  "ok": false,
+  "err": "time: invalid duration \"10000000h\""
+ },
+ {
+  "in": "00:05",
+  "ok": false,
+  "err": "time: unknown unit \":\" in duration \"00:05\""
+ },
+ {
+  "in": "1m1s1ms1us1ns",
+  "ok": true,
+  "out": "1m1.001001001s",
+  "ns": 61001001001
+ },
+ {
+  "in": "0.5ns",
+  "ok": true,
+  "out": "0s"
+ },
+ {
+  "in": "1.9999999999s",
+  "ok": true,
+  "out": "1.999999999s",
+  "ns": 1999999999
+ },
+ {
+  "in": "-0s",
+  "ok": true,
+  "out": "0s"
+ },
+ {
+  "in": "-0.5ms",
+  "ok": true,
+  "out": "-500µs",
+  "ns": -500000
+ }
+]

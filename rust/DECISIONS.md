@@ -82,3 +82,9 @@ Status: accepted (2026-11-19)
 Context: `rust-anything` records pure functions. Most remaining units are SQLite stores, goroutine/context code, HTTP handlers or filesystem code, where it finds few or no bridgeable exports (e.g. `apikey` exposes only a random `Generate`). The Go tests (79 files) are the executable spec for them.
 Decision: Units without meaningful pure functions are ported into the `postie-core` crate (tokio, rusqlite) as ordinary libraries, each with Rust tests derived from the Go tests plus compatibility tests against databases and files created by the Go app. `rust-anything bridge/record/diff/gate` is still used for units with pure logic (article, nzb, config validation, etc.). HTTP behavior stays proven by the recorded app cases (`app replay`).
 Consequences: Less automated differential proof for stateful units; compensate with Go-created fixture DBs, shadow runs in the front door, and replay at each wave.
+
+## ADR-018: Config error texts and YAML dialect
+Status: accepted (2026-11-19)
+Context: `config.Load` was recorded against 59 YAML inputs (`rust/core/tests/fixtures/config-load.json`), plus Go oracles for durations and `net/mail` addresses. Rust matches the resulting config JSON and every validation/duration/address error text exactly.
+Decision: YAML syntax and type errors (from `yaml.v3` vs `serde_yaml_ng`) differ in wording; they are compared only by the `error parsing config file: ` prefix. YAML 1.1 bool words (`yes/no/on/off/y/n`) are accepted for bool fields like yaml.v3, and integral floats (`563.0`) for integer fields. A config saved by Rust loads in Go. Likewise, the XML syntax-error texts of `ValidateNZB` were matched case by case and need no waiver.
+Consequences: users editing config.yaml see the same validation messages; only malformed-YAML wording changes.
