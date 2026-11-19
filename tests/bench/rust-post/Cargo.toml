@@ -1,0 +1,23 @@
+[package]
+name = "rust-post"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Throwaway prototype: yEnc + pipelined POST over TLS, benchmarked against the Go postie path with the same sink"
+
+[dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "net", "io-util", "sync", "time", "macros"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+crc32fast = "1"
+
+[build-dependencies]
+cmake = { version = "0.1", optional = true }
+
+[features]
+rapidyenc = ["dep:cmake"]
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1

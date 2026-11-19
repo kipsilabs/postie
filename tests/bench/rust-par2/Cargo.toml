@@ -1,0 +1,13 @@
+[package]
+name = "rust-par2"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Throwaway prototype: PAR2 create with par2-rs at Postie's defaults, to compare with par2go"
+
+[dependencies]
+par2-rs = "0.13.0"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
