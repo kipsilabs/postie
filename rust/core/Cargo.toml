@@ -15,8 +15,8 @@ chrono = { version = "0.4", default-features = false, features = ["std", "clock"
 jsonwebtoken = { version = "12", default-features = false, features = ["rust_crypto"] }
 rand = "0.10"
 rusqlite = { version = "0.37", features = ["bundled"] }
-article-rs = { path = "../article-rs" }
-duplicatelookup-rs = { path = "../duplicatelookup-rs" }
+article-rs = { path = "../article-rs", default-features = false }
+duplicatelookup-rs = { path = "../duplicatelookup-rs", default-features = false }
 md-5 = "0.11"
 crc32fast = "1"
 reedsolomon-rs = "0.4"

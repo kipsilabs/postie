@@ -13,7 +13,15 @@ fn main() {
         "cargo::rustc-link-search=native={}",
         dst.join("build/rapidyenc_static").display()
     );
+    // multi-config generators (MSVC) put the library in a per-profile subdirectory
+    println!(
+        "cargo::rustc-link-search=native={}",
+        dst.join("build/rapidyenc_static/Release").display()
+    );
     println!("cargo::rustc-link-lib=static=rapidyenc");
+    if std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc") {
+        return;
+    }
     let cxx = if std::env::var("CARGO_CFG_TARGET_VENDOR").as_deref() == Ok("apple") {
         "c++"
     } else {

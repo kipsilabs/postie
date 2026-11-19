@@ -40,6 +40,7 @@ impl Scaler {
     pub(crate) fn add_capacity(&self, n: usize) {
         self.capacity.fetch_add(n, Ordering::AcqRel);
     }
+    #[allow(deprecated)] // `try_update` on newer toolchains
     pub(crate) fn remove_capacity(&self, n: usize) {
         let _ = self
             .capacity
@@ -53,6 +54,7 @@ impl Scaler {
             self.notify.notify_waiters();
         }
     }
+    #[allow(deprecated)] // `try_update` on newer toolchains
     pub(crate) fn remove_used(&self, n: usize) {
         let _ = self
             .used
