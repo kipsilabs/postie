@@ -337,6 +337,7 @@ impl App {
 
     /// Loads or creates the config, then brings up the components (all skipped on first start).
     pub fn startup(self: &Arc<Self>) {
+        self.start_broadcaster();
         crate::logx::info(
             "Application starting with OS-specific paths",
             &[
@@ -421,6 +422,41 @@ impl App {
         if let Err(e) = self.initialize_watchers() {
             eprintln!("backend: failed to initialize watchers: {e}");
         }
+    }
+
+    /// Port of `eventBroadcaster`: one shared ticker per metric replaces per-client polling. Running jobs
+    /// (and the pause state, on the same tick) are emitted only when they change; pool metrics every 5 s.
+    fn start_broadcaster(self: &Arc<Self>) {
+        let (app, cancel) = (self.clone(), self.root.clone());
+        tokio::spawn(async move {
+            let mut jobs_tick = tokio::time::interval(Duration::from_secs(1));
+            let mut pool_tick = tokio::time::interval(Duration::from_secs(5));
+            let (mut last_jobs, mut last_pause) = (None::<Value>, None::<Value>);
+            loop {
+                tokio::select! {
+                    () = cancel.cancelled() => return,
+                    _ = jobs_tick.tick() => {
+                        let jobs = serde_json::to_value(app.get_running_jobs_details()).unwrap_or(Value::Null);
+                        if last_jobs.as_ref() != Some(&jobs) {
+                            last_jobs = Some(jobs.clone());
+                            app.emit("running-jobs-updated", Some(jobs));
+                        }
+                        let pause = app.pause_state();
+                        if last_pause.as_ref() != Some(&pause) {
+                            last_pause = Some(pause.clone());
+                            app.emit("processing:auto-paused", Some(pause));
+                        }
+                    }
+                    _ = pool_tick.tick() => {
+                        if let Ok(m) = app.get_nntp_pool_metrics()
+                            && let Ok(v) = serde_json::to_value(m)
+                        {
+                            app.emit("nntp-pool-metrics-updated", Some(v));
+                        }
+                    }
+                }
+            }
+        });
     }
 
     /// Stops everything in dependency order.

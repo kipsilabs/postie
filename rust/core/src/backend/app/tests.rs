@@ -611,3 +611,32 @@ async fn logs_metrics_and_api_key() {
     assert_ne!(a.regenerate_api_key().unwrap(), key);
     assert!(!a.is_api_enabled());
 }
+
+#[tokio::test]
+async fn the_broadcaster_pushes_running_jobs_and_pause_state_without_being_asked() {
+    let (a, _, _) = app(true);
+    let events = Arc::new(Mutex::new(Vec::<String>::new()));
+    let e2 = events.clone();
+    a.set_event_emitter(Arc::new(move |k, _| e2.lock().unwrap().push(k.to_string())));
+    a.startup();
+    tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+    a.shutdown().await;
+    let kinds = events.lock().unwrap().clone();
+    assert!(
+        kinds.contains(&"running-jobs-updated".to_string()),
+        "{kinds:?}"
+    );
+    assert!(
+        kinds.contains(&"processing:auto-paused".to_string()),
+        "{kinds:?}"
+    );
+    // unchanged state is not re-sent
+    assert_eq!(
+        kinds
+            .iter()
+            .filter(|k| *k == "running-jobs-updated")
+            .count(),
+        1,
+        "{kinds:?}"
+    );
+}
