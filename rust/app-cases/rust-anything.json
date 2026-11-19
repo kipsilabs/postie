@@ -13,7 +13,7 @@
   ],
   "normalizers": {
     "dirsize": "\"size\": [0-9]+",
-    "homepath": "/[^\"]*/rust/original/home[^\"]*"
+    "homepath": "/[^\"]*/postie-original-[^\"]*"
   },
   "timeout_secs": 30,
   "http": {}
