@@ -34,3 +34,4 @@ example/
 
 # Rust build output
 rust/**/target/
+rust/desktop/gen/

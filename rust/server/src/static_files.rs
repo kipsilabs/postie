@@ -80,6 +80,21 @@ pub fn handle(root: &Path, method: &Method, uri: &Uri) -> Response {
         }
         return resolve(root, &path).map_or_else(not_found, |f| serve_file(&f, method));
     }
+    // a directory: FileServer redirects to the slash form, then serves its index.html
+    if resolve(root, &path).is_some_and(|d| d.is_dir()) {
+        if !path.ends_with('/') {
+            let base = path.rsplit('/').next().unwrap_or("");
+            let mut r = status_only(StatusCode::MOVED_PERMANENTLY);
+            if let Ok(v) = HeaderValue::from_str(&format!("{base}/")) {
+                r.headers_mut().insert(header::LOCATION, v);
+            }
+            return r;
+        }
+        return match resolve(root, &format!("{path}index.html")) {
+            Some(index) if index.is_file() => serve_file(&index, method),
+            _ => not_found(),
+        };
+    }
     let has_ext = Path::new(&path).extension().is_some();
     if !has_ext {
         let html = format!("{path}.html");
@@ -121,4 +136,70 @@ fn percent_decode(s: &str) -> String {
 
 fn hex(c: u8) -> Option<u8> {
     (c as char).to_digit(16).map(|d| d as u8)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn root() -> PathBuf {
+        let d = std::env::temp_dir().join(format!(
+            "static-{}-{}",
+            std::process::id(),
+            rand::random::<u32>()
+        ));
+        std::fs::create_dir_all(d.join("_app")).unwrap();
+        std::fs::write(d.join("index.html"), "<html>").unwrap();
+        std::fs::write(d.join("settings.html"), "<s>").unwrap();
+        std::fs::write(d.join("_app/x.js"), "1").unwrap();
+        d
+    }
+
+    fn get(root: &Path, p: &str) -> Response {
+        handle(root, &Method::GET, &p.parse().unwrap())
+    }
+
+    #[test]
+    fn root_and_pages_are_served_and_spa_paths_redirect() {
+        let r = root();
+        assert_eq!(
+            get(&r, "/").status(),
+            StatusCode::OK,
+            "the directory's index.html"
+        );
+        assert_eq!(
+            get(&r, "/settings").status(),
+            StatusCode::OK,
+            "prerendered <path>.html"
+        );
+        assert_eq!(
+            get(&r, "/_app/x.js").headers()[header::CONTENT_TYPE],
+            "text/javascript; charset=utf-8"
+        );
+        let spa = get(&r, "/queue/anything");
+        assert_eq!(
+            (
+                spa.status(),
+                spa.headers()[header::LOCATION].to_str().unwrap()
+            ),
+            (StatusCode::MOVED_PERMANENTLY, "./")
+        );
+        assert_eq!(get(&r, "/missing.js").status(), StatusCode::NOT_FOUND);
+        let dir = get(&r, "/_app");
+        assert_eq!(
+            (
+                dir.status(),
+                dir.headers()[header::LOCATION].to_str().unwrap()
+            ),
+            (StatusCode::MOVED_PERMANENTLY, "_app/")
+        );
+        assert_eq!(
+            get(&r, "/index.html").status(),
+            StatusCode::MOVED_PERMANENTLY
+        );
+        assert_eq!(
+            get(&r, "/../etc/passwd.txt").status(),
+            StatusCode::NOT_FOUND
+        );
+    }
 }

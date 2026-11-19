@@ -45,3 +45,29 @@ impl Srv {
         })
     }
 }
+
+/// A server that is accepting connections.
+pub struct Running {
+    pub addr: std::net::SocketAddr,
+    pub shutdown: tokio_util::sync::CancellationToken,
+    pub task: tokio::task::JoinHandle<()>,
+}
+
+/// Binds `addr` (`host:port`; port 0 picks a free one) and serves the API until `shutdown` fires.
+pub async fn serve(srv: Arc<Srv>, addr: &str) -> std::io::Result<Running> {
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    let local = listener.local_addr()?;
+    let shutdown = tokio_util::sync::CancellationToken::new();
+    let token = shutdown.clone();
+    let router = routes::router(srv).into_make_service_with_connect_info::<std::net::SocketAddr>();
+    let task = tokio::spawn(async move {
+        let _ = axum::serve(listener, router)
+            .with_graceful_shutdown(async move { token.cancelled().await })
+            .await;
+    });
+    Ok(Running {
+        addr: local,
+        shutdown,
+        task,
+    })
+}

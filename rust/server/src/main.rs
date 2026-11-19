@@ -1,6 +1,5 @@
 //! `postie-web`: flags `--auth`, `--port/-p`, `--host`; env `POSTIE_AUTH_ENABLED`, `PORT`, `HOST`.
 
-use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -9,7 +8,7 @@ use postie_core::backend::paths::get_app_paths;
 use postie_core::config::DatabaseConfig;
 use postie_core::database;
 use postie_core::webauth;
-use postie_web::{Srv, routes};
+use postie_web::Srv;
 
 fn parse_bool(s: &str) -> Result<bool, String> {
     match s {
@@ -143,21 +142,17 @@ async fn main() {
     };
     let srv = Srv::new(app.clone(), auth, auth_enabled, build_dir);
     let addr = format!("{}:{}", args.host, args.port);
-    let listener = match tokio::net::TcpListener::bind(&addr).await {
-        Ok(l) => l,
+    let running = match postie_web::serve(srv, &addr).await {
+        Ok(r) => r,
         Err(e) => {
             eprintln!("Fatal error: failed to start web server: {e}");
             std::process::exit(1);
         }
     };
     postie_core::logx::info("Web server started", &[("addr", addr.clone().into())]);
-    let router = routes::router(srv).into_make_service_with_connect_info::<SocketAddr>();
-    if let Err(e) = axum::serve(listener, router)
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-    {
-        eprintln!("Fatal error: {e}");
-    }
+    shutdown_signal().await;
+    running.shutdown.cancel();
+    let _ = running.task.await;
     postie_core::logx::info("Received interrupt signal, shutting down gracefully", &[]);
     app.shutdown().await;
 }
