@@ -1033,8 +1033,8 @@ func (p *poster) checkLoop(ctx context.Context, checkQueue chan *Post, postQueue
 						if art.From == "" {
 							if defaultFrom := p.cfg.PostHeaders.DefaultFrom; defaultFrom != "" {
 								art.From = defaultFrom
-							} else if from, err := article.GenerateFrom(); err == nil {
-								art.From = from
+							} else {
+								art.From = article.GenerateFrom()
 							}
 						}
 						if art.Subject == "" {
@@ -1379,10 +1379,7 @@ func (p *poster) addPost(ctx context.Context, filePath string, displayName strin
 		}
 	}
 
-	from, err := article.GenerateFrom()
-	if err != nil {
-		return fmt.Errorf("error generating from header: %w", err)
-	}
+	from := article.GenerateFrom()
 
 	customHeaders := make(map[string]string)
 	if len(p.cfg.PostHeaders.CustomHeaders) > 0 {
@@ -1409,12 +1406,7 @@ func (p *poster) addPost(ctx context.Context, filePath string, displayName strin
 
 		messageID := ""
 		if p.cfg.MessageIDFormat == config.MessageIDFormatRandom {
-			msgID, err := article.GenerateMessageID()
-			if err != nil {
-				return fmt.Errorf("error generating message ID: %w", err)
-			}
-
-			messageID = msgID
+			messageID = article.GenerateMessageID()
 		} else {
 			msgID, err := nxgHeader.GenerateSegmentID(partType, int64(partNumber))
 			if err != nil {
@@ -1467,10 +1459,7 @@ func (p *poster) addPost(ctx context.Context, filePath string, displayName strin
 		if defaultFrom != "" {
 			from = defaultFrom
 		} else if p.cfg.ObfuscationPolicy == config.ObfuscationPolicyFull {
-			from, err = article.GenerateFrom()
-			if err != nil {
-				return fmt.Errorf("error generating from header: %w", err)
-			}
+			from = article.GenerateFrom()
 		}
 
 		var xNxgHeader string

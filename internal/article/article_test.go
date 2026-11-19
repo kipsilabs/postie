@@ -239,10 +239,7 @@ func TestEncodeSmallData(t *testing.T) {
 }
 
 func TestGenerateMessageID(t *testing.T) {
-	messageID, err := GenerateMessageID()
-	if err != nil {
-		t.Fatalf("GenerateMessageID failed: %v", err)
-	}
+	messageID := GenerateMessageID()
 
 	// Check format: {rand(32)}@{rand(8)}.{rand(3)}
 	pattern := `^[a-zA-Z0-9]{32}@[a-zA-Z0-9]{8}\.[a-zA-Z0-9]{3}$`
@@ -256,10 +253,7 @@ func TestGenerateMessageID(t *testing.T) {
 }
 
 func TestGenerateFrom(t *testing.T) {
-	from, err := GenerateFrom()
-	if err != nil {
-		t.Fatalf("GenerateFrom failed: %v", err)
-	}
+	from := GenerateFrom()
 
 	// Check format: {rand(14)} <{rand(14)}@{rand(5)}.{rand(3)}>
 	pattern := `^[a-zA-Z0-9]{14} <[a-zA-Z0-9]{14}@[a-zA-Z0-9]{5}\.[a-zA-Z0-9]{3}>$`
@@ -349,21 +343,14 @@ func TestGenerateRandomString(t *testing.T) {
 	for _, length := range testLengths {
 		// We have to call generateRandomString directly
 		// This is a bit of a hack since we're testing an unexported function
-		result, err := generateRandomString(length)
-		if err != nil {
-			t.Fatalf("generateRandomString(%d) failed: %v", length, err)
-		}
+		result := generateRandomString(length)
 
 		if len(result) != length {
 			t.Errorf("Expected random string length to be %d, got %d", length, len(result))
 		}
 
 		// Should only contain alphanumeric characters
-		match := rexp.MatchString(result)
-		if err != nil {
-			t.Fatalf("Regex match failed: %v", err)
-		}
-		if !match {
+		if !rexp.MatchString(result) {
 			t.Errorf("Generated random string %s contains non-alphanumeric characters", result)
 		}
 	}
