@@ -26,3 +26,6 @@ dropped: tests/bench/nyuu/sink
 ## Open questions
 - Web API wire-compat beyond frontend use (assumed full).
 - ADR-011, 013, 014 accepted by default via "do option 1": confirm or veto.
+
+## NNTP
+- `rust/nntp` (postie-nntp): done 2026-11-19, 18 tests, bench on par with prototype. Remaining: pool Manager glue (UpdateConfig with incremental provider add/remove, metrics shape), wired in by the poster/verification ports.
