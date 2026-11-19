@@ -1,0 +1,17 @@
+[package]
+name = "postie-core"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Postie core library: stateful and IO units ported from the Go internal/ packages"
+
+[dependencies]
+base64 = "0.22"
+rand = "0.10"
+rusqlite = { version = "0.37", features = ["bundled"] }
+thiserror = "2"
+tokio = { version = "1", features = ["sync", "time", "macros", "rt"] }
+tokio-util = "0.7"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
