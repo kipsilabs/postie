@@ -1,0 +1,46 @@
+{
+  "schema": "rust-anything/bridge@1",
+  "root": "/Users/javi/orca/workspaces/postie/larvacean",
+  "unit": "internal/duplicatelookup/",
+  "language": "go",
+  "kind": "ffi",
+  "crate_name": "duplicatelookup-rs",
+  "exports": [
+    {
+      "name": "ValidateNZB",
+      "file": "internal/duplicatelookup/lookup.go",
+      "line": 161,
+      "params": [
+        {
+          "name": "data",
+          "ts_type": "int[]",
+          "optional": false,
+          "rest": false,
+          "native_type": "[]byte"
+        }
+      ],
+      "returns": "void",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false,
+      "native_return": "(error)",
+      "prototype": "func ValidateNZB(data []byte) error"
+    }
+  ],
+  "classes": [],
+  "js_only": [
+    {
+      "name": "Fingerprint",
+      "file": "internal/duplicatelookup/lookup.go",
+      "line": 35,
+      "reason": "uses `context.Context` from another package"
+    },
+    {
+      "name": "Lookup",
+      "file": "internal/duplicatelookup/lookup.go",
+      "line": 90,
+      "reason": "uses `context.Context` from another package"
+    }
+  ]
+}

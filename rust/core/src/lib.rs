@@ -2,4 +2,5 @@
 
 pub mod apikey;
 pub mod db;
+pub mod duplicatelookup;
 pub mod pausable;
