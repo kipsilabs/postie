@@ -3,6 +3,7 @@
 
 pub mod availability;
 pub mod postcheck_retry;
+pub mod runner;
 pub mod script_retry;
 pub mod slots;
 pub mod utils;
