@@ -1,6 +1,6 @@
 // Unified API client that switches between Wails (desktop) and HTTP (web) modes
 
-import { isTauri, tauriInvoke } from "$lib/api/tauri";
+import { isTauri, tauriInvoke } from "./tauri";
 import { browser } from "$app/environment";
 import type { backend, config, processor, watcher } from "$lib/wailsjs/go/models";
 // Using backend types for pagination - remove temporary types import
