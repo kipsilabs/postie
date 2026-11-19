@@ -79,7 +79,13 @@ mod tests {
         let got = collect_directory(d.to_str().unwrap(), &["*.tmp".into()]).unwrap();
         let names: Vec<_> = got
             .iter()
-            .map(|f| f.path.rsplit('/').next().unwrap().to_string())
+            .map(|f| {
+                Path::new(&f.path)
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned()
+            })
             .collect();
         assert_eq!(names, ["a.mkv", "b.mkv", "c.mkv"]);
         assert!(collect_directory(d.to_str().unwrap(), &["[".into()]).is_err());

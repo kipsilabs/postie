@@ -43,7 +43,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
-      - run: cargo test --workspace
+      - run: cargo test --workspace --no-fail-fast
 
   binaries:
     name: build postie + postie-web (${{ matrix.os }})
