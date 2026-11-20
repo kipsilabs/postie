@@ -158,5 +158,5 @@ jobs:
               --repo "$GITHUB_REPOSITORY" \
               --prerelease \
               --title "$GITHUB_REF_NAME (Rust port, release candidate)" \
-              --notes "Release candidate of the Rust port (see rust/DECISIONS.md). Headless binaries (\`postie\` CLI and \`postie-web\` with its \`frontend/\` directory) and desktop bundles for Linux, macOS and Windows. Bundles are unsigned."
+              --notes "Release candidate of the Rust port (see rust/DECISIONS.md). Headless binaries (\`postie\` CLI and \`postie-web\` with its \`frontend/\` directory) and desktop bundles for Linux, macOS and Windows. Bundles are not signed with a developer certificate (macOS: ad-hoc signed). On first launch macOS says it cannot verify the app: open System Settings > Privacy & Security and click Open Anyway (or run \`xattr -dr com.apple.quarantine /Applications/Postie.app\`). Windows SmartScreen: More info > Run anyway."
           fi
