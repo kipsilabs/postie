@@ -8,64 +8,34 @@
 **/*.app
 **/*.zip
 **/*.tar.gz
+rust/target/
+rust/desktop/target/
+**/node_modules/
 
-# Documentation
-*.md
+# Not needed in the image
+rust/desktop/
+rust/app/
+rust/app-cases/
+rust/research/
+rust/postie.db*
+tests/
 docs/
+Formula/
+scripts/
 CLAUDE.md
 CONTRIBUTING.md
-
-# Configuration examples and development files
+README.md
 config-example.yaml
-docker-compose.yml
+docker-compose*.yml
 Makefile
-.goreleaser*
-wails.json
 
 # Frontend development files (keep what's needed for build)
-frontend/node_modules/
 frontend/.svelte-kit/
-frontend/static/
+frontend/build/
 frontend/README.md
 frontend/package.json.md5
-frontend/index.html
 
-# Keep essential frontend files for Docker build
-!frontend/src/
-!frontend/build/
-!frontend/embed.go
-!frontend/package.json
-!frontend/bun.lock*
-
-# Go tests and fixtures
-**/*_test.go
-testdata/
-
-# Example and development directories
-example/
-
-# IDE files
+# OS / editor
+**/.DS_Store
 .vscode/
 .idea/
-*.swp
-*.swo
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-
-# Temporary files
-.tmp/
-tmp/
-temp/
-.cache/
-.buildx-cache/
-
-# Databases and runtime
-postie.db*
-
-# Docker
-**/docker-compose*.yml
