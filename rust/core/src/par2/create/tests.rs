@@ -327,3 +327,39 @@ fn progress_reports_phases_in_order_and_finishes_at_one() {
         .collect();
     assert!(hashing.windows(2).all(|w| w[0] <= w[1]) && *hashing.last().unwrap() == 1.0);
 }
+
+/// A folder with thousands of files must not spawn a thread per file (macOS caps a process at
+/// 4096 threads, so that panicked and silently dropped PAR2 for big app bundles).
+#[test]
+fn thousands_of_input_files_do_not_need_a_thread_each() {
+    let dir = tmp();
+    let inputs: Vec<InputFile> = (0..5000u32)
+        .map(|i| {
+            let p = dir.join(format!("f{i}.bin"));
+            std::fs::write(&p, xs(i + 1, 16)).unwrap();
+            InputFile {
+                path: p,
+                name: String::new(),
+            }
+        })
+        .collect();
+    let c = CancellationToken::new();
+    create_with_names(&c, &dir.join("many.par2"), &inputs, &opts(16, 1), None)
+        .expect("5000 single-slice files fit in one set");
+    assert!(dir.join("many.par2").exists());
+}
+
+/// PAR2 has 32768 distinct input-slice constants; more slices must be a clear error, not a panic.
+#[test]
+fn more_than_32768_input_slices_is_an_error_not_a_panic() {
+    let dir = tmp();
+    let inputs = write_inputs(&dir, &[("big.bin", 7, (MAX_INPUT_SLICES + 1) * 4)]);
+    let c = CancellationToken::new();
+    let err = create_with_names(&c, &dir.join("s.par2"), &inputs, &opts(4, 1), None)
+        .expect_err("too many slices");
+    assert!(
+        err.to_string().contains("32768"),
+        "message names the limit: {err}"
+    );
+    assert!(!dir.join("s.par2").exists());
+}

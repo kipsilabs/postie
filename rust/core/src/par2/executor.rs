@@ -59,6 +59,37 @@ pub trait Par2Executor: Send + Sync {
     ) -> BoxFut<'a, Result<Par2Result, ExecError>>;
 }
 
+/// A PAR2 progress row that is removed from the job when dropped.
+pub(crate) struct ProgressRow {
+    owner: Option<(Arc<JobProgress>, Uuid)>,
+    pub(crate) bar: Option<Arc<crate::progress::Progress>>,
+}
+
+impl ProgressRow {
+    pub(crate) fn add(progress: Option<&Arc<JobProgress>>, label: &str) -> Self {
+        let Some(p) = progress else {
+            return Self {
+                owner: None,
+                bar: None,
+            };
+        };
+        let id = Uuid::new_v4();
+        let bar = p.add_progress(id, label, ProgressType::Par2Generation, 100);
+        Self {
+            owner: Some((p.clone(), id)),
+            bar: Some(bar),
+        }
+    }
+}
+
+impl Drop for ProgressRow {
+    fn drop(&mut self) {
+        if let Some((p, id)) = &self.owner {
+            p.finish_progress(*id);
+        }
+    }
+}
+
 fn align_down(v: u64, a: u64) -> u64 {
     v / a * a
 }
@@ -122,6 +153,41 @@ pub fn parse_redundancy_percentage(redundancy: &str) -> f64 {
 
 fn recovery_count(slices: u64, pct: f64) -> usize {
     ((slices as f64 * pct / 100.0).ceil() as usize).max(1)
+}
+
+/// Grows `base` (in SIMD-aligned steps) until the files' real slice count fits PAR2's limit. `None`
+/// when no block can fit: every non-empty file needs at least one slice.
+pub fn fit_set_block_size(base: u64, sizes: &[u64]) -> Option<u64> {
+    let slices = |block: u64| -> u64 { sizes.iter().map(|s| s.div_ceil(block)).sum() };
+    let non_empty = sizes.iter().filter(|s| **s > 0).count() as u64;
+    if non_empty > MAX_PAR2_BLOCKS {
+        return None;
+    }
+    let step = SIMD_SAFE_ALIGNMENT;
+    let base = align_down(base, step).max(step);
+    if slices(base) <= MAX_PAR2_BLOCKS {
+        return Some(base);
+    }
+    // a block as large as the largest file gives one slice per non-empty file, which fits
+    let max = sizes
+        .iter()
+        .copied()
+        .max()
+        .unwrap_or(0)
+        .div_ceil(step)
+        .max(1)
+        * step;
+    // smallest aligned block in (base, max] that fits; the slice count only falls as blocks grow
+    let (mut lo, mut hi) = (base / step, max / step);
+    while lo + 1 < hi {
+        let mid = lo + (hi - lo) / 2;
+        if slices(mid * step) <= MAX_PAR2_BLOCKS {
+            hi = mid;
+        } else {
+            lo = mid;
+        }
+    }
+    Some(hi * step)
 }
 
 fn slice_count(size: u64, block: u64) -> u64 {
@@ -209,16 +275,9 @@ impl NativeExecutor {
         inputs: Vec<InputFile>,
         opts: Options,
     ) -> Result<(), ExecError> {
-        let id = Uuid::new_v4();
-        let bar = self.progress.as_ref().map(|p| {
-            p.add_progress(
-                id,
-                &format!("PAR2: {label}"),
-                ProgressType::Par2Generation,
-                100,
-            )
-        });
-        let bar_cb = bar.clone();
+        // removed on every exit, including a panic on the blocking thread
+        let row = ProgressRow::add(self.progress.as_ref(), &format!("PAR2: {label}"));
+        let bar_cb = row.bar.clone();
         let token = cancel.clone();
         let result = tokio::task::spawn_blocking(move || {
             let cb = move |phase: &str, pct: f64| {
@@ -238,9 +297,7 @@ impl NativeExecutor {
         })
         .await
         .map_err(|e| ExecError::Msg(format!("par2 creation task failed: {e}")))?;
-        if let Some(p) = &self.progress {
-            p.finish_progress(id);
-        }
+        drop(row);
         result.map_err(|e| match e {
             Par2Error::Cancelled => ExecError::Cancelled,
             other => ExecError::Msg(other.to_string()),
@@ -443,6 +500,13 @@ impl NativeExecutor {
             );
             return Ok(Par2Result::default());
         }
+        let sizes: Vec<u64> = inputs.iter().map(|f| f.size).collect();
+        let Some(block) = fit_set_block_size(block, &sizes) else {
+            return msg(format!(
+                "par2: set {set_name:?} has {} files; one PAR2 set holds at most {MAX_PAR2_BLOCKS} (pack the folder into an archive)",
+                sizes.iter().filter(|s| **s > 0).count()
+            ));
+        };
         let total_slices: u64 = inputs.iter().map(|f| slice_count(f.size, block)).sum();
         let pct = parse_redundancy_percentage(&self.cfg.redundancy);
         let num_recovery = recovery_count(total_slices, pct);

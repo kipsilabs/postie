@@ -27,6 +27,10 @@ const MAX_BATCH_SLICES: usize = 4096;
 const DEFAULT_MEMORY_LIMIT: i64 = 4 * 1024 * 1024 * 1024;
 /// Column ranges are multiples of a cache line so workers never share one.
 const COLUMN_ALIGN: usize = 64;
+/// PAR2 2.0 has exactly 32768 distinct input-slice constants, so a set holds at most this many slices.
+pub const MAX_INPUT_SLICES: usize = 32768;
+/// Upper bound on concurrent quick-scan threads (a thread per file breaks large folders).
+const MAX_SCAN_THREADS: usize = 16;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum Par2Error {
@@ -102,6 +106,30 @@ fn validate_name(name: &str) -> Result<()> {
 
 fn num_slices(size: u64, slice_size: usize) -> usize {
     size.div_ceil(slice_size as u64) as usize
+}
+
+/// Quick-scans every input on at most `threads` (capped) worker threads, keeping input order.
+fn scan_inputs(inputs: &[InputFile], threads: usize) -> Vec<Result<FileInfo>> {
+    let workers = threads.clamp(1, MAX_SCAN_THREADS).min(inputs.len().max(1));
+    let per_worker = inputs.len().div_ceil(workers).max(1);
+    std::thread::scope(|scope| {
+        let handles: Vec<_> = inputs
+            .chunks(per_worker)
+            .map(|chunk| scope.spawn(move || chunk.iter().map(quick_scan).collect::<Vec<_>>()))
+            .collect();
+        handles
+            .into_iter()
+            .zip(inputs.chunks(per_worker))
+            .flat_map(|(h, chunk)| {
+                h.join().unwrap_or_else(|_| {
+                    chunk
+                        .iter()
+                        .map(|_| Err(Par2Error::Io("scan thread panicked".into())))
+                        .collect()
+                })
+            })
+            .collect()
+    })
 }
 
 /// Size, hash of the first 16 KiB (the whole file when shorter) and file ID.
@@ -282,30 +310,30 @@ fn run_pass(
 
     let md5_results: Vec<(usize, Md5Sum)> =
         std::thread::scope(|scope| -> Result<Vec<(usize, Md5Sum)>> {
-            // one sequential MD5 stream per file (first pass only)
-            let mut md5_txs = Vec::new();
-            let mut md5_handles = Vec::new();
-            if first_pass {
-                for (fi, f) in plan.files.iter().enumerate() {
-                    if f.size == 0 {
-                        md5_txs.push(None);
-                        continue;
+            // full-file MD5s (first pass only) on ONE worker: batches arrive in read order through a
+            // FIFO, so a running hasher per file sees its bytes in sequence. A thread per file broke
+            // folders with thousands of files (the OS thread limit).
+            let (md5_tx, md5_handle) = if first_pass {
+                let (tx, rx) = sync_channel::<Arc<Batch>>(4);
+                let handle = scope.spawn(move || {
+                    let mut hashers: std::collections::BTreeMap<usize, Md5> =
+                        std::collections::BTreeMap::new();
+                    while let Ok(b) = rx.recv() {
+                        hashers.entry(b.file).or_default().update(&b.data[..b.real]);
                     }
-                    let (tx, rx) = sync_channel::<Arc<Batch>>(2);
-                    md5_txs.push(Some(tx));
-                    md5_handles.push(scope.spawn(move || {
-                        let mut h = Md5::new();
-                        while let Ok(b) = rx.recv() {
-                            h.update(&b.data[..b.real]);
-                        }
-                        (fi, <[u8; 16]>::from(h.finalize()))
-                    }));
-                }
-            }
+                    hashers
+                        .into_iter()
+                        .map(|(fi, h)| (fi, <[u8; 16]>::from(h.finalize())))
+                        .collect::<Vec<_>>()
+                });
+                (Some(tx), Some(handle))
+            } else {
+                (None, None)
+            };
             let (tx, rx) = sync_channel::<Arc<Batch>>(2);
             let reader = scope.spawn(move || {
                 let res = read_batches(cancel, plan, |b| {
-                    if let Some(Some(m)) = md5_txs.get(b.file)
+                    if let Some(m) = &md5_tx
                         && m.send(b.clone()).is_err()
                     {
                         return false;
@@ -371,13 +399,12 @@ fn run_pass(
             let read_res = reader
                 .join()
                 .map_err(|_| Par2Error::Io("reader thread panicked".into()))?;
-            let mut hashes = Vec::new();
-            for h in md5_handles {
-                hashes.push(
-                    h.join()
-                        .map_err(|_| Par2Error::Io("md5 thread panicked".into()))?,
-                );
-            }
+            let hashes = match md5_handle {
+                Some(h) => h
+                    .join()
+                    .map_err(|_| Par2Error::Io("md5 thread panicked".into()))?,
+                None => Vec::new(),
+            };
             if let Some(e) = compute_err {
                 return Err(e);
             }
@@ -589,20 +616,7 @@ pub fn create_with_names(
     };
     report("hashing", 0.0);
 
-    // quick scan, one thread per file
-    let scanned: Vec<Result<FileInfo>> = std::thread::scope(|scope| {
-        let handles: Vec<_> = inputs
-            .iter()
-            .map(|i| scope.spawn(|| quick_scan(i)))
-            .collect();
-        handles
-            .into_iter()
-            .map(|h| {
-                h.join()
-                    .unwrap_or_else(|_| Err(Par2Error::Io("scan thread panicked".into())))
-            })
-            .collect()
-    });
+    let scanned = scan_inputs(inputs, threads);
     check(cancel)?;
     let mut files = scanned
         .into_iter()
@@ -630,6 +644,11 @@ pub fn create_with_names(
         return Err(Par2Error::Invalid(
             "par2go: no input slices (all files empty?)".into(),
         ));
+    }
+    if total_slices > MAX_INPUT_SLICES {
+        return Err(Par2Error::Invalid(format!(
+            "par2go: {total_slices} input slices exceed the PAR2 limit of {MAX_INPUT_SLICES}; use a larger slice size or fewer files"
+        )));
     }
     let constants = gf::input_slice_constants(total_slices);
     let per_chunk =

@@ -80,6 +80,13 @@ async fn safe_remove_file(cancel: &CancellationToken, path: &str) {
     let _ = std::fs::remove_file(path);
 }
 
+/// PAR2 problems never fail the upload, so they must at least be visible: stderr is invisible in the
+/// desktop app, so they also go to postie.log.
+fn par2_failure(message: &str) {
+    eprintln!("{message}");
+    crate::logx::warn("PAR2 skipped for this upload", &[("error", message.into())]);
+}
+
 fn has_par2_files(files: &[FileInfo]) -> bool {
     files.iter().any(|f| is_par2_file(&f.path))
 }
@@ -477,9 +484,9 @@ impl Postie {
                 Ok(r) => r,
                 Err(e) => {
                     if e != ExecError::Cancelled {
-                        eprintln!(
+                        par2_failure(&format!(
                             "postie: error during par2 creation. Upload will continue without par2: {e}"
-                        );
+                        ));
                     }
                     return Err(if e == ExecError::Cancelled {
                         PostieError::Canceled
@@ -550,9 +557,9 @@ impl Postie {
                 Ok(r) => r,
                 Err(e) => {
                     if e != ExecError::Cancelled {
-                        eprintln!(
+                        par2_failure(&format!(
                             "postie: error during par2 creation. Upload will continue without par2: {e}"
-                        );
+                        ));
                     }
                     return Par2Result::default();
                 }
@@ -568,9 +575,9 @@ impl Postie {
                 .await
             {
                 if !is_canceled(&e) {
-                    eprintln!(
+                    par2_failure(&format!(
                         "postie: error during upload of par2 files {par2_paths:?}: {e}. Upload will continue without par2."
-                    );
+                    ));
                 }
                 drop_par2_from_nzb(&nzb, &par2_paths);
             }
@@ -667,9 +674,9 @@ impl Postie {
                     }
                     Err(e) => {
                         if e != ExecError::Cancelled {
-                            eprintln!(
+                            par2_failure(&format!(
                                 "postie: error during par2 creation. Upload will continue without par2: {e}"
-                            );
+                            ));
                         }
                     }
                 }
@@ -726,9 +733,9 @@ impl Postie {
                 Ok(r) => r,
                 Err(e) => {
                     if e != ExecError::Cancelled {
-                        eprintln!(
+                        par2_failure(&format!(
                             "postie: error during par2 creation. Upload will continue without par2: {e}"
-                        );
+                        ));
                     }
                     return Par2Result::default();
                 }
@@ -750,9 +757,9 @@ impl Postie {
                 .await
             {
                 if !is_canceled(&e) {
-                    eprintln!(
+                    par2_failure(&format!(
                         "postie: error during upload of par2 files. Upload will continue without par2: {e}"
-                    );
+                    ));
                 }
                 drop_par2_from_nzb(&nzb, &par2_paths);
             }

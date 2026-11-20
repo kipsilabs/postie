@@ -446,3 +446,51 @@ async fn progress_is_reported_and_removed_and_cancellation_is_surfaced() {
         ExecError::Cancelled
     );
 }
+
+/// Every file rounds up to whole slices, so a set of many small files needs far more slices than
+/// total_size / block suggests; the block must grow until the real count fits PAR2's limit.
+#[test]
+fn set_block_size_grows_until_the_per_file_slice_count_fits() {
+    // 29,000 tiny files plus one large file: the size-only estimate overflows the slice limit
+    let mut sizes = vec![30_000u64; 29_000];
+    sizes.push(8_000_000_000);
+    let total: u64 = sizes.iter().sum();
+    let ex = NativeExecutor::new(750_000, cfg(), None);
+    let base = ex.compute_set_block_size(total, 8_000_000_000);
+    let naive: u64 = sizes.iter().map(|s| slice_count(*s, base)).sum();
+    assert!(
+        naive > MAX_PAR2_BLOCKS,
+        "the old estimate overflows: {naive}"
+    );
+    let block = fit_set_block_size(base, &sizes).expect("fits once the block grows");
+    let fitted: u64 = sizes.iter().map(|s| slice_count(*s, block)).sum();
+    assert!(fitted <= MAX_PAR2_BLOCKS, "{fitted} slices");
+    assert_eq!(block % SIMD_SAFE_ALIGNMENT, 0);
+    assert!(block >= base);
+}
+
+#[test]
+fn set_block_size_keeps_a_base_that_already_fits() {
+    let sizes = vec![10_000_000u64, 6_000_000];
+    assert_eq!(fit_set_block_size(749_952, &sizes), Some(749_952));
+}
+
+#[test]
+fn a_set_with_more_files_than_slices_cannot_fit() {
+    let sizes = vec![1_000u64; MAX_PAR2_BLOCKS as usize + 1];
+    assert_eq!(fit_set_block_size(128, &sizes), None);
+}
+
+/// The PAR2 progress row must disappear however creation ends, including a panic on the blocking
+/// thread (that left a 0% row on the dashboard forever).
+#[test]
+fn the_progress_row_is_removed_even_when_the_creator_panics() {
+    let progress = Arc::new(JobProgress::new("j"));
+    let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _row = ProgressRow::add(Some(&progress), "PAR2: set");
+        assert_eq!(progress.get_all_progress_state().len(), 1);
+        panic!("creator blew up");
+    }));
+    assert!(r.is_err());
+    assert!(progress.get_all_progress_state().is_empty());
+}
