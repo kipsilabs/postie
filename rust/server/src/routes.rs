@@ -167,25 +167,38 @@ fn serve_socket(
     upgrade: WebSocketUpgrade,
     session: Option<auth::Session>,
 ) -> Response {
-    use postie_core::wshub::{PING_INTERVAL, WRITE_WAIT};
+    use postie_core::wshub::{PING_INTERVAL, PONG_WAIT, WRITE_WAIT};
     upgrade.on_upgrade(move |mut socket| async move {
         let (id, expires) = session.as_ref().map_or((String::new(), None), |s| (s.0.jti.clone(), Some(s.0.exp)));
         let mut sub = srv.hub.register(&id);
         let closed = sub.closed.clone();
         let expiry = expires.map(|e| std::time::Duration::from_secs(u64::try_from(e - chrono_now()).unwrap_or(0)));
+        // created once: a sleep rebuilt on every loop iteration would restart with each ping
+        let expired = async {
+            match expiry {
+                Some(d) => tokio::time::sleep(d).await,
+                None => std::future::pending().await,
+            }
+        };
+        tokio::pin!(expired);
         let mut ping = tokio::time::interval(PING_INTERVAL);
         ping.tick().await;
+        // a client that has not answered (pong or any frame) within a ping period plus PONG_WAIT is dead
+        let mut last_seen = tokio::time::Instant::now();
         loop {
             tokio::select! {
                 () = closed.cancelled() => break,
-                () = async { match expiry { Some(d) => tokio::time::sleep(d).await, None => std::future::pending().await } } => break,
+                () = &mut expired => break,
                 msg = sub.rx.recv() => {
                     let Some(m) = msg else { break };
-                    if tokio::time::timeout(WRITE_WAIT, socket.send(ws::Message::Text(m.to_string().into()))).await.is_err() {
+                    if tokio::time::timeout(WRITE_WAIT, socket.send(ws::Message::Text(m.to_string().into()))).await.map_or(true, |r| r.is_err()) {
                         break;
                     }
                 }
                 _ = ping.tick() => {
+                    if last_seen.elapsed() > PING_INTERVAL + PONG_WAIT {
+                        break;
+                    }
                     if tokio::time::timeout(WRITE_WAIT, socket.send(ws::Message::Ping(Bytes::new()))).await.map_or(true, |r| r.is_err()) {
                         break;
                     }
@@ -193,7 +206,7 @@ fn serve_socket(
                 incoming = socket.recv() => {
                     match incoming {
                         Some(Ok(ws::Message::Close(_))) | None | Some(Err(_)) => break,
-                        _ => {}
+                        _ => last_seen = tokio::time::Instant::now(),
                     }
                 }
             }
@@ -436,58 +449,145 @@ fn chrono_date() -> String {
 
 // ---- uploads ----
 
-fn temp_dir(prefix: &str) -> std::io::Result<std::path::PathBuf> {
-    let p = std::env::temp_dir().join(format!("{prefix}{}", rand::random::<u32>()));
+/// Cap for the number of `paths` fields in a folder upload.
+const MAX_UPLOAD_PATHS: usize = 100_000;
+
+/// Cap for the small text fields of a multipart upload (`paths`, `folderName`).
+const MAX_TEXT_FIELD: usize = 4096;
+
+/// Reads a text field, refusing anything over `MAX_TEXT_FIELD` so the unlimited body cannot be used to
+/// fill memory through a field that is buffered rather than streamed.
+async fn read_text_field(
+    mut f: axum::extract::multipart::Field<'_>,
+) -> Result<String, Box<Response>> {
+    let mut buf = Vec::new();
+    loop {
+        match f.chunk().await {
+            Ok(Some(c)) => {
+                if buf.len() + c.len() > MAX_TEXT_FIELD {
+                    return Err(Box::new(bad_request("Form field too large")));
+                }
+                buf.extend_from_slice(&c);
+            }
+            Ok(None) => break,
+            Err(e) => return Err(Box::new(bad_request(&e.to_string()))),
+        }
+    }
+    String::from_utf8(buf).map_err(|_| Box::new(bad_request("Form field is not valid UTF-8")))
+}
+
+/// Uploads land in the configured `par2.temp_dir` when set: the OS temp dir is tmpfs (RAM) on some
+/// Linux distributions, which would put a large upload in memory.
+fn temp_dir(srv: &Srv, prefix: &str) -> std::io::Result<std::path::PathBuf> {
+    let base = srv
+        .app
+        .get_config()
+        .ok()
+        .map(|c| c.par2.temp_dir)
+        .filter(|d| !d.is_empty())
+        .map_or_else(std::env::temp_dir, std::path::PathBuf::from);
+    // a relative `par2.temp_dir` must resolve identically when the copies are later cleaned up
+    let base = postie_core::uploadtemp::absolute(&base);
+    postie_core::uploadtemp::register_root(&base);
+    let p = base.join(format!("{prefix}{}", rand::random::<u32>()));
     std::fs::create_dir_all(&p)?;
     Ok(p)
 }
 
+/// Streams one multipart field to `dest` chunk by chunk, so a multi-GB file never sits in RAM.
+async fn stream_field(
+    mut field: axum::extract::multipart::Field<'_>,
+    dest: &std::path::Path,
+) -> Result<(), Box<Response>> {
+    use tokio::io::AsyncWriteExt;
+    let mut out = tokio::fs::File::create(dest)
+        .await
+        .map_err(|_| Box::new(internal("Failed to create temporary file")))?;
+    loop {
+        match field.chunk().await {
+            Ok(Some(chunk)) => out
+                .write_all(&chunk)
+                .await
+                .map_err(|_| Box::new(internal("Failed to write temporary file")))?,
+            Ok(None) => break,
+            Err(e) => return Err(Box::new(bad_request(&e.to_string()))),
+        }
+    }
+    out.flush()
+        .await
+        .map_err(|_| Box::new(internal("Failed to write temporary file")))
+}
+
+/// A client-supplied relative path as safe components, or `None` if it could leave the base
+/// directory (parent hops, absolute paths, Windows drive or UNC prefixes).
+fn safe_relative(rel: &str) -> Option<std::path::PathBuf> {
+    use std::path::Component;
+    let mut out = std::path::PathBuf::new();
+    for c in std::path::Path::new(rel.trim_start_matches('/')).components() {
+        match c {
+            Component::Normal(p) => out.push(p),
+            Component::CurDir => {}
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => return None,
+        }
+    }
+    (!out.as_os_str().is_empty()).then_some(out)
+}
+
 async fn upload(State(srv): S, mut mp: Multipart) -> Response {
-    let mut files: Vec<(String, Vec<u8>)> = Vec::new();
+    let Ok(dir) = temp_dir(&srv, "postie-") else {
+        return internal("Failed to create temporary directory");
+    };
+    srv.hub
+        .emit_event("upload-progress", json!({"stage": "saving", "progress": 0}));
+    let mut paths: Vec<String> = Vec::new();
     loop {
         match mp.next_field().await {
             Ok(Some(f)) => {
-                if f.name() == Some("files") {
-                    let name = f.file_name().unwrap_or("").to_string();
-                    match f.bytes().await {
-                        Ok(b) => files.push((name, b.to_vec())),
-                        Err(e) => return bad_request(&e.to_string()),
-                    }
+                if f.name() != Some("files") {
+                    continue;
                 }
+                let name = f.file_name().unwrap_or("").to_string();
+                let base = std::path::Path::new(&name)
+                    .file_name()
+                    .map(std::ffi::OsStr::to_owned)
+                    .unwrap_or_default();
+                if base.is_empty() {
+                    let _ = tokio::fs::remove_dir_all(&dir).await;
+                    return bad_request("File name is required");
+                }
+                let p = dir.join(base);
+                if p.exists() {
+                    let _ = tokio::fs::remove_dir_all(&dir).await;
+                    return bad_request("Duplicate file name in upload");
+                }
+                if let Err(resp) = stream_field(f, &p).await {
+                    let _ = tokio::fs::remove_dir_all(&dir).await;
+                    return *resp;
+                }
+                paths.push(p.to_string_lossy().into_owned());
+                srv.hub.emit_event(
+                    "upload-progress",
+                    json!({"stage": "saving", "progress": 25, "currentFile": name, "fileCount": paths.len()}),
+                );
             }
             Ok(None) => break,
-            Err(e) => return bad_request(&e.to_string()),
+            Err(e) => {
+                let _ = tokio::fs::remove_dir_all(&dir).await;
+                return bad_request(&e.to_string());
+            }
         }
     }
-    if files.is_empty() {
+    if paths.is_empty() {
+        let _ = tokio::fs::remove_dir_all(&dir).await;
         return bad_request("No files provided");
     }
-    srv.hub.emit_event(
-        "upload-progress",
-        json!({"stage": "saving", "progress": 0, "fileCount": files.len()}),
-    );
-    let Ok(dir) = temp_dir("postie-") else {
-        return internal("Failed to create temporary directory");
-    };
-    let mut paths = Vec::new();
-    let count = files.len();
-    for (i, (name, data)) in files.into_iter().enumerate() {
-        let base = std::path::Path::new(&name)
-            .file_name()
-            .map(std::ffi::OsStr::to_owned)
-            .unwrap_or_default();
-        let p = dir.join(base);
-        if std::fs::write(&p, data).is_err() {
-            return internal("Failed to create temporary file");
-        }
-        paths.push(p.to_string_lossy().into_owned());
-        srv.hub.emit_event("upload-progress", json!({"stage": "saving", "progress": (i + 1) as f64 / count as f64 * 50.0, "currentFile": name, "fileCount": count}));
-    }
+    let count = paths.len();
     srv.hub.emit_event(
         "upload-progress",
         json!({"stage": "processing", "progress": 75, "fileCount": count}),
     );
-    if let Err(e) = srv.app.handle_dropped_files(&paths) {
+    if let Err(e) = postie_core::blocking::in_place(|| srv.app.handle_uploaded_copies(&paths)) {
+        let _ = tokio::fs::remove_dir_all(&dir).await;
         srv.hub.emit_event("upload-error", e.clone());
         return internal(&e);
     }
@@ -499,73 +599,148 @@ async fn upload(State(srv): S, mut mp: Multipart) -> Response {
 }
 
 async fn upload_folder(State(srv): S, mut mp: Multipart) -> Response {
+    let Ok(dir) = temp_dir(&srv, "postie-folder-") else {
+        return internal("Failed to create temporary directory");
+    };
+    let Ok(staging) = temp_dir(&srv, "postie-stage-") else {
+        let _ = tokio::fs::remove_dir_all(&dir).await;
+        return internal("Failed to create temporary directory");
+    };
+    let cleanup = |dirs: Vec<std::path::PathBuf>| async move {
+        for d in dirs {
+            let _ = tokio::fs::remove_dir_all(d).await;
+        }
+    };
     let mut folder_name = String::new();
-    let mut files: Vec<(String, Vec<u8>)> = Vec::new();
+    // files are staged as they stream in; `paths` may arrive before or after each file, so the
+    // pairing is done by index once the whole body has been read
+    let mut staged: Vec<(String, std::path::PathBuf)> = Vec::new();
     let mut paths: Vec<String> = Vec::new();
     loop {
         match mp.next_field().await {
-            Ok(Some(f)) => {
-                let name = f.name().unwrap_or("").to_string();
-                match name.as_str() {
-                    "folderName" => folder_name = f.text().await.unwrap_or_default(),
-                    "paths" => paths.push(f.text().await.unwrap_or_default()),
-                    "files" => {
-                        let fname = f.file_name().unwrap_or("").to_string();
-                        match f.bytes().await {
-                            Ok(b) => files.push((fname, b.to_vec())),
-                            Err(e) => return bad_request(&e.to_string()),
-                        }
+            Ok(Some(f)) => match f.name().unwrap_or("") {
+                "folderName" => match read_text_field(f).await {
+                    Ok(t) => folder_name = t,
+                    Err(resp) => {
+                        cleanup(vec![dir, staging]).await;
+                        return *resp;
                     }
-                    _ => {}
+                },
+                "paths" => match read_text_field(f).await {
+                    Ok(_) if paths.len() >= MAX_UPLOAD_PATHS => {
+                        cleanup(vec![dir, staging]).await;
+                        return bad_request("Too many paths");
+                    }
+                    Ok(t) => paths.push(t),
+                    Err(resp) => {
+                        cleanup(vec![dir, staging]).await;
+                        return *resp;
+                    }
+                },
+                "files" => {
+                    let fname = f.file_name().unwrap_or("").to_string();
+                    let tmp = staging.join(staged.len().to_string());
+                    if let Err(resp) = stream_field(f, &tmp).await {
+                        cleanup(vec![dir, staging]).await;
+                        return *resp;
+                    }
+                    staged.push((fname, tmp));
                 }
-            }
+                _ => {}
+            },
             Ok(None) => break,
-            Err(e) => return bad_request(&e.to_string()),
+            Err(e) => {
+                cleanup(vec![dir, staging]).await;
+                return bad_request(&e.to_string());
+            }
         }
     }
-    if folder_name.is_empty() {
-        return bad_request("Folder name is required");
+    let folder_rel = safe_relative(&folder_name).filter(|p| p.components().count() == 1);
+    let rejection = if folder_name.is_empty() {
+        Some(bad_request("Folder name is required"))
+    } else if folder_rel.is_none() {
+        Some(bad_request("Invalid folder name"))
+    } else if staged.is_empty() {
+        Some(bad_request("No files provided"))
+    } else if staged.len() != paths.len() {
+        Some(bad_request("Mismatch between files and paths count"))
+    } else {
+        None
+    };
+    if let Some(resp) = rejection {
+        cleanup(vec![dir, staging]).await;
+        return resp;
     }
-    if files.is_empty() {
-        return bad_request("No files provided");
-    }
-    if files.len() != paths.len() {
-        return bad_request("Mismatch between files and paths count");
-    }
-    let count = files.len();
+    let count = staged.len();
     srv.hub.emit_event(
         "upload-progress",
         json!({"stage": "saving", "progress": 0, "fileCount": count, "folderName": folder_name}),
     );
-    let Ok(dir) = temp_dir("postie-folder-") else {
-        return internal("Failed to create temporary directory");
-    };
-    for (i, ((fname, data), rel)) in files.into_iter().zip(&paths).enumerate() {
-        let dest = dir.join(rel.trim_start_matches('/'));
-        if dest
-            .components()
-            .any(|c| matches!(c, std::path::Component::ParentDir))
-        {
-            return internal("Failed to create directory structure");
-        }
+    for (i, ((fname, tmp), rel)) in staged.into_iter().zip(&paths).enumerate() {
+        let Some(dest) = safe_relative(rel).map(|r| dir.join(r)) else {
+            cleanup(vec![dir, staging]).await;
+            return bad_request("Invalid file path");
+        };
         if let Some(parent) = dest.parent()
-            && std::fs::create_dir_all(parent).is_err()
+            && tokio::fs::create_dir_all(parent).await.is_err()
         {
+            cleanup(vec![dir, staging]).await;
             return internal("Failed to create directory structure");
         }
-        if std::fs::write(&dest, data).is_err() {
+        if dest.exists() {
+            cleanup(vec![dir, staging]).await;
+            return bad_request("Duplicate file path in upload");
+        }
+        if tokio::fs::rename(&tmp, &dest).await.is_err() {
+            cleanup(vec![dir, staging]).await;
             return internal("Failed to create file");
         }
         srv.hub.emit_event("upload-progress", json!({"stage": "saving", "progress": (i + 1) as f64 / count as f64 * 50.0, "currentFile": fname, "fileCount": count, "folderName": folder_name}));
     }
+    let _ = tokio::fs::remove_dir_all(&staging).await;
     srv.hub.emit_event("upload-progress", json!({"stage": "processing", "progress": 75, "fileCount": count, "folderName": folder_name}));
     let folder_path = dir.join(&folder_name).to_string_lossy().into_owned();
-    if let Err(e) = srv.app.handle_dropped_files(&[folder_path]) {
+    if let Err(e) =
+        postie_core::blocking::in_place(|| srv.app.handle_uploaded_copies(&[folder_path]))
+    {
+        let _ = tokio::fs::remove_dir_all(&dir).await;
         srv.hub.emit_event("upload-error", e.clone());
         return internal(&e);
     }
     srv.hub.emit_event("upload-complete", json!({"fileCount": count, "folderName": folder_name, "message": "Folder successfully processed and added to queue as single NZB"}));
     ok_empty()
+}
+
+#[cfg(test)]
+mod upload_tests {
+    use super::safe_relative;
+
+    #[test]
+    fn accepts_plain_relative_paths() {
+        assert_eq!(
+            safe_relative("a/b/c.bin").unwrap(),
+            std::path::PathBuf::from("a/b/c.bin")
+        );
+        assert_eq!(
+            safe_relative("/a/./b").unwrap(),
+            std::path::PathBuf::from("a/b")
+        );
+    }
+
+    #[test]
+    fn rejects_escapes_and_empty() {
+        for bad in ["../x", "a/../../x", "", "/", "./"] {
+            assert!(safe_relative(bad).is_none(), "{bad}");
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn rejects_windows_prefixes() {
+        for bad in [r"C:\x", r"\\host\share\x", "C:x"] {
+            assert!(safe_relative(bad).is_none(), "{bad}");
+        }
+    }
 }
 
 // ---- processor ----

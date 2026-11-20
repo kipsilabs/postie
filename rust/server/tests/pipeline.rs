@@ -30,7 +30,8 @@ async fn an_upload_over_the_old_2_mib_limit_is_posted_verified_and_announced_ove
 #[tokio::test]
 async fn a_slow_job_shows_up_in_running_jobs_pushes_and_then_clears() {
     let fake = fake_nntp().await;
-    fake.set_post(PostMode::Delay(150));
+    // longer than the 1 s broadcaster tick, so the running job is always observed
+    fake.set_post(PostMode::Delay(1500));
     let dir = temp_dir("slow");
     let web = Web::start(&dir, &fake).await;
     let ev = web.events().await;

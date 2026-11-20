@@ -3270,6 +3270,7 @@ dependencies = [
  "duplicatelookup-rs",
  "hex",
  "jsonwebtoken",
+ "libc",
  "md-5",
  "postie-nntp",
  "postie-yenc",
@@ -3310,6 +3311,7 @@ version = "0.1.0"
 dependencies = [
  "async-channel",
  "rustls",
+ "socket2",
  "thiserror 2.0.21",
  "tokio",
  "tokio-rustls",
