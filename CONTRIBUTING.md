@@ -7,19 +7,18 @@ A typical workflow is:
 1. Create a topic branch.
 2. Add tests for your change.
 3. Add the new code.
-4. Run `make` to ensure it passes all the checks.
+4. Run `make lint test` to ensure it passes all the checks.
 5. Add, commit and push your changes.
 6. Submit a pull request.
 
 ## Testing
 
-No assert library is used in the codebase. Instead, use the standard library `testing` package.
+Backend tests are plain Rust `#[test]` / `#[tokio::test]` functions: unit tests live next to the code in
+`#[cfg(test)]` modules, integration tests under each crate's `tests/` directory (the web server's run
+against a fake NNTP server). Frontend tests run with `bun test`.
 
-Ensure that your tests have descriptive names and are easily understandable. Make sure that failure messages from tests offer sufficient information for understanding the cause of failure. Utilize tables and Fuzz testing when appropriate.
-
-Take inspiration from the numerous examples of tests available in the codebase. Aim for achieving 100% test coverage whenever feasible.
-
-The project aims to follow Google's [testing guidelines](https://google.github.io/styleguide/go/decisions.html#useful-test-failures).
+Give tests descriptive names that state the behaviour, and make failure messages explain the cause.
+Run `make test` for both suites and `make lint` for rustfmt, clippy (`-D warnings`) and svelte-check.
 
 
 ## Updating the Homebrew package

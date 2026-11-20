@@ -1,15 +1,13 @@
 # Postie
 
-[![Build](https://github.com/kipsilabs/postie/actions/workflows/pull-request.yml/badge.svg)](https://github.com/kipsilabs/postie/actions/workflows/pull-request.yml)
-[![Coverage](https://github.com/kipsilabs/postie/actions/workflows/coverage.yml/badge.svg)](https://github.com/kipsilabs/postie/actions/workflows/coverage.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/kipsilabs/postie)](https://goreportcard.com/report/github.com/kipsilabs/postie)
+[![Rust](https://github.com/kipsilabs/postie/actions/workflows/rust.yml/badge.svg)](https://github.com/kipsilabs/postie/actions/workflows/rust.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/qbt52hh7sjd)
 
 ![logo](./docs/static/img/full_logo.jpeg)
 
-A high-performance Usenet binary poster written in Go, inspired by Nyuu-Obfuscation.
+A high-performance Usenet binary poster written in Rust, inspired by Nyuu-Obfuscation.
 
 ## Features
 
@@ -94,51 +92,40 @@ For detailed documentation, installation instructions, configuration options, an
 
 ### Prerequisites
 
-- **Go** 1.26+
-- **[Bun](https://bun.sh)** — used for the frontend (do not use npm)
-- A **C toolchain**, because the native PAR2 encoder uses cgo. On Windows use
-  [MSYS2](https://www.msys2.org/) with the MinGW-w64 GCC toolchain and build
-  from the MSYS2 shell; on macOS the Xcode command line tools are enough.
-
-Wails does not need to be installed separately — it is declared as a Go tool
-dependency and runs via `go tool wails`.
+- **Rust** (stable, edition 2024) via [rustup](https://rustup.rs)
+- **[Bun](https://bun.sh)** for the frontend (do not use npm)
+- **CMake** and a C/C++ toolchain, used to build the vendored rapidyenc encoder
+  (Xcode command line tools on macOS, MSVC Build Tools on Windows)
+- For the desktop app: the [Tauri v2 prerequisites](https://v2.tauri.app/start/prerequisites/)
+  and `cargo install tauri-cli --version "^2"`
 
 ### Building from Source
 
-The Go binaries embed the compiled frontend, so **the frontend must be built
-first**. Skipping this step fails with
-`pattern all:frontend/build: no matching files found`.
+`postie-web` serves the compiled frontend from a `frontend/` directory next to its binary
+(or `POSTIE_FRONTEND_DIR`), so build the frontend first.
 
 ```bash
 git clone https://github.com/kipsilabs/postie.git
 cd postie
 
-make build-frontend   # cd frontend && bun i && bun run build
-make build            # CLI + web server
+make build            # frontend + postie CLI + postie-web (release)
+make build-desktop    # Tauri desktop bundle
 ```
-
-Individual targets:
 
 | Command | Builds | Output |
 |---------|--------|--------|
-| `make build-cli` | CLI (`./cmd/postie`) | `./postie-cli` |
-| `make build-web` | Web server (`./cmd/web`) | `./postie-web` |
-| `make build-gui` | Desktop app via Wails | `./build/bin/postie` (`.app` on macOS) |
+| `make build` | CLI and web server | `rust/target/release/postie`, `rust/target/release/postie-web` |
+| `make build-desktop` | Desktop app (Tauri) | `rust/desktop/target/release/bundle/` |
+| `make docker-build` | Docker image | `postie:dev` |
 
-Run `make help` for the full target list, and `make check` before opening a pull
-request (it runs `go generate`, `go mod tidy`, golangci-lint and the race tests).
+Run `make help` for every target, and `make lint test` before opening a pull request.
 
 ### Development Mode
 
 ```bash
-make dev          # desktop app with hot reload
+make dev           # postie-web on http://localhost:8080
+make desktop-dev   # desktop app
 ```
-
-### Installing with Go
-
-`go install` cannot build this repository, because the embedded frontend assets
-are not present in a fresh module cache. Use the release binaries, or build from
-source as above.
 
 ## License
 

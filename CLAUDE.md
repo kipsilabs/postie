@@ -6,8 +6,8 @@ DON'T USE NPM use BUN instead.
 
 ## Config Change Rules
 
-When adding or modifying configuration fields in the Go backend (`internal/config/config.go`), you MUST also update the frontend:
-- **Wails bindings**: Run `wails generate module` or rebuild to regenerate `frontend/src/lib/wailsjs/go/models`
+When adding or modifying configuration fields in the Rust backend (`rust/core/src/config/mod.rs`), you MUST also update the frontend:
+- **API types**: Mirror the field in `frontend/src/lib/api/models.ts` (hand-maintained; it must match the JSON the Rust structs serialize)
 - **Settings UI**: Update the relevant settings section components in `frontend/src/lib/components/settings/` to expose the new config fields
 - **Translations**: Add i18n keys for any new user-facing labels/descriptions in `frontend/src/lib/translations/`
 - **Types**: If custom frontend types reference config, update `frontend/src/lib/types.ts`
@@ -15,7 +15,7 @@ When adding or modifying configuration fields in the Go backend (`internal/confi
 ## Project Overview
 
 This is a desktop application built with:
-- **Backend**: Go with Wails framework for desktop integration
+- **Backend**: Rust (`rust/`): `postie-core`, the `postie-web` HTTP/WebSocket server, the `postie` CLI and a Tauri v2 desktop shell
 - **Frontend**: SvelteKit with TypeScript
 - **Styling**: daisyUI + Tailwind CSS for consistent theming
 - **State Management**: Svelte 5 runes + Svelte stores
@@ -27,8 +27,9 @@ This is a desktop application built with:
 frontend/src/
 ├── lib/
 │   ├── api/                 # API clients
-│   │   ├── client.ts        # Wails backend communication
-│   │   └── web-client.ts    # Web interface client
+│   │   ├── client.ts        # Unified API client (postie-web + Tauri dialogs)
+│   │   ├── web-client.ts    # Web interface client
+│   │   └── models.ts        # Shared API types (mirror the Rust structs)
 │   ├── assets/
 │   │   └── images/          # Static assets
 │   ├── components/
@@ -59,9 +60,6 @@ frontend/src/
 │   │   ├── en/             # English translations
 │   │   ├── es/             # Spanish translations
 │   │   └── fr/             # French translations
-│   ├── wailsjs/            # Generated Wails bindings
-│   │   ├── go/backend/     # Go backend type definitions
-│   │   └── runtime/        # Wails runtime
 │   ├── i18n.ts             # Internationalization utilities
 │   ├── types.ts            # TypeScript type definitions
 │   └── utils.ts            # Utility functions
@@ -439,73 +437,24 @@ routes/
     └── +page.svelte        # Setup wizard main component
 ```
 
-### Load Functions (Wails Integration)
+### Load Functions
 
 ```typescript
 // +layout.ts - Root layout load function
 import type { LayoutLoad } from './$types';
 import { browser } from '$app/environment';
+import apiClient from '$lib/api/client';
 
 export const load: LayoutLoad = async () => {
-  // ✅ Browser-only data loading (Wails requires browser context)
-  if (browser) {
-    try {
-      // Load initial app state from Wails backend
-      const { GetConfig, IsSetupComplete } = await import('$lib/wailsjs/go/backend/App');
-      
-      const [config, setupComplete] = await Promise.all([
-        GetConfig(),
-        IsSetupComplete()
-      ]);
-
-      return {
-        config,
-        setupComplete,
-        isWailsApp: true
-      };
-    } catch (error) {
-      // Fallback for web mode
-      return {
-        config: null,
-        setupComplete: false,
-        isWailsApp: false
-      };
-    }
+  // ✅ Browser-only data loading (the API is served by postie-web)
+  if (!browser) {
+    return { config: null };
   }
-
-  return {
-    config: null,
-    setupComplete: false,
-    isWailsApp: false
-  };
-};
-```
-
-```typescript
-// routes/settings/+page.ts - Settings page load
-import type { PageLoad } from './$types';
-import { browser } from '$app/environment';
-
-export const load: PageLoad = async ({ parent }) => {
-  const { config } = await parent();
-  
-  if (browser && !config) {
-    // Load config if not available from parent
-    try {
-      const { GetConfig } = await import('$lib/wailsjs/go/backend/App');
-      const freshConfig = await GetConfig();
-      
-      return {
-        config: freshConfig
-      };
-    } catch (error) {
-      throw new Error('Failed to load configuration');
-    }
+  try {
+    return { config: await apiClient.getConfig() };
+  } catch {
+    return { config: null };
   }
-
-  return {
-    config
-  };
 };
 ```
 
@@ -587,7 +536,7 @@ const themeContext = getContext<ThemeContext>('theme');
 
 ## Forms and Validation (Project Patterns)
 
-### Settings Form Handling with Wails
+### Settings Form Handling
 
 ```svelte
 <script lang="ts">
@@ -596,7 +545,7 @@ import ByteSizeInput from "$lib/components/inputs/ByteSizeInput.svelte";
 import DurationInput from "$lib/components/inputs/DurationInput.svelte";
 import { t } from "$lib/i18n";
 import { toastStore } from "$lib/stores/toast";
-import type { config as configType } from "$lib/wailsjs/go/models";
+import type { config as configType } from "$lib/api/models";
 
 interface ComponentProps {
   config: configType.ConfigData;
@@ -846,21 +795,21 @@ describe('/api/users', () => {
 
 ## Type Safety
 
-### Wails Generated Types (Priority #1)
+### Shared API Types (Priority #1)
 
-**ALWAYS prefer Wails generated types when available**. The backend Go structs are automatically converted to TypeScript types and made available in `$lib/wailsjs/go/models`.
+**ALWAYS use the shared API types**. `$lib/api/models.ts` mirrors the JSON of the Rust backend structs (config, queue, status) and must be kept in sync with them.
 
 ```typescript
-// ✅ ALWAYS use Wails generated types first
-import type { config } from "$lib/wailsjs/go/models";
+// ✅ ALWAYS use the shared API types
+import type { config } from "$lib/api/models";
 
 interface Props {
-  // ✅ Use generated ServerConfig type
+  // ✅ Use the shared ServerConfig type
   servers?: config.ServerConfig[];
   configData?: config.ConfigData;
 }
 
-// ✅ Create instances using generated constructors
+// ✅ Create instances using the model constructors
 function addServer(): void {
   const newServer = new config.ServerConfig();
   // All fields are properly typed and have correct defaults
@@ -869,21 +818,21 @@ function addServer(): void {
 ```
 
 ```typescript
-// ❌ DON'T create custom interfaces that duplicate Wails types
+// ❌ DON'T create custom interfaces that duplicate the shared API types
 interface ServerConfig {
   host: string;
   port: number;
-  // ... duplicating what's already generated
+  // ... duplicating what's already in models.ts
 }
 
-// ✅ DO use the generated types directly
-import type { config } from "$lib/wailsjs/go/models";
+// ✅ DO use the shared types directly
+import type { config } from "$lib/api/models";
 type ServerConfig = config.ServerConfig;
 ```
 
-### Available Wails Generated Types
+### Available Shared API Types
 
-The main types available in `$lib/wailsjs/go/models` include:
+The main types available in `$lib/api/models` include:
 - `config.ConfigData` - Main application configuration
 - `config.ServerConfig` - NNTP server configuration
 - `config.WatcherConfig` - File watcher configuration
@@ -916,7 +865,7 @@ export {};
 ```
 
 ```typescript
-// lib/types/index.ts - Only for types NOT generated by Wails
+// lib/types.ts - Only for frontend-only types not in models.ts
 export interface User {
   id: string;
   name: string;
@@ -1111,72 +1060,27 @@ function handleKeydown(event: KeyboardEvent) {
 }
 ```
 
-## Build and Deployment (Wails Desktop App)
+## Build and Deployment
 
-### Wails Configuration
-
-```javascript
-// vite.config.ts
-import { sveltekit } from '@sveltejs/kit/vite';
-import { defineConfig } from 'vite';
-
-export default defineConfig({
-  plugins: [sveltekit()],
-  server: {
-    fs: {
-      allow: ['..']
-    }
-  },
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ['svelte', '@sveltejs/kit'],
-          wails: ['$lib/wailsjs/go/backend/App', '$lib/wailsjs/runtime/runtime']
-        }
-      }
-    }
-  }
-});
-```
-
-### SvelteKit Configuration for Desktop
-
-```javascript
-// svelte.config.js
-import adapter from '@sveltejs/adapter-static';
-
-export default {
-  kit: {
-    adapter: adapter({
-      pages: '../frontend/build',
-      assets: '../frontend/build',
-      fallback: undefined,
-      precompress: false,
-      strict: true
-    }),
-    paths: {
-      base: process.env.NODE_ENV === 'production' ? '/frontend/build' : ''
-    }
-  }
-};
-```
+The frontend is a static SvelteKit build (`frontend/build`). `postie-web` serves it from a `frontend/`
+directory next to its binary (or `POSTIE_FRONTEND_DIR`); the Tauri desktop app bundles it as a resource
+and loads it from its in-process loopback server.
 
 ### Development Commands
 
 ```bash
-# Frontend development
+# Frontend
 cd frontend
-npm run dev              # Start SvelteKit dev server
-npm run build           # Build for production
-npm run preview         # Preview production build
+bun run dev              # SvelteKit dev server
+bun run build            # production build into frontend/build
+bun run check            # svelte-check
+bun test                 # unit tests
 
-# Wails development
-wails dev               # Start Wails development mode
-wails build             # Build desktop application
-
-# Full development workflow
-wails dev -s            # Start with SvelteKit dev server integration
+# Backend (from the repo root)
+make dev                 # postie-web on http://localhost:8080
+make desktop-dev         # Tauri desktop app
+make build               # release CLI + postie-web
+make lint test           # rustfmt, clippy, svelte-check, cargo + bun tests
 ```
 
 ## Common Anti-Patterns to Avoid
@@ -1189,10 +1093,9 @@ wails dev -s            # Start with SvelteKit dev server integration
 let { config } = $props();
 config.posting.max_retries = 5; // Don't mutate props directly
 
-// ❌ Missing Wails error handling
+// ❌ Missing error handling
 async function saveConfig() {
-  const { SaveConfig } = await import('$lib/wailsjs/go/backend/App');
-  await SaveConfig(config); // No error handling!
+  await apiClient.saveConfig(config); // No error handling!
 }
 
 // ❌ Hardcoded text instead of i18n
@@ -1233,7 +1136,7 @@ $effect(() => {
   config.posting.max_retries = maxRetries;
 });
 
-// ✅ Proper Wails error handling
+// ✅ Proper API error handling
 async function saveConfig() {
   try {
     await apiClient.saveConfig(config);
@@ -1277,16 +1180,16 @@ function getValue(unit: string): number {
 2. **Form Handling**: Create local reactive state, sync with $effect, save via apiClient
 3. **Styling**: Use daisyUI semantic colors and component classes consistently
 4. **Internationalization**: Always use $t() for user-facing text
-5. **Error Handling**: Always wrap Wails calls in try-catch with toast notifications
+5. **Error Handling**: Always wrap API calls in try-catch with toast notifications
 6. **Component Structure**: Follow the input component pattern with presets and descriptions
 
 ### Architecture Decisions
 
-- **Desktop Integration**: Wails framework for Go backend communication
+- **Desktop Integration**: Tauri v2 shell around the same web UI, served by an in-process postie-web
 - **State Management**: Svelte 5 runes + stores for different scopes
 - **Styling**: daisyUI + Tailwind for consistent, theme-aware design
 - **Internationalization**: Custom i18n system with multi-language support
-- **API Communication**: Abstracted client for Wails bindings
+- **API Communication**: Abstracted client over the postie-web HTTP/WebSocket API
 - **Build Setup**: SvelteKit with static adapter for desktop deployment
 
 ### Maintenance Guidelines
@@ -1295,7 +1198,7 @@ function getValue(unit: string): number {
 - Use TypeScript interfaces for all props and data structures
 - Follow the established input component patterns for consistency
 - Always handle loading and error states in async operations
-- Test both desktop (Wails) and web modes when applicable
+- Test both the desktop (Tauri) and web modes when applicable
 - Use semantic commit messages and update CLAUDE.md for significant patterns
 
 This guide ensures consistency across the NZB Upload Project while following community best practices for SvelteKit development.
