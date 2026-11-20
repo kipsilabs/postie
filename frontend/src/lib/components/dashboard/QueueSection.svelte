@@ -5,7 +5,7 @@ import { t } from "$lib/i18n";
 import { toastStore } from "$lib/stores/toast";
 import { fade, fly, listFlip } from "$lib/motion";
 import { formatDate, formatDuration, formatFileSize } from "$lib/utils";
-import type { backend } from "$lib/wailsjs/go/models";
+import type { backend } from "$lib/api/models";
 import {
 	ArrowDown,
 	ArrowUp,

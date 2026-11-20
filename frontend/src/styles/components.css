@@ -287,11 +287,6 @@
 		animation: pulse-soft 2s var(--ease-standard) infinite;
 	}
 
-	/* Wails drop target styles */
-	.wails-drop-target-active {
-		outline: 3px solid color-mix(in oklab, var(--color-primary) 55%, transparent);
-		outline-offset: -3px;
-	}
 }
 
 /*

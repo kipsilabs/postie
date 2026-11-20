@@ -19,8 +19,6 @@ let needsConfiguration = false;
 let criticalConfigError = false;
 let isDragOver = false;
 let dragCounter = 0;
-let fileDropOff: (() => void) | null = null;
-let destroyed = false;
 
 onMount(() => {
 	// Set up drag over detection for UI feedback
@@ -28,8 +26,6 @@ onMount(() => {
 	window.addEventListener("dragleave", handleDragLeave);
 	window.addEventListener("dragover", handleDragOver);
 	window.addEventListener("drop", handleDrop);
-
-	registerWailsFileDrop();
 
 	// Listen for file drop events from backend
 	apiClient.on("file-drop-success", () => {
@@ -98,37 +94,7 @@ onDestroy(() => {
 	window.removeEventListener("dragleave", handleDragLeave);
 	window.removeEventListener("dragover", handleDragOver);
 	window.removeEventListener("drop", handleDrop);
-
-	destroyed = true;
-	fileDropOff?.();
-	fileDropOff = null;
 });
-
-// On Windows the Go-side OnFileDrop handler only ever fires if the JS runtime
-// installs its own drop listener, which is what posts the dropped files back to
-// the webview. Registering here is what makes drag & drop work on Windows.
-async function registerWailsFileDrop() {
-	if (apiClient.environment !== "wails") {
-		return;
-	}
-
-	try {
-		const { OnFileDrop, OnFileDropOff } = await import(
-			"$lib/wailsjs/runtime/runtime"
-		);
-
-		if (destroyed) {
-			return;
-		}
-
-		// useDropTarget: false — the default re-checks elementFromPoint against
-		// --wails-drop-target, which our conditionally rendered overlay breaks.
-		OnFileDrop(() => {}, false);
-		fileDropOff = OnFileDropOff;
-	} catch (error) {
-		console.error("Failed to register Wails file drop handler:", error);
-	}
-}
 
 function handleDragEnter(e: DragEvent) {
 	e.preventDefault();
@@ -214,7 +180,6 @@ async function handleFileUpload(files: FileList) {
 				$t("common.messages.files_added_description"),
 			);
 		}
-		// In Wails mode, the backend OnFileDrop handler in main.go processes files automatically
 	} catch (error) {
 		const err = error as Error;
 		console.error("File upload failed:", error);
@@ -233,22 +198,17 @@ async function handleFileUpload(files: FileList) {
 
 async function handleUpload() {
 	try {
-		if (apiClient.environment === "wails") {
-			// In Wails mode, use the existing upload flow
-			await apiClient.uploadFiles();
-		} else {
-			// In web mode, trigger file input dialog
-			const input = document.createElement("input");
-			input.type = "file";
-			input.multiple = true;
-			input.onchange = async (e) => {
-				const files = (e.target as HTMLInputElement).files;
-				if (files && files.length > 0) {
-					await handleFileUpload(files);
-				}
-			};
-			input.click();
-		}
+		// trigger the file input dialog
+		const input = document.createElement("input");
+		input.type = "file";
+		input.multiple = true;
+		input.onchange = async (e) => {
+			const files = (e.target as HTMLInputElement).files;
+			if (files && files.length > 0) {
+				await handleFileUpload(files);
+			}
+		};
+		input.click();
 	} catch (error) {
 		console.error("Upload failed:", error);
 		const errorMessage = String(error);
@@ -258,12 +218,7 @@ async function handleUpload() {
 				$t("common.common.error"),
 				$t("common.messages.error_saving"),
 			);
-			// Navigate to settings
-			if (apiClient.environment === "wails") {
-				await apiClient.navigateToSettings();
-			} else {
-				goto("/settings");
-			}
+			goto("/settings");
 		} else if (errorMessage.includes("runtime not available")) {
 			toastStore.error($t("common.common.error"), $t("common.common.loading"));
 		} else if (!errorMessage.includes("Upload cancelled")) {
@@ -278,10 +233,10 @@ async function handleUpload() {
   <meta name="description" content="Manage your uploads and monitor progress" />
 </svelte:head>
 
-<div style="--wails-drop-target: drop">
+<div>
   <!-- Drag and Drop Overlay -->
   {#if isDragOver}
-    <div class="drag-overlay" style="--wails-drop-target: drop" out:fade={{ speed: "fast" }}>
+    <div class="drag-overlay" out:fade={{ speed: "fast" }}>
       <div class="drag-overlay-content" out:scale={{ speed: "fast", start: 0.97 }}>
         <div class="drag-icon">
           <Plus class="w-12 h-12" />

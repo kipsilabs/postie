@@ -2,7 +2,7 @@
 import logo from "$lib/assets/images/logo.png";
 import { t } from "$lib/i18n";
 import { fly } from "$lib/motion";
-import { backend } from "$lib/wailsjs/go/models";
+import { backend } from "$lib/api/models";
 import DirectorySetupStep from "./DirectorySetupStep.svelte";
 import ServerSetupStep from "./ServerSetupStep.svelte";
 import WelcomeStep from "./WelcomeStep.svelte";

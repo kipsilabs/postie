@@ -1,7 +1,7 @@
 <script lang="ts">
 import DurationInput from "$lib/components/inputs/DurationInput.svelte";
 import { t } from "$lib/i18n";
-import type { config as configType } from "$lib/wailsjs/go/models";
+import type { config as configType } from "$lib/api/models";
 import NumberField from "$lib/components/inputs/NumberField.svelte";
 import ToggleRow from "$lib/components/inputs/ToggleRow.svelte";
 import SettingsSection from "./SettingsSection.svelte";

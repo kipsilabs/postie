@@ -4,7 +4,7 @@ import FieldRow from "$lib/components/inputs/FieldRow.svelte";
 import ToggleRow from "$lib/components/inputs/ToggleRow.svelte";
 import SettingsSection from "./SettingsSection.svelte";
 import { collapse } from "./collapse";
-import type { config as configType } from "$lib/wailsjs/go/models";
+import type { config as configType } from "$lib/api/models";
 let { config = $bindable() }: { config: configType.ConfigData } = $props();
 if (!config.duplicate_lookup) config.duplicate_lookup = { enabled: false, url: "", api_key: "", timeout: "60s" };
 let enabled = $state(config.duplicate_lookup.enabled ?? false);

@@ -1,6 +1,6 @@
-// Web API client for browser environment (replaces Wails bindings)
+// Web API client for the postie-web HTTP/WebSocket API
 
-import type { backend, config, processor, watcher } from "$lib/wailsjs/go/models";
+import type { backend, config, processor, watcher } from "$lib/api/models";
 // Using backend types for pagination
 
 const API_BASE = "/api";

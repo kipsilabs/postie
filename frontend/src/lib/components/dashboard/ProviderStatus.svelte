@@ -7,7 +7,7 @@ import {
 } from "$lib/api/events";
 import { t } from "$lib/i18n";
 import { classifyProvider, type ProviderSnapshot, type ProviderState } from "$lib/provider-status";
-import { backend } from "$lib/wailsjs/go/models";
+import { backend } from "$lib/api/models";
 import { fade } from "$lib/motion";
 import { AlertCircle, WifiOff } from "lucide-svelte";
 import { onDestroy, onMount } from "svelte";

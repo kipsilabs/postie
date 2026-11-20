@@ -47,14 +47,11 @@ onMount(async () => {
 		await initPlatform();
 
 		// Gate child pages before their onMount hooks can call privileged APIs.
-		const desktop = !!(window as unknown as {go?: {backend?: {App?: unknown}}}).go?.backend?.App;
 		if (page.route.id === "/login") { authReady = true; return; }
-		if (!desktop) {
-			const response = await fetch("/api/auth/user", { signal: AbortSignal.timeout(15000) });
-			if (response.status === 401) { window.location.replace("/login"); return; }
-			if (!response.ok) throw new Error($t("common.auth.connectionError"));
-			webAuthenticated = (await response.json()).enabled;
-		}
+		const response = await fetch("/api/auth/user", { signal: AbortSignal.timeout(15000) });
+		if (response.status === 401) { window.location.replace("/login"); return; }
+		if (!response.ok) throw new Error($t("common.auth.connectionError"));
+		webAuthenticated = (await response.json()).enabled;
 		authReady = true;
 
 		// Initialize API client (detects environment and sets up appropriate client)
@@ -64,42 +61,6 @@ onMount(async () => {
 		await apiClient.on("config-updated", async () => {
 			await loadAppStatus();
 		});
-
-		// Listen for menu navigation events (desktop only)
-		if (apiClient.environment === "wails") {
-			await apiClient.on("navigate-to-settings", () => {
-				goto("/settings");
-			});
-
-			await apiClient.on("navigate-to-dashboard", () => {
-				goto("/");
-			});
-
-			// Listen for edit menu events (desktop only)
-			await apiClient.on("menu-cut", () => {
-				document.execCommand("cut");
-			});
-
-			await apiClient.on("menu-copy", () => {
-				document.execCommand("copy");
-			});
-
-			await apiClient.on("menu-paste", () => {
-				document.execCommand("paste");
-			});
-
-			await apiClient.on("menu-undo", () => {
-				document.execCommand("undo");
-			});
-
-			await apiClient.on("menu-redo", () => {
-				document.execCommand("redo");
-			});
-
-			await apiClient.on("menu-select-all", () => {
-				document.execCommand("selectAll");
-			});
-		}
 
 		// Load initial app status
 		await loadAppStatus();

@@ -70,7 +70,7 @@ if (!outputDirectory) {
 						required
 						oninput={updateDirectories}
 					/>
-					{#if apiClient.environment === "wails"}
+					{#if apiClient.isDesktop}
 						<button
 							class="btn btn-ghost shrink-0"
 							onclick={selectOutputDirectory}

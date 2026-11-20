@@ -2,7 +2,7 @@
 import apiClient from "$lib/api/client";
 import { t } from "$lib/i18n";
 import { toastStore } from "$lib/stores/toast";
-import type { config as configType } from "$lib/wailsjs/go/models";
+import type { config as configType } from "$lib/api/models";
 import { Copy, Eye, EyeOff, RefreshCw } from "lucide-svelte";
 import FieldRow from "$lib/components/inputs/FieldRow.svelte";
 import ToggleRow from "$lib/components/inputs/ToggleRow.svelte";

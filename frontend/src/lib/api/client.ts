@@ -1,58 +1,18 @@
-// Unified API client that switches between Wails (desktop) and HTTP (web) modes
+// Unified API client: talks HTTP/WebSocket to postie-web. The Tauri desktop shell loads the same
+// UI from its in-process loopback server and adds native dialogs through `tauriInvoke`.
 
 import { isTauri, tauriInvoke } from "./tauri";
 import { browser } from "$app/environment";
-import type { backend, config, processor, watcher } from "$lib/wailsjs/go/models";
-// Using backend types for pagination - remove temporary types import
+import type { backend, config, processor, watcher } from "$lib/api/models";
 import type { ArrInstance, WebClient } from "./web-client";
 export type { ArrInstance };
 
-type WailsApp = typeof import("$lib/wailsjs/go/backend/App");
-type WailsRuntime = typeof import("$lib/wailsjs/runtime/runtime");
-
-// Environment detection
-function isWailsEnvironment(): boolean {
-	if (!browser) return false;
-
-	return !!(
-		typeof window !== "undefined" &&
-		"go" in window &&
-		window.go &&
-		typeof window.go === "object" &&
-		"backend" in window.go &&
-		window.go.backend &&
-		"App" in (window.go as { backend: { App: unknown } }).backend
-	);
-}
-
 function isWebEnvironment(): boolean {
-	if (!browser) return false;
-
-	// Check if we're in a web environment (not Wails)
-	return !isWailsEnvironment() && typeof fetch !== "undefined";
+	return browser && typeof fetch !== "undefined";
 }
 
-// Lazy imports to avoid bundling issues
-let wailsClient: {
-	App: WailsApp;
-	Runtime: WailsRuntime;
-} | null = null;
+// Lazy import to avoid bundling issues
 let webClient: WebClient | null = null;
-
-async function getWailsClient(): Promise<{
-	App: WailsApp;
-	Runtime: WailsRuntime;
-}> {
-	if (!wailsClient) {
-		const [AppModule, RuntimeModule] = await Promise.all([
-			import("$lib/wailsjs/go/backend/App"),
-			import("$lib/wailsjs/runtime/runtime"),
-		]);
-		wailsClient = { App: AppModule, Runtime: RuntimeModule };
-	}
-
-	return wailsClient;
-}
 
 async function getWebClient() {
 	if (!webClient) {
@@ -70,7 +30,7 @@ const eventListeners = new Map<string, Set<EventCallback>>();
 // Unified API interface
 export class UnifiedClient {
 	private _isReady = false;
-	private _environment: "wails" | "web" | "unknown" = "unknown";
+	private _environment: "web" | "unknown" = "unknown";
 
 	async initialize(): Promise<void> {
 		if (this._isReady) return;
@@ -80,11 +40,7 @@ export class UnifiedClient {
 			return;
 		}
 
-		if (isWailsEnvironment()) {
-			this._environment = "wails";
-			// Wait for Wails runtime to be ready
-			await this.waitForWailsRuntime();
-		} else if (isWebEnvironment()) {
+		if (isWebEnvironment()) {
 			this._environment = "web";
 			// Initialize web client
 			await getWebClient();
@@ -96,7 +52,7 @@ export class UnifiedClient {
 		this._isReady = true;
 	}
 
-	get environment(): "wails" | "web" | "unknown" {
+	get environment(): "web" | "unknown" {
 		return this._environment;
 	}
 
@@ -104,30 +60,9 @@ export class UnifiedClient {
 		return this._isReady;
 	}
 
-	private async waitForWailsRuntime(): Promise<void> {
-		const maxAttempts = 100; // Max 10 seconds (100 * 100ms) for slow Windows machines
-		let attempts = 0;
-
-		while (attempts < maxAttempts) {
-			if (isWailsEnvironment()) {
-				return;
-			}
-			await new Promise((resolve) => setTimeout(resolve, 100));
-			attempts++;
-		}
-
-		console.warn("Wails runtime not available after timeout, proceeding anyway");
-		// Don't throw — let individual API calls fail gracefully
-	}
-
 	// App Status
 	async getAppStatus(): Promise<backend.AppStatus> {
 		await this.initialize();
-
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.GetAppStatus();
-		}
 
 		if (this._environment === "web") {
 			const client = await getWebClient();
@@ -141,11 +76,6 @@ export class UnifiedClient {
 	async getConfig(): Promise<config.ConfigData> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.GetConfig()
-		}
-
 		if (this._environment === "web") {
 			const client = await getWebClient();
 			return client.getConfig();
@@ -157,13 +87,6 @@ export class UnifiedClient {
 	async saveConfig(config: config.ConfigData): Promise<void> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.SaveConfig(
-				config as unknown as import("$lib/wailsjs/go/models").config.ConfigData,
-			);
-		}
-
 		if (this._environment === "web") {
 			const client = await getWebClient();
 			return client.saveConfig(config);
@@ -173,11 +96,6 @@ export class UnifiedClient {
 	// Queue Management
 	async getQueueItems(params: backend.PaginationParams): Promise<backend.PaginatedQueueResult> {
 		await this.initialize();
-
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.GetQueueItems(params);
-		}
 
 		if (this._environment === "web") {
 			const client = await getWebClient();
@@ -190,11 +108,6 @@ export class UnifiedClient {
 	async getQueueStats(): Promise<backend.QueueStats> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.GetQueueStats();
-		}
-
 		if (this._environment === "web") {
 			const client = await getWebClient();
 			return client.getQueueStats();
@@ -205,11 +118,6 @@ export class UnifiedClient {
 
 	async retryJob(id: string): Promise<void> {
 		await this.initialize();
-
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.RetryJob(id);
-		}
 
 		if (this._environment === "web") {
 			const client = await getWebClient();
@@ -222,11 +130,6 @@ export class UnifiedClient {
 	async cancelJob(id: string): Promise<void> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.CancelJob(id);
-		}
-
 		if (this._environment === "web") {
 			const client = await getWebClient();
 			return client.cancelJob(id);
@@ -235,11 +138,6 @@ export class UnifiedClient {
 
 	async removeFromQueue(id: string): Promise<void> {
 		await this.initialize();
-
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.RemoveFromQueue(id);
-		}
 
 		if (this._environment === "web") {
 			const client = await getWebClient();
@@ -250,11 +148,6 @@ export class UnifiedClient {
 	async setQueueItemPriority(id: string, priority: number): Promise<void> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.SetQueueItemPriority(id, priority);
-		}
-
 		if (this._environment === "web") {
 			const client = await getWebClient();
 			return client.setQueueItemPriority(id, priority);
@@ -264,11 +157,6 @@ export class UnifiedClient {
 	// Processing
 	async getProcessorStatus(): Promise<backend.ProcessorStatus> {
 		await this.initialize();
-
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.GetProcessorStatus();
-		}
 
 		if (this._environment === "web") {
 			const client = await getWebClient();
@@ -281,11 +169,6 @@ export class UnifiedClient {
 	async getWatcherStatus(): Promise<watcher.WatcherStatusInfo[]> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.GetWatcherStatus();
-		}
-
 		if (this._environment === "web") {
 			const client = await getWebClient();
 			return client.getWatcherStatus();
@@ -296,11 +179,6 @@ export class UnifiedClient {
 
 	async triggerScan(): Promise<void> {
 		await this.initialize();
-
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.TriggerScan();
-		}
 
 		if (this._environment === "web") {
 			const client = await getWebClient();
@@ -313,11 +191,6 @@ export class UnifiedClient {
 	async getApiKey(): Promise<string> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.GetAPIKey();
-		}
-
 		if (this._environment === "web") {
 			const client = await getWebClient();
 			return client.getApiKey();
@@ -328,11 +201,6 @@ export class UnifiedClient {
 
 	async regenerateApiKey(): Promise<string> {
 		await this.initialize();
-
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.RegenerateAPIKey();
-		}
 
 		if (this._environment === "web") {
 			const client = await getWebClient();
@@ -345,11 +213,6 @@ export class UnifiedClient {
 	async getRunningJobDetails(): Promise<processor.RunningJobDetails[]> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.GetRunningJobsDetails();
-		}
-
 		if (this._environment === "web") {
 			const client = await getWebClient();
 			return client.getRunningJobDetails();
@@ -360,11 +223,6 @@ export class UnifiedClient {
 
 	async pauseProcessing(): Promise<void> {
 		await this.initialize();
-
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.PauseProcessing();
-		}
 
 		if (this._environment === "web") {
 			const client = await getWebClient();
@@ -377,11 +235,6 @@ export class UnifiedClient {
 	async resumeProcessing(): Promise<void> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.ResumeProcessing();
-		}
-
 		if (this._environment === "web") {
 			const client = await getWebClient();
 			return client.resumeProcessing();
@@ -392,11 +245,6 @@ export class UnifiedClient {
 
 	async isProcessingPaused(): Promise<boolean> {
 		await this.initialize();
-
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.IsProcessingPaused();
-		}
 
 		if (this._environment === "web") {
 			const client = await getWebClient();
@@ -409,11 +257,6 @@ export class UnifiedClient {
 	async isProcessingAutoPaused(): Promise<boolean> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.IsProcessingAutoPaused();
-		}
-
 		if (this._environment === "web") {
 			const client = await getWebClient();
 			return client.isProcessingAutoPaused();
@@ -425,11 +268,6 @@ export class UnifiedClient {
 	async getAutoPauseReason(): Promise<string> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.GetAutoPauseReason();
-		}
-
 		if (this._environment === "web") {
 			const client = await getWebClient();
 			return client.getAutoPauseReason();
@@ -440,11 +278,6 @@ export class UnifiedClient {
 
 	async uploadFiles(): Promise<void> {
 		await this.initialize();
-
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.UploadFiles();
-		}
 
 		if (this._environment === "web") {
 			// Web upload is handled via file input and drag/drop
@@ -458,12 +291,6 @@ export class UnifiedClient {
 		setRequest?: (xhr: XMLHttpRequest) => void,
 	): Promise<void> {
 		await this.initialize();
-
-		if (this._environment === "wails") {
-			// For Wails, we'd need to save files temporarily and call HandleDroppedFiles
-			// This is more complex and would require file system access
-			throw new Error("File upload from FileList not supported in Wails mode");
-		}
 
 		if (this._environment === "web") {
 			const client = await getWebClient();
@@ -486,12 +313,6 @@ export class UnifiedClient {
 	async selectFolder(): Promise<string | null> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			const path = await client.App.SelectFolder();
-			return path || null;
-		}
-
 		if (isTauri()) {
 			return (await tauriInvoke<string | null>("select_folder")) || null;
 		}
@@ -502,11 +323,6 @@ export class UnifiedClient {
 
 	async uploadFolder(folderPath: string): Promise<void> {
 		await this.initialize();
-
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.UploadFolder(folderPath);
-		}
 
 		if (isTauri()) {
 			return tauriInvoke<void>("upload_folders", { paths: [folderPath] });
@@ -519,12 +335,6 @@ export class UnifiedClient {
 	async selectFolders(): Promise<string[]> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			const paths = await client.App.SelectFolders();
-			return paths ?? [];
-		}
-
 		if (isTauri()) {
 			return tauriInvoke<string[]>("select_folders");
 		}
@@ -535,11 +345,6 @@ export class UnifiedClient {
 
 	async uploadFolders(folderPaths: string[]): Promise<void> {
 		await this.initialize();
-
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.UploadFolders(folderPaths);
-		}
 
 		if (isTauri()) {
 			return tauriInvoke<void>("upload_folders", { paths: folderPaths });
@@ -553,11 +358,6 @@ export class UnifiedClient {
 	async getLogs(): Promise<string> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.GetLogs();
-		}
-
 		if (this._environment === "web") {
 			const client = await getWebClient();
 			return client.getLogs();
@@ -569,11 +369,6 @@ export class UnifiedClient {
 	async getLogsPaginated(limit: number, offset: number): Promise<string> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.GetLogsPaginated(limit, offset);
-		}
-
 		if (this._environment === "web") {
 			const client = await getWebClient();
 			return client.getLogs(limit, offset);
@@ -584,11 +379,6 @@ export class UnifiedClient {
 
 	async downloadLogFile(): Promise<void> {
 		await this.initialize();
-
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.DownloadLogFile();
-		}
 
 		if (this._environment === "web") {
 			const client = await getWebClient();
@@ -611,10 +401,7 @@ export class UnifiedClient {
 			listeners.add(callback);
 		}
 
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			client.Runtime.EventsOn(event, callback);
-		} else if (this._environment === "web") {
+		if (this._environment === "web") {
 			const client = await getWebClient();
 			client.on(event, callback);
 		}
@@ -629,18 +416,14 @@ export class UnifiedClient {
 			eventListeners.get(event)?.clear();
 		}
 
-		if (this._environment === "wails") {
-			// Wails doesn't have EventsOff, events are cleaned up automatically
-		} else if (this._environment === "web") {
+		if (this._environment === "web") {
 			const client = await getWebClient();
 			client.off(event);
 		}
 	}
 
-	// True when push events are flowing. Wails events cannot silently drop;
-	// in web mode this requires an OPEN WebSocket with recent event traffic.
+	// True when push events are flowing: an OPEN WebSocket with recent event traffic.
 	isLive(): boolean {
-		if (this._environment === "wails") return true;
 		if (this._environment === "web") return webClient?.isConnected() ?? false;
 		return false;
 	}
@@ -663,11 +446,6 @@ export class UnifiedClient {
 	async clearQueue(): Promise<void> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.ClearQueue();
-		}
-
 		if (this._environment === "web") {
 			const client = await getWebClient();
 			return client.clearQueue();
@@ -678,11 +456,6 @@ export class UnifiedClient {
 
 	async addFilesToQueue(): Promise<void> {
 		await this.initialize();
-
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.AddFilesToQueue();
-		}
 
 		if (this._environment === "web") {
 			// In web mode, we handle file selection via HTML input
@@ -697,11 +470,6 @@ export class UnifiedClient {
 	async cancelUpload(): Promise<void> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.CancelUpload();
-		}
-
 		if (this._environment === "web") {
 			const client = await getWebClient();
 			return client.cancelUpload();
@@ -713,11 +481,6 @@ export class UnifiedClient {
 	// NZB operations
 	async downloadNZB(id: string): Promise<void> {
 		await this.initialize();
-
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.DownloadNZB(id);
-		}
 
 		if (isTauri()) {
 			return tauriInvoke<void>("download_nzb", { id });
@@ -731,37 +494,22 @@ export class UnifiedClient {
 		throw new Error("No client available");
 	}
 
-	// Navigation (Wails-specific)
+	// Navigation (handled by SvelteKit; kept for callers)
 	async navigateToSettings(): Promise<void> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.NavigateToSettings();
-		}
 		// In web mode, navigation is handled by SvelteKit
 	}
 
 	async navigateToDashboard(): Promise<void> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.NavigateToDashboard();
-		}
 		// In web mode, navigation is handled by SvelteKit
 	}
 
 	// Directory Selection
 	async selectTempDirectory(): Promise<string> {
 		await this.initialize();
-
-		if (this._environment === "wails") {
-			const { SelectTempDirectory } = await import(
-				"$lib/wailsjs/go/backend/App"
-			);
-			return SelectTempDirectory();
-		}
 
 		if (isTauri()) {
 			return (await tauriInvoke<string | null>("select_folder")) ?? "";
@@ -782,11 +530,6 @@ export class UnifiedClient {
 	): Promise<backend.ValidationResult> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.ValidateNNTPServer(serverData);
-		}
-
 		if (this._environment === "web") {
 			const client = await getWebClient();
 			return client.validateNNTPServer(serverData);
@@ -799,11 +542,6 @@ export class UnifiedClient {
 		serverData: backend.ServerData,
 	): Promise<backend.ValidationResult> {
 		await this.initialize();
-
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.TestProviderConnectivity(serverData);
-		}
 
 		if (this._environment === "web") {
 			const client = await getWebClient();
@@ -819,11 +557,6 @@ export class UnifiedClient {
 		console.log("Completing setup wizard with data:", wizardData);
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.SetupWizardComplete(wizardData);
-		}
-
 		if (this._environment === "web") {
 			const client = await getWebClient();
 			return client.setupWizardComplete(wizardData);
@@ -834,11 +567,6 @@ export class UnifiedClient {
 
 	async getAppliedConfig(): Promise<config.ConfigData> {
 		await this.initialize();
-
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.GetAppliedConfig();
-		}
 
 		if (this._environment === "web") {
 			const client = await getWebClient();
@@ -852,11 +580,6 @@ export class UnifiedClient {
 	async hasPendingConfigChanges(): Promise<boolean> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.HasPendingConfigChanges();
-		}
-
 		if (this._environment === "web") {
 			const client = await getWebClient();
 			return client.hasPendingConfigChanges();
@@ -867,11 +590,6 @@ export class UnifiedClient {
 
 	async getPendingConfigStatus(): Promise<Record<string, unknown>> {
 		await this.initialize();
-
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.GetPendingConfigStatus();
-		}
 
 		if (this._environment === "web") {
 			const client = await getWebClient();
@@ -884,11 +602,6 @@ export class UnifiedClient {
 	async applyPendingConfig(): Promise<void> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.ApplyPendingConfig();
-		}
-
 		if (this._environment === "web") {
 			const client = await getWebClient();
 			return client.applyPendingConfig();
@@ -900,11 +613,6 @@ export class UnifiedClient {
 	async discardPendingConfig(): Promise<void> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.DiscardPendingConfig();
-		}
-
 		if (this._environment === "web") {
 			const client = await getWebClient();
 			return client.discardPendingConfig();
@@ -913,20 +621,13 @@ export class UnifiedClient {
 		throw new Error("No client available");
 	}
 
-	/** True in the Wails app and in the Tauri shell (native dialogs available). */
+	/** True in the Tauri desktop shell (native dialogs available). */
 	get isDesktop(): boolean {
-		return this._environment === "wails" || isTauri();
+		return isTauri();
 	}
 
 	async selectWatchDirectory(): Promise<string> {
 		await this.initialize();
-
-		if (this._environment === "wails") {
-			const { SelectWatchDirectory } = await import(
-				"$lib/wailsjs/go/backend/App"
-			);
-			return SelectWatchDirectory();
-		}
 
 		if (isTauri()) {
 			return (await tauriInvoke<string | null>("select_folder")) ?? "";
@@ -938,11 +639,6 @@ export class UnifiedClient {
 	async getConfigPath(): Promise<string> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const { GetConfigPath } = await import("$lib/wailsjs/go/backend/App");
-			return GetConfigPath();
-		}
-
 		if (isTauri()) {
 			return tauriInvoke<string>("get_config_path");
 		}
@@ -953,13 +649,6 @@ export class UnifiedClient {
 	async selectConfigDirectory(): Promise<string> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const { SelectConfigDirectory } = await import(
-				"$lib/wailsjs/go/backend/App"
-			);
-			return SelectConfigDirectory();
-		}
-
 		if (isTauri()) {
 			return tauriInvoke<string>("select_config_directory");
 		}
@@ -969,11 +658,6 @@ export class UnifiedClient {
 
 	async selectOutputDirectory(): Promise<string> {
 		await this.initialize();
-
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.SelectOutputDirectory();
-		}
 
 		if (isTauri()) {
 			return (await tauriInvoke<string | null>("select_folder")) ?? "";
@@ -986,11 +670,6 @@ export class UnifiedClient {
 	async getNntpPoolMetrics(): Promise<backend.NntpPoolMetrics> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.GetNntpPoolMetrics();
-		}
-
 		if (this._environment === "web") {
 			const client = await getWebClient();
 			return client.getNntpPoolMetrics();
@@ -1001,11 +680,6 @@ export class UnifiedClient {
 
 	async getTransferRuntimeMetrics(): Promise<backend.TransferRuntimeMetrics> {
 		await this.initialize();
-
-		if (this._environment === "wails") {
-			const client = await getWailsClient();
-			return client.App.GetTransferRuntimeMetrics();
-		}
 
 		if (this._environment === "web") {
 			const client = await getWebClient();
@@ -1028,10 +702,6 @@ export class UnifiedClient {
 	}> {
 		await this.initialize();
 
-		if (this._environment === "wails") {
-			throw new Error("Filesystem browsing not supported in Wails mode");
-		}
-
 		if (this._environment === "web") {
 			const client = await getWebClient();
 			return client.browseFilesystem(path);
@@ -1046,10 +716,6 @@ export class UnifiedClient {
 		message: string;
 	}> {
 		await this.initialize();
-
-		if (this._environment === "wails") {
-			throw new Error("File import not supported in Wails mode");
-		}
 
 		if (this._environment === "web") {
 			const client = await getWebClient();

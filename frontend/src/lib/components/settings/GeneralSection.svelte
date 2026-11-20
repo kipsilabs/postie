@@ -5,7 +5,7 @@ import LanguageSwitcher from "$lib/components/LanguageSwitcher.svelte";
 import ThemeSwitcher from "$lib/components/ThemeSwitcher.svelte";
 import { t } from "$lib/i18n";
 import { toastStore } from "$lib/stores/toast";
-import type { config as configType } from "$lib/wailsjs/go/models";
+import type { config as configType } from "$lib/api/models";
 import { FolderOpen } from "lucide-svelte";
 import FieldRow from "$lib/components/inputs/FieldRow.svelte";
 import SettingsSection from "./SettingsSection.svelte";
@@ -60,13 +60,12 @@ async function selectOutputDirectory() {
 	try {
 		await apiClient.initialize();
 		
-		if (apiClient.environment !== "wails") {
+		if (!apiClient.isDesktop) {
 			toastStore.warning($t("common.messages.wails_only_feature"));
 			return;
 		}
-		
-		const { SelectOutputDirectory } = await import("$lib/wailsjs/go/backend/App");
-		const dir = await SelectOutputDirectory();
+
+		const dir = await apiClient.selectOutputDirectory();
 		
 		if (dir) {
 			outputDir = dir;
@@ -92,7 +91,7 @@ async function selectOutputDirectory() {
 					bind:value={outputDir}
 					placeholder="./output"
 				/>
-				{#if apiClient.environment === 'wails'}
+				{#if apiClient.isDesktop}
 					<button type="button" class="btn btn-sm" onclick={selectOutputDirectory}>
 						<FolderOpen class="w-4 h-4" />
 						{$t('settings.general.browse')}

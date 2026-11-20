@@ -1,14 +1,3 @@
-import type * as App from "./wailsjs/go/backend/App";
-
-type GoWindow = Window &
-	typeof globalThis & {
-		go: {
-			backend: {
-				App: typeof App;
-			};
-		};
-	};
-
 /**
  * Format file size in bytes to human readable format
  */
@@ -201,25 +190,3 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
 	};
 }
 
-/**
- * Wait for Wails runtime to be ready before making backend calls
- */
-export async function waitForWailsRuntime(): Promise<void> {
-	const maxAttempts = 50; // Max 5 seconds (50 * 100ms)
-	let attempts = 0;
-
-	while (attempts < maxAttempts) {
-		if (
-			typeof window !== "undefined" &&
-			(window as GoWindow).go &&
-			(window as GoWindow).go.backend &&
-			(window as GoWindow).go.backend.App
-		) {
-			return;
-		}
-		await new Promise((resolve) => setTimeout(resolve, 100));
-		attempts++;
-	}
-
-	throw new Error("Wails runtime not available after timeout");
-}

@@ -22,7 +22,7 @@
               ? "windows"
               : "linux";
           d.setAttribute("data-platform", os);
-          d.setAttribute("data-desktop", window.go || window.wails ? "true" : "false");
+          d.setAttribute("data-desktop", "false");
         } catch (e) {
           d.setAttribute("data-platform", "linux");
           d.setAttribute("data-desktop", "false");

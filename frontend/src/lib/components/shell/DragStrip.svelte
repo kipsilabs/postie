@@ -18,9 +18,5 @@ let { children }: { children?: Snippet } = $props();
 		justify-content: flex-end;
 		min-height: var(--titlebar-inset);
 		padding-inline: 0.75rem;
-		--wails-draggable: drag;
-	}
-	.drag-strip :global(:is(button, a, input, select)) {
-		--wails-draggable: no-drag;
 	}
 </style>

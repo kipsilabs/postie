@@ -1,6 +1,6 @@
 <script lang="ts">
 import { t } from "$lib/i18n";
-import type { backend } from "$lib/wailsjs/go/models";
+import type { backend } from "$lib/api/models";
 
 let { item }: { item: backend.QueueItem } = $props();
 

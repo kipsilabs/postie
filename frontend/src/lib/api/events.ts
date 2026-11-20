@@ -1,8 +1,8 @@
-// Push-event payload types for events emitted by the Go backend over WebSocket
-// (web mode) or the Wails runtime (desktop mode). These replace the polled
-// REST endpoints for pause state, running jobs, and NNTP pool metrics.
+// Push-event payload types for events emitted by postie-web over WebSocket.
+// These replace the polled REST endpoints for pause state, running jobs, and
+// NNTP pool metrics.
 
-import type { backend, processor } from "$lib/wailsjs/go/models";
+import type { backend, processor } from "$lib/api/models";
 
 export interface ProcessingPauseEvent {
 	paused: boolean;

@@ -11,7 +11,7 @@ import { toastStore } from "$lib/stores/toast";
 import { onMount, onDestroy } from "svelte";
 import { Tween } from "svelte/motion";
 import { Activity, AlertCircle, RotateCw } from "lucide-svelte";
-import type { backend } from "$lib/wailsjs/go/models";
+import type { backend } from "$lib/api/models";
 import { formatElapsed } from "$lib/utils";
 
 let metrics = $state<backend.NntpPoolMetrics | null>(null);
