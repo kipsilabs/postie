@@ -349,6 +349,35 @@ impl Store {
         Ok(())
     }
 
+    /// Marks every file of a transfer uploaded and, when `original_policy` is set, records that
+    /// cleanup policy on the original files; one transaction, so a crash cannot leave a transfer
+    /// half-marked and the commit costs one fsync instead of one per file.
+    pub fn mark_transfer_uploaded(
+        &self,
+        transfer_id: &str,
+        posted_at: DateTime<Utc>,
+        next_check_at: DateTime<Utc>,
+        original_policy: Option<&str>,
+        original_role: &str,
+    ) -> Result<()> {
+        let mut c = self.db.lock();
+        let tx = c.transaction()?;
+        let now = fmt_time(Utc::now());
+        tx.execute(
+            "UPDATE transfer_files SET upload_state = ?1, verification_state = ?2, posted_at = ?3, next_check_at = ?4, updated_at = ?5
+             WHERE transfer_id = ?6",
+            params![STATE_UPLOADED, STATE_UPLOADED, fmt_time(posted_at), fmt_time(next_check_at), now, transfer_id],
+        )?;
+        if let Some(policy) = original_policy {
+            tx.execute(
+                "UPDATE transfer_files SET cleanup_policy = ?1, updated_at = ?2 WHERE transfer_id = ?3 AND file_role = ?4",
+                params![policy, now, transfer_id, original_role],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
     pub fn set_cleanup_policy(&self, transfer_id: &str, file_id: &str, policy: &str) -> Result<()> {
         self.db.lock().execute(
             "UPDATE transfer_files SET cleanup_policy = ?1, updated_at = ?2 WHERE transfer_id = ?3 AND file_id = ?4",
@@ -474,25 +503,38 @@ impl Store {
 
     /// Records a failed article; unique per (transfer, file, message id), duplicates are ignored.
     pub fn add_failure(&self, f: &VerificationFailure) -> Result<()> {
-        let state = if f.state.is_empty() {
-            FAILURE_PENDING
-        } else {
-            &f.state
-        };
-        let next = if f.next_attempt_at == DateTime::<Utc>::MIN_UTC {
-            Utc::now()
-        } else {
-            f.next_attempt_at
-        };
-        self.db
-            .lock()
-            .execute(
-                "INSERT INTO verification_failures (
-                    transfer_id, file_id, article_index, message_id, groups,
-                    repost_count, deferred_count, state, next_attempt_at, last_error
-                 ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)
-                 ON CONFLICT(transfer_id, file_id, message_id) DO NOTHING",
-                params![
+        self.add_failures(std::slice::from_ref(f))
+    }
+
+    /// Inserts every failure in one transaction (one lock acquisition and one commit), idempotently.
+    pub fn add_failures(&self, failures: &[VerificationFailure]) -> Result<()> {
+        if failures.is_empty() {
+            return Ok(());
+        }
+        let mut c = self.db.lock();
+        let tx = c.transaction().map_err(wrap("add verification failures"))?;
+        {
+            let mut stmt = tx
+                .prepare_cached(
+                    "INSERT INTO verification_failures (
+                        transfer_id, file_id, article_index, message_id, groups,
+                        repost_count, deferred_count, state, next_attempt_at, last_error
+                     ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)
+                     ON CONFLICT(transfer_id, file_id, message_id) DO NOTHING",
+                )
+                .map_err(wrap("add verification failures"))?;
+            for f in failures {
+                let state = if f.state.is_empty() {
+                    FAILURE_PENDING
+                } else {
+                    &f.state
+                };
+                let next = if f.next_attempt_at == DateTime::<Utc>::MIN_UTC {
+                    Utc::now()
+                } else {
+                    f.next_attempt_at
+                };
+                stmt.execute(params![
                     f.transfer_id,
                     f.file_id,
                     f.article_index,
@@ -503,10 +545,11 @@ impl Store {
                     state,
                     fmt_time(next),
                     f.last_error
-                ],
-            )
-            .map(|_| ())
-            .map_err(wrap("add verification failure"))
+                ])
+                .map_err(wrap("add verification failures"))?;
+            }
+        }
+        tx.commit().map_err(wrap("add verification failures"))
     }
 
     /// Atomically leases up to `limit` pending failures that are due and not leased (or whose lease

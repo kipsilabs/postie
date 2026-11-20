@@ -8,7 +8,10 @@ use std::sync::Arc;
 
 use tokio_util::sync::CancellationToken;
 
-use super::{ArticleClient, PostError, Stats, StatsSnapshot, post_yenc, read_at_with_stall_guard};
+use super::{
+    ArticleClient, PostError, Stats, StatsSnapshot, new_file_read_slots, post_yenc,
+    read_at_with_stall_guard, validate_read_range,
+};
 use crate::article::Article;
 use crate::engine::Engine;
 use crate::manifest::ArticleRecord;
@@ -76,6 +79,8 @@ impl Reposter {
         let file = File::open(Path::new(&rec.source_path)).map_err(|e| {
             PostError::Other(format!("repost: open source {:?}: {e}", rec.source_path))
         })?;
+        let (offset, size) = validate_read_range(&file, rec.offset, rec.body_size)
+            .map_err(|e| PostError::Other(format!("repost: {:?}: {e}", rec.source_path)))?;
         let _buffer = self
             .engine
             .reserve_buffer(cancel, self.engine.per_article_bytes())
@@ -83,8 +88,9 @@ impl Reposter {
             .map_err(|_| PostError::Canceled)?;
         let body = read_at_with_stall_guard(
             &Arc::new(file),
-            rec.offset as u64,
-            rec.body_size as usize,
+            &new_file_read_slots(),
+            offset,
+            size,
             cancel,
         )
         .await

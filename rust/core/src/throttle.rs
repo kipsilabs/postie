@@ -4,6 +4,7 @@
 //! the same tokens twice.
 
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::{Duration, Instant};
 
 struct Bucket {
@@ -12,7 +13,7 @@ struct Bucket {
 }
 
 pub struct Throttle {
-    rate: i64,
+    rate: AtomicI64,
     state: Mutex<Bucket>,
 }
 
@@ -24,7 +25,7 @@ impl Throttle {
 
     fn at(rate: i64, now: Instant) -> Self {
         Self {
-            rate,
+            rate: AtomicI64::new(rate),
             state: Mutex::new(Bucket {
                 last: now,
                 tokens: rate.max(0),
@@ -33,21 +34,31 @@ impl Throttle {
     }
 
     pub fn is_disabled(&self) -> bool {
-        self.rate <= 0
+        self.rate() <= 0
+    }
+
+    pub fn rate(&self) -> i64 {
+        self.rate.load(Ordering::Relaxed)
+    }
+
+    /// Changes the rate in place (a settings change); holders of this throttle see it at once.
+    pub fn set_rate(&self, rate: i64) {
+        self.rate.store(rate, Ordering::Relaxed);
     }
 
     /// How long a caller sending `bytes` at `now` must wait; spends the tokens.
     fn reserve_at(&self, now: Instant, bytes: i64) -> Duration {
-        if self.is_disabled() {
+        let rate = self.rate();
+        if rate <= 0 {
             return Duration::ZERO;
         }
         let mut b = self.state.lock().unwrap_or_else(|p| p.into_inner());
         let elapsed = now.saturating_duration_since(b.last).as_nanos() as i128;
-        let to_add = (elapsed * i128::from(self.rate) / 1_000_000_000) as i64;
+        let to_add = (elapsed * i128::from(rate) / 1_000_000_000) as i64;
         b.last = now;
-        let current = (b.tokens + to_add).min(self.rate);
+        let current = (b.tokens + to_add).min(rate);
         let wait_ns = if current < bytes {
-            (i128::from(bytes - current) * 1_000_000_000 / i128::from(self.rate)) as u64
+            (i128::from(bytes - current) * 1_000_000_000 / i128::from(rate)) as u64
         } else {
             0
         };

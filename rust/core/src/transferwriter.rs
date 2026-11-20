@@ -125,20 +125,15 @@ impl Recorder {
         next_check_at: DateTime<Utc>,
         delete_original: bool,
     ) -> Result<(), String> {
-        let files = self
-            .store
-            .list_files_by_transfer(&self.transfer_id)
+        self.store
+            .mark_transfer_uploaded(
+                &self.transfer_id,
+                posted_at,
+                next_check_at,
+                delete_original.then_some(ts::CLEANUP_DELETE_ORIGINAL),
+                manifest::ROLE_ORIGINAL,
+            )
             .map_err(|e| e.to_string())?;
-        for f in files {
-            self.store
-                .mark_uploaded(&self.transfer_id, &f.file_id, posted_at, next_check_at)
-                .map_err(|e| e.to_string())?;
-            if delete_original && f.file_role == manifest::ROLE_ORIGINAL {
-                self.store
-                    .set_cleanup_policy(&self.transfer_id, &f.file_id, ts::CLEANUP_DELETE_ORIGINAL)
-                    .map_err(|e| e.to_string())?;
-            }
-        }
         Ok(())
     }
 }
@@ -149,14 +144,22 @@ impl ManifestSink for Recorder {
         file_path: &'a Path,
         articles: &'a [Article],
     ) -> BoxFut<'a, Result<(), String>> {
-        Box::pin(async move { Recorder::record_file(self, &file_path.to_string_lossy(), articles) })
+        Box::pin(async move {
+            crate::blocking::in_place(|| {
+                Recorder::record_file(self, &file_path.to_string_lossy(), articles)
+            })
+        })
     }
 
     fn existing_articles<'a>(
         &'a self,
         file_path: &'a Path,
     ) -> BoxFut<'a, Result<Option<Vec<ArticleRecord>>, String>> {
-        Box::pin(async move { Recorder::existing_articles(self, &file_path.to_string_lossy()) })
+        Box::pin(async move {
+            crate::blocking::in_place(|| {
+                Recorder::existing_articles(self, &file_path.to_string_lossy())
+            })
+        })
     }
 }
 

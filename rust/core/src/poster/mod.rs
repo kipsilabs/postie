@@ -157,6 +157,21 @@ const POST_TIMEOUT: Duration = Duration::from_secs(120);
 const READ_STALL_TIMEOUT: Duration = Duration::from_secs(60);
 /// Articles a single file may have read ahead or in flight.
 const READ_AHEAD: usize = 50;
+/// Reads allowed in flight across every job at once, for HDD friendliness only. The permit is held by
+/// the caller and released when the caller returns (success, cancel or stall timeout), so a stalled
+/// read never keeps a global slot: one dead mount cannot starve reads from healthy disks.
+const MAX_CONCURRENT_READS: usize = 8;
+static READ_SLOTS: std::sync::LazyLock<Arc<Semaphore>> =
+    std::sync::LazyLock::new(|| Arc::new(Semaphore::new(MAX_CONCURRENT_READS)));
+/// Blocking reads one file may have outstanding in the OS. Its permit travels into the blocking
+/// thread and is freed only when the OS read returns, so a dead mount strands at most this many
+/// threads per file, and only that file's reads stall.
+const MAX_READS_PER_FILE: usize = 4;
+
+/// Per-file read slots; create one per source file and share it by clone.
+pub(crate) fn new_file_read_slots() -> Arc<Semaphore> {
+    Arc::new(Semaphore::new(MAX_READS_PER_FILE))
+}
 /// Files processed concurrently by one `post` call (overlaps one file's tail with the next's head).
 const POST_PIPELINE_DEPTH: usize = 2;
 /// Posts per article on a stale connection.
@@ -180,27 +195,99 @@ fn read_exact_at(f: &File, mut buf: &mut [u8], mut off: u64) -> std::io::Result<
     Ok(())
 }
 
+/// Largest single article body ever read from disk. Real bodies are under a few MiB; the cap keeps
+/// a corrupt manifest record from turning into a multi-GB allocation that aborts the process.
+pub(crate) const MAX_ARTICLE_READ: usize = 64 * 1024 * 1024;
+
+/// Checks a manifest-supplied `(offset, size)` against the source file and the read cap, returning
+/// them as unsigned values. Rejects negatives and ranges that run past the end of the file.
+pub(crate) fn validate_read_range(
+    file: &File,
+    offset: i64,
+    size: u64,
+) -> Result<(u64, usize), String> {
+    let (off, len) = match (u64::try_from(offset), usize::try_from(size)) {
+        (Ok(o), Ok(l)) if l > 0 && l <= MAX_ARTICLE_READ => (o, l),
+        _ => {
+            return Err(format!(
+                "invalid article range: offset {offset}, size {size}"
+            ));
+        }
+    };
+    let file_len = file.metadata().map_err(|e| e.to_string())?.len();
+    match off.checked_add(len as u64) {
+        Some(end) if end <= file_len => Ok((off, len)),
+        _ => Err(format!(
+            "article range {off}+{len} is past the end of the {file_len}-byte source file"
+        )),
+    }
+}
+
 /// Reads `len` bytes at `off` without ever hanging the caller: cancellation and a stall deadline both
-/// return (the blocked read itself ends when the OS releases it).
+/// return (the blocked read itself ends when the OS releases it). `file_slots` isolates stalls per file.
 pub(crate) async fn read_at_with_stall_guard(
     file: &Arc<File>,
+    file_slots: &Arc<Semaphore>,
     off: u64,
     len: usize,
     cancel: &CancellationToken,
 ) -> Result<Vec<u8>, String> {
     let f = file.clone();
-    let task = tokio::task::spawn_blocking(move || {
-        let mut buf = vec![0u8; len];
-        read_exact_at(&f, &mut buf, off).map(|()| buf)
-    });
+    guarded_read(
+        &READ_SLOTS,
+        file_slots,
+        off,
+        len,
+        cancel,
+        READ_STALL_TIMEOUT,
+        move || {
+            let mut buf = vec![0u8; len];
+            read_exact_at(&f, &mut buf, off).map(|()| buf)
+        },
+    )
+    .await
+}
+
+/// Slot logic behind [`read_at_with_stall_guard`], with the blocking read injectable for tests.
+async fn guarded_read<F>(
+    global: &Arc<Semaphore>,
+    file_slots: &Arc<Semaphore>,
+    off: u64,
+    len: usize,
+    cancel: &CancellationToken,
+    stall: Duration,
+    read: F,
+) -> Result<Vec<u8>, String>
+where
+    F: FnOnce() -> std::io::Result<Vec<u8>> + Send + 'static,
+{
+    if len > MAX_ARTICLE_READ {
+        return Err(format!("refusing to read {len} bytes in one article"));
+    }
+    let stalled =
+        || format!("read stalled after {stall:?} at offset {off} (filesystem unresponsive?)");
+    let work = async {
+        // Per-file permit first: it moves into the blocking read (freed when the OS read returns).
+        let file_permit = file_slots
+            .clone()
+            .acquire_owned()
+            .await
+            .map_err(|e| e.to_string())?;
+        // Global permit stays with this future and drops when we return, stalled or not.
+        let _global = global.acquire().await.map_err(|e| e.to_string())?;
+        let task = tokio::task::spawn_blocking(move || {
+            let _slot = file_permit;
+            read()
+        });
+        match task.await {
+            Ok(Ok(buf)) => Ok(buf),
+            Ok(Err(e)) => Err(e.to_string()),
+            Err(e) => Err(e.to_string()),
+        }
+    };
     tokio::select! {
         () = cancel.cancelled() => Err("context canceled".into()),
-        r = tokio::time::timeout(READ_STALL_TIMEOUT, task) => match r {
-            Err(_) => Err(format!("read stalled after 1m0s at offset {off} (filesystem unresponsive?)")),
-            Ok(Ok(Ok(buf))) => Ok(buf),
-            Ok(Ok(Err(e))) => Err(e.to_string()),
-            Ok(Err(e)) => Err(e.to_string()),
-        },
+        r = tokio::time::timeout(stall, work) => r.unwrap_or_else(|_| Err(stalled())),
     }
 }
 
@@ -289,6 +376,7 @@ pub struct Poster(Arc<Inner>);
 struct Prepared {
     path: PathBuf,
     file: Arc<File>,
+    read_slots: Arc<Semaphore>,
     size: i64,
     articles: Vec<Article>,
 }
@@ -501,12 +589,15 @@ impl Poster {
         total_files: i64,
         nzb: &Arc<Generator>,
     ) -> Result<Option<Prepared>, PostError> {
-        let file =
-            File::open(path).map_err(|e| PostError::Other(format!("error opening file: {e}")))?;
-        let size = file
-            .metadata()
-            .map_err(|e| PostError::Other(format!("error getting file info: {e}")))?
-            .len() as i64;
+        let (file, size) = crate::blocking::in_place(|| {
+            let file = File::open(path)
+                .map_err(|e| PostError::Other(format!("error opening file: {e}")))?;
+            let size = file
+                .metadata()
+                .map_err(|e| PostError::Other(format!("error getting file info: {e}")))?
+                .len() as i64;
+            Ok::<_, PostError>((file, size))
+        })?;
         if size == 0 {
             eprintln!("Skipping empty file: {}", path.display());
             return Ok(None);
@@ -548,6 +639,7 @@ impl Poster {
         Ok(Some(Prepared {
             path: path.to_path_buf(),
             file,
+            read_slots: new_file_read_slots(),
             size,
             articles,
         }))
@@ -594,6 +686,7 @@ impl Poster {
         Prepared {
             path: path.to_path_buf(),
             file,
+            read_slots: new_file_read_slots(),
             size,
             articles: missing,
         }
@@ -656,7 +749,15 @@ impl Poster {
                 prep.size,
             );
             let (completed, err) = self
-                .post_articles(ctx, &prep.file, &prep.path, &todo, &progress, pause)
+                .post_articles(
+                    ctx,
+                    &prep.file,
+                    &prep.read_slots,
+                    &prep.path,
+                    &todo,
+                    &progress,
+                    pause,
+                )
                 .await;
             for a in &completed {
                 nzb.add_article(a.clone());
@@ -754,11 +855,14 @@ impl Poster {
 
     /// Posts `articles` of one file: bodies are read ahead (bounded by `READ_AHEAD` and the engine's
     /// buffer budget) and posted under the shared worker pool. Returns the articles that were posted
-    /// and the first error; siblings keep going after a failure, like the Go worker pool.
+    /// and the first error; once an article fails no further articles of this file are scheduled
+    /// (those already in flight finish).
+    #[allow(clippy::too_many_arguments)]
     async fn post_articles(
         &self,
         ctx: &CancellationToken,
         file: &Arc<File>,
+        file_slots: &Arc<Semaphore>,
         path: &Path,
         articles: &[Article],
         progress: &Arc<Progress>,
@@ -797,6 +901,11 @@ impl Poster {
                 first_err.get_or_insert(PostError::Canceled);
                 break;
             }
+            if first_err.is_some() {
+                // the file is already doomed; posting the rest would only waste bandwidth (a retry
+                // re-posts just the missing articles from the manifest)
+                break;
+            }
             let win = tokio::select! {
                 () = ctx.cancelled() => { first_err.get_or_insert(PostError::Canceled); break 'articles; }
                 w = window.clone().acquire_owned() => w.ok(),
@@ -811,27 +920,31 @@ impl Poster {
                 },
                 None => None,
             };
-            let body =
-                match read_at_with_stall_guard(file, art.offset as u64, art.size as usize, ctx)
-                    .await
-                {
-                    Ok(b) => b,
-                    Err(e) => {
-                        if ctx.is_cancelled() {
-                            first_err.get_or_insert(PostError::Canceled);
-                        } else {
-                            first_err.get_or_insert(PostError::Other(format!(
-                                "error pre-reading article at offset {} of {}: {e}",
-                                art.offset,
-                                path.display()
-                            )));
-                        }
-                        break;
-                    }
-                };
+            // the read happens inside the task, so up to READ_AHEAD reads are in flight at once
+            // instead of one at a time (network mounts)
             let (me, ctx2, art2, pause2) = (self.clone(), ctx.clone(), art.clone(), pause.cloned());
+            let (file2, slots2, path2) = (file.clone(), file_slots.clone(), path.to_path_buf());
             set.spawn(async move {
                 let _held = (win, buffer);
+                let read = read_at_with_stall_guard(
+                    &file2,
+                    &slots2,
+                    art2.offset as u64,
+                    art2.size as usize,
+                    &ctx2,
+                )
+                .await;
+                let body = match read {
+                    Ok(b) => b,
+                    Err(_) if ctx2.is_cancelled() => return Err(PostError::Canceled),
+                    Err(e) => {
+                        return Err(PostError::Other(format!(
+                            "error pre-reading article at offset {} of {}: {e}",
+                            art2.offset,
+                            path2.display()
+                        )));
+                    }
+                };
                 me.upload_one(&ctx2, art2, &body, pause2.as_ref()).await
             });
         }
@@ -894,17 +1007,26 @@ impl Poster {
     ) -> Vec<Article> {
         let limit = Arc::new(Semaphore::new(self.0.verify.max_connections().max(1)));
         let mut set: JoinSet<Option<Article>> = JoinSet::new();
+        let mut failed = Vec::new();
         for art in articles {
-            let (me, ctx2, art2, limit2, progress2, pause2) = (
+            // take the permit before spawning so a 100k-article file holds at most `limit` tasks
+            let Ok(permit) = limit.clone().acquire_owned().await else {
+                break;
+            };
+            while let Some(r) = set.try_join_next() {
+                if let Ok(Some(a)) = r {
+                    failed.push(a);
+                }
+            }
+            let (me, ctx2, art2, progress2, pause2) = (
                 self.clone(),
                 ctx.clone(),
                 art.clone(),
-                limit.clone(),
                 progress.clone(),
                 pause.cloned(),
             );
             set.spawn(async move {
-                let _p = limit2.acquire_owned().await.ok()?;
+                let _p = permit;
                 if ctx2.is_cancelled() {
                     return None;
                 }
@@ -921,7 +1043,6 @@ impl Poster {
                 }
             });
         }
-        let mut failed = Vec::new();
         while let Some(r) = set.join_next().await {
             if let Ok(Some(a)) = r {
                 failed.push(a);

@@ -87,6 +87,8 @@ pub struct Watcher {
     next_run: RwLock<DateTime<Local>>,
     /// Current PAR2 settings (read at scan time so a config change applies without a restart).
     par2_config: Option<Par2ConfigFn>,
+    /// Set while a scan runs, so a manual trigger never overlaps a periodic scan (or vice versa).
+    scanning: std::sync::atomic::AtomicBool,
 }
 
 /// `HH:MM` strings compare lexicographically, as in Go.
@@ -121,6 +123,7 @@ impl Watcher {
             size_cache: Mutex::new(HashMap::new()),
             next_run: RwLock::new(Local::now()),
             par2_config: None,
+            scanning: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -129,6 +132,23 @@ impl Watcher {
     pub fn with_par2_config(mut self, get: Par2ConfigFn) -> Self {
         self.par2_config = Some(get);
         self
+    }
+
+    /// Runs one scan unless another is in progress (then `None`).
+    fn scan_exclusive(&self, c: &CancellationToken) -> Option<Result<(), String>> {
+        use std::sync::atomic::Ordering;
+        if self.scanning.swap(true, Ordering::SeqCst) {
+            eprintln!("watcher: a scan is already running, skipping");
+            return None;
+        }
+        struct Reset<'a>(&'a std::sync::atomic::AtomicBool);
+        impl Drop for Reset<'_> {
+            fn drop(&mut self) {
+                self.0.store(false, Ordering::SeqCst);
+            }
+        }
+        let _reset = Reset(&self.scanning);
+        Some(self.scan_directory(c).map(|_| ()))
     }
 
     fn interval(&self) -> Duration {
@@ -146,6 +166,8 @@ impl Watcher {
             self.interval()
         );
         let mut scan = tokio::time::interval(self.interval());
+        // a scan longer than the interval must not trigger back-to-back catch-up scans
+        scan.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         scan.tick().await;
         let mut cleanup = tokio::time::interval(CACHE_CLEANUP_INTERVAL);
         cleanup.tick().await;
@@ -158,7 +180,7 @@ impl Watcher {
                     if self.is_within_schedule() {
                         let me = self.clone();
                         let c = cancel.clone();
-                        if let Ok(Err(e)) = tokio::task::spawn_blocking(move || me.scan_directory(&c)).await {
+                        if let Ok(Some(Err(e))) = tokio::task::spawn_blocking(move || me.scan_exclusive(&c)).await {
                             eprintln!("watcher: error scanning directory: {e}");
                         }
                     } else {
@@ -244,7 +266,7 @@ impl Watcher {
                     "watcher: watch scanning started: watch_directory={}",
                     me.watch_folder
                 );
-                if let Err(e) = me.scan_directory(&c) {
+                if let Some(Err(e)) = me.scan_exclusive(&c) {
                     eprintln!("watcher: error in triggered directory scan: {e}");
                 }
             }

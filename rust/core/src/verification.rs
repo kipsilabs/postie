@@ -431,8 +431,9 @@ impl Service {
         }
         // persist the misses for durable re-posting/rechecking
         let next = self.now() + self.cfg.propagation_delay;
-        for rec in &missing {
-            self.store.add_failure(&VerificationFailure {
+        let failures: Vec<VerificationFailure> = missing
+            .iter()
+            .map(|rec| VerificationFailure {
                 transfer_id: tf.transfer_id.clone(),
                 file_id: tf.file_id.clone(),
                 article_index: rec.index,
@@ -441,8 +442,10 @@ impl Service {
                 state: ts::FAILURE_PENDING.into(),
                 next_attempt_at: next,
                 ..Default::default()
-            })?;
-        }
+            })
+            .collect();
+        // one transaction instead of a commit per missing article, off the async worker thread
+        crate::blocking::in_place(|| self.store.add_failures(&failures))?;
         self.store.set_verification_state(
             &tf.transfer_id,
             &tf.file_id,

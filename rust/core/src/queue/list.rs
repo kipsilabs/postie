@@ -491,12 +491,12 @@ impl Queue {
         let sort = match order_by {
             "created_at DESC" => "created DESC",
             "created_at ASC" => "created ASC",
-            "size DESC" => "CAST(json_extract(body, '$.size') AS INTEGER) DESC",
-            "size ASC" => "CAST(json_extract(body, '$.size') AS INTEGER) ASC",
-            "priority DESC" => "CAST(json_extract(body, '$.priority') AS INTEGER) DESC",
-            "priority ASC" => "CAST(json_extract(body, '$.priority') AS INTEGER) ASC",
-            "file_name DESC" => "json_extract(body, '$.path') DESC",
-            "file_name ASC" => "json_extract(body, '$.path') ASC",
+            "size DESC" => "job_size DESC",
+            "size ASC" => "job_size ASC",
+            "priority DESC" => "priority DESC",
+            "priority ASC" => "priority ASC",
+            "file_name DESC" => "job_path DESC",
+            "file_name ASC" => "job_path ASC",
             _ => "created DESC",
         };
         self.query_items(&format!("SELECT id, created, updated, body FROM goqite WHERE queue = 'file_jobs' ORDER BY {sort} LIMIT ?1 OFFSET ?2"), limit, offset, pending_item)

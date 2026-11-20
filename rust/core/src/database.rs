@@ -63,6 +63,11 @@ pub const MIGRATIONS: &[(i64, &str, &str)] = &[
         "010_add_web_auth.sql",
         include_str!("../../../internal/database/migrations/010_add_web_auth.sql"),
     ),
+    (
+        11,
+        "011_add_goqite_job_columns.sql",
+        include_str!("../../../internal/database/migrations/011_add_goqite_job_columns.sql"),
+    ),
 ];
 
 #[derive(Debug, thiserror::Error)]
@@ -90,6 +95,9 @@ pub fn open(database_type: &str, path: &str) -> Result<Db, DatabaseError> {
     let path = if path.is_empty() { "postie.db" } else { path };
     let conn = Connection::open(Path::new(path))?;
     conn.pragma_update(None, "journal_mode", "WAL")?;
+    // NORMAL is crash-safe in WAL mode (a power cut can lose the last commits, never corrupt the
+    // file) and avoids an fsync on every commit
+    conn.pragma_update(None, "synchronous", "NORMAL")?;
     conn.busy_timeout(std::time::Duration::from_millis(5000))?;
     conn.pragma_update(None, "foreign_keys", true)?;
     Ok(Db::new(conn))
@@ -328,6 +336,8 @@ mod tests {
         assert!(r.table_exists("transfer_files").unwrap() && !r.table_exists("web_admin").unwrap());
         r.migrate_up().unwrap();
         r.migrate_up().unwrap(); // idempotent
+        assert_eq!(r.status().unwrap().current_version, 11);
+        r.migrate_down().unwrap();
         assert_eq!(r.status().unwrap().current_version, 10);
         r.migrate_down().unwrap();
         assert_eq!(r.status().unwrap().current_version, 9);
@@ -356,11 +366,15 @@ mod tests {
             .lock()
             .query_row("select count(*) from goose_db_version", [], |x| x.get(0))
             .unwrap();
-        assert_eq!(rows, 11, "no rows added to a current database");
-        // rolling back one version then up again works against the Go-created history
+        assert_eq!(
+            rows, 12,
+            "only migration 011 (shared with the Go app) is applied on top of Go's version 10"
+        );
+        // rolling back one version then up again works against the Go-created history; migration 011
+        // (embedded by the Go app too) then brings it to the latest version
         r.migrate_down().unwrap();
         r.migrate_up().unwrap();
-        assert_eq!(r.status().unwrap().current_version, 10);
+        assert_eq!(r.status().unwrap().current_version, 11);
         let _ = std::fs::remove_file(&tmp);
     }
 
@@ -378,7 +392,7 @@ mod tests {
                 .map(Result::unwrap)
                 .collect()
         };
-        assert_eq!(rows, (0..=10).map(|v| (v, 1)).collect::<Vec<_>>());
+        assert_eq!(rows, (0..=11).map(|v| (v, 1)).collect::<Vec<_>>());
     }
 
     #[test]
@@ -390,7 +404,7 @@ mod tests {
         assert!(r.is_legacy_database().unwrap());
         r.ensure_migration_compatibility().unwrap();
         assert!(!r.table_exists("old_stuff").unwrap());
-        assert_eq!(r.status().unwrap().current_version, 10);
+        assert_eq!(r.status().unwrap().current_version, 11);
         assert!(!r.is_legacy_database().unwrap());
     }
 

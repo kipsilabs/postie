@@ -351,6 +351,11 @@ impl Processor {
         let (msg_id, mut job) = (rj.msg_id, rj.job);
         // reserve immediately to close the gap between receive and the running-jobs entry
         self.reserve_path(&job.path);
+        // released on every exit, including a panic before the running-jobs entry exists
+        let _reservation = PathReservation {
+            me: self,
+            path: job.path.clone(),
+        };
         // only a real item wakes the dispatcher; an empty receive must not, or an idle queue would spin
         let _wake = WakeOnDrop(&self.slots);
         eprintln!(
@@ -486,6 +491,16 @@ impl Processor {
     }
 
     async fn settle_success(
+        &self,
+        msg_id: &str,
+        job: &FileJob,
+        p: &Processed,
+    ) -> Result<(), ProcessError> {
+        // queue and transfer-store writes take the global DB lock: keep them off the async workers
+        crate::blocking::in_place(|| self.settle_success_blocking(msg_id, job, p))
+    }
+
+    fn settle_success_blocking(
         &self,
         msg_id: &str,
         job: &FileJob,
@@ -739,7 +754,9 @@ impl Processor {
                     && e.kind() != std::io::ErrorKind::NotFound
                 {
                     eprintln!("processor: could not delete original file: path={path} error={e}");
+                    continue;
                 }
+                crate::uploadtemp::prune_after_delete(Path::new(&path));
             }
         }
         Ok(Processed {
@@ -979,6 +996,17 @@ struct WakeOnDrop<'a>(&'a SlotRunner);
 impl Drop for WakeOnDrop<'_> {
     fn drop(&mut self) {
         self.0.signal();
+    }
+}
+
+struct PathReservation<'a> {
+    me: &'a Processor,
+    path: String,
+}
+
+impl Drop for PathReservation<'_> {
+    fn drop(&mut self) {
+        self.me.unreserve_path(&self.path);
     }
 }
 

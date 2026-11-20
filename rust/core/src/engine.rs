@@ -123,7 +123,7 @@ pub struct Engine {
     active: Arc<AtomicI64>,
     queued: AtomicI64,
     reserved: Arc<AtomicI64>,
-    throttle: std::sync::OnceLock<Option<Arc<Throttle>>>,
+    throttle: std::sync::Mutex<Option<Arc<Throttle>>>,
     meter: UploadMeter,
 }
 
@@ -140,7 +140,7 @@ impl Engine {
             active: Arc::default(),
             queued: AtomicI64::new(0),
             reserved: Arc::default(),
-            throttle: std::sync::OnceLock::new(),
+            throttle: std::sync::Mutex::new(None),
             meter: UploadMeter::new(),
         }
     }
@@ -157,15 +157,23 @@ impl Engine {
         &self.meter
     }
 
-    /// The engine-wide throttle (the first caller's rate wins), shared by every posting path so the
-    /// configured rate bounds aggregate egress. `None` when `rate <= 0`.
+    /// The engine-wide throttle, shared by every posting path so the configured rate bounds
+    /// aggregate egress. A changed `rate` is applied to the existing bucket, so holders of an
+    /// earlier handle follow settings changes. `None` when `rate <= 0` (an existing bucket is
+    /// switched to unlimited).
     pub fn shared_throttle(&self, rate: i64) -> Option<Arc<Throttle>> {
+        let mut slot = self.throttle.lock().unwrap_or_else(|p| p.into_inner());
         if rate <= 0 {
+            if let Some(t) = slot.as_ref() {
+                t.set_rate(0);
+            }
             return None;
         }
-        self.throttle
-            .get_or_init(|| Some(Arc::new(Throttle::new(rate))))
-            .clone()
+        let t = slot.get_or_insert_with(|| Arc::new(Throttle::new(rate)));
+        if t.rate() != rate {
+            t.set_rate(rate);
+        }
+        Some(t.clone())
     }
 
     /// Waits until `n` bytes of buffer budget are free. A non-positive `n` reserves nothing.
@@ -347,14 +355,17 @@ mod tests {
     }
 
     #[test]
-    fn shared_throttle_is_created_once_and_zero_rate_is_none() {
+    fn shared_throttle_is_shared_and_follows_rate_changes() {
         let e = Engine::new(ART, 0, 2);
         assert!(e.shared_throttle(0).is_none());
         let a = e.shared_throttle(1000).unwrap();
         let b = e.shared_throttle(999_999).unwrap();
+        assert!(Arc::ptr_eq(&a, &b), "the bucket is shared");
+        assert_eq!(a.rate(), 999_999, "a changed rate applies to every holder");
+        assert!(e.shared_throttle(0).is_none());
         assert!(
-            Arc::ptr_eq(&a, &b),
-            "the first caller's rate wins and the bucket is shared"
+            a.is_disabled(),
+            "rate 0 switches the shared bucket to unlimited"
         );
     }
 

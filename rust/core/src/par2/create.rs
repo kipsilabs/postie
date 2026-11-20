@@ -445,53 +445,92 @@ fn volume_groups(total: usize) -> Vec<(usize, usize)> {
     groups
 }
 
-fn write_volumes(output: &Path, set_id: &Md5Sum, blocks: &[Vec<u8>], threads: usize) -> Result<()> {
-    let name = output
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    let base = match name.rfind('.') {
-        Some(i) => name[..i].to_string(),
-        None => name,
-    };
-    let dir = output.parent().map(Path::to_path_buf).unwrap_or_default();
-    let groups = volume_groups(blocks.len());
-    let next = std::sync::atomic::AtomicUsize::new(0);
-    let errors = std::sync::Mutex::new(Vec::new());
-    std::thread::scope(|scope| {
-        for _ in 0..threads.min(groups.len()).max(1) {
-            scope.spawn(|| {
-                loop {
-                    let g = next.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                    let Some(&(offset, n)) = groups.get(g) else {
-                        return;
-                    };
-                    let path = dir.join(format!("{base}.vol{offset:02}+{n:02}.par2"));
-                    let res = (|| -> std::io::Result<()> {
-                        let mut w = BufWriter::new(File::create(&path)?);
-                        for (i, data) in blocks[offset..offset + n].iter().enumerate() {
-                            packets::write_packet(
-                                &mut w,
-                                set_id,
-                                &packets::TYPE_RECOVERY,
-                                &packets::recovery_body((offset + i) as u32, data),
-                            )?;
-                        }
-                        w.flush()
-                    })();
-                    if let Err(e) = res {
-                        errors
-                            .lock()
-                            .unwrap_or_else(|p| p.into_inner())
-                            .push(format!("{}: {e}", path.display()));
-                    }
+/// Recovery volume files, filled as each encoding pass finishes so the recovery blocks of a large
+/// set never have to be held in memory all at once. Passes produce ascending exponents, so every
+/// volume receives its blocks in order.
+struct VolumeWriters {
+    set_id: Md5Sum,
+    groups: Vec<(usize, usize)>,
+    paths: Vec<PathBuf>,
+    writers: Vec<BufWriter<File>>,
+}
+
+impl VolumeWriters {
+    fn create(output: &Path, set_id: &Md5Sum, total: usize) -> Result<Self> {
+        let name = output
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let base = match name.rfind('.') {
+            Some(i) => name[..i].to_string(),
+            None => name,
+        };
+        let dir = output.parent().map(Path::to_path_buf).unwrap_or_default();
+        let groups = volume_groups(total);
+        let mut this = Self {
+            set_id: *set_id,
+            groups,
+            paths: Vec::new(),
+            writers: Vec::new(),
+        };
+        for &(offset, n) in &this.groups.clone() {
+            let path = dir.join(format!("{base}.vol{offset:02}+{n:02}.par2"));
+            match File::create(&path) {
+                Ok(f) => {
+                    this.paths.push(path);
+                    this.writers.push(BufWriter::new(f));
                 }
-            });
+                Err(e) => {
+                    this.discard();
+                    return Err(Par2Error::Io(format!(
+                        "par2go: writing volume files failed: {}: {e}",
+                        path.display()
+                    )));
+                }
+            }
         }
-    });
-    match errors.into_inner().unwrap_or_default().into_iter().next() {
-        Some(e) => Err(Par2Error::Io(e)),
-        None => Ok(()),
+        Ok(this)
+    }
+
+    /// Appends the recovery blocks for exponents `first..first + blocks.len()`.
+    fn write_chunk(&mut self, first: usize, blocks: &[Vec<u8>]) -> Result<()> {
+        for (i, data) in blocks.iter().enumerate() {
+            let exp = first + i;
+            let g = self.groups.partition_point(|&(offset, _)| offset <= exp) - 1;
+            packets::write_packet(
+                &mut self.writers[g],
+                &self.set_id,
+                &packets::TYPE_RECOVERY,
+                &packets::recovery_body(exp as u32, data),
+            )
+            .map_err(|e| {
+                Par2Error::Io(format!(
+                    "par2go: writing volume files failed: {}: {e}",
+                    self.paths[g].display()
+                ))
+            })?;
+        }
+        Ok(())
+    }
+
+    fn finish(&mut self) -> Result<()> {
+        for (w, path) in self.writers.iter_mut().zip(&self.paths) {
+            w.flush().map_err(|e| {
+                Par2Error::Io(format!(
+                    "par2go: writing volume files failed: {}: {e}",
+                    path.display()
+                ))
+            })?;
+        }
+        Ok(())
+    }
+
+    /// Removes the partially written volumes (cancel or failure).
+    fn discard(&mut self) {
+        self.writers.clear();
+        for p in self.paths.drain(..) {
+            let _ = std::fs::remove_file(p);
+        }
     }
 }
 
@@ -619,29 +658,37 @@ pub fn create_with_names(
         slice_size: opts.slice_size,
         threads,
     };
-    let mut blocks: Vec<Vec<u8>> = Vec::with_capacity(opts.num_recovery);
+    let mut volumes = VolumeWriters::create(output, &set_id, opts.num_recovery)?;
+    let mut first_exp = 0usize;
     for (ci, chunk) in chunks.iter().enumerate() {
-        check(cancel)?;
-        let base = ci as f64 / chunks.len() as f64;
-        let scale = 1.0 / chunks.len() as f64;
-        let on_progress = |p: f64| report("hashing", base + p * scale);
-        blocks.extend(run_pass(
-            cancel,
-            &plan,
-            &mut files,
-            chunk,
-            ci == 0,
-            &on_progress,
-        )?);
+        let pass = (|| -> Result<()> {
+            check(cancel)?;
+            let base = ci as f64 / chunks.len() as f64;
+            let scale = 1.0 / chunks.len() as f64;
+            let on_progress = |p: f64| report("hashing", base + p * scale);
+            let blocks = run_pass(cancel, &plan, &mut files, chunk, ci == 0, &on_progress)?;
+            // this pass's recovery blocks go to disk now and are dropped before the next pass
+            volumes.write_chunk(first_exp, &blocks)
+        })();
+        if let Err(e) = pass {
+            volumes.discard();
+            return Err(e);
+        }
+        first_exp += chunk.len();
     }
     report("hashing", 1.0);
     report("encoding", 1.0);
 
     report("writing", 0.0);
-    write_main(output, &set_id, &main, &files, creator)
-        .map_err(|e| Par2Error::Io(format!("par2go: writing main file failed: {e}")))?;
-    write_volumes(output, &set_id, &blocks, threads)
-        .map_err(|e| Par2Error::Io(format!("par2go: writing volume files failed: {e}")))?;
+    let finished = write_main(output, &set_id, &main, &files, creator)
+        .map_err(|e| Par2Error::Io(format!("par2go: writing main file failed: {e}")))
+        .and_then(|()| volumes.finish());
+    if let Err(e) = finished {
+        // leave no partial set behind: the index file and every volume
+        volumes.discard();
+        let _ = std::fs::remove_file(output);
+        return Err(e);
+    }
     report("writing", 1.0);
     Ok(())
 }

@@ -857,15 +857,121 @@ async fn short_reads_fail_cleanly() {
     let t = Tmp::new();
     let f = Arc::new(File::open(t.file("a", 100)).unwrap());
     assert_eq!(
-        read_at_with_stall_guard(&f, 10, 20, &CancellationToken::new())
-            .await
-            .unwrap()
-            .len(),
+        read_at_with_stall_guard(
+            &f,
+            &new_file_read_slots(),
+            10,
+            20,
+            &CancellationToken::new()
+        )
+        .await
+        .unwrap()
+        .len(),
         20
     );
     assert!(
-        read_at_with_stall_guard(&f, 90, 50, &CancellationToken::new())
-            .await
-            .is_err()
+        read_at_with_stall_guard(
+            &f,
+            &new_file_read_slots(),
+            90,
+            50,
+            &CancellationToken::new()
+        )
+        .await
+        .is_err()
     );
+}
+
+#[test]
+fn manifest_ranges_are_validated_before_any_allocation() {
+    use super::validate_read_range;
+    let dir = std::env::temp_dir().join(format!("postie-range-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let p = dir.join("f.bin");
+    std::fs::write(&p, vec![1u8; 1000]).unwrap();
+    let f = std::fs::File::open(&p).unwrap();
+    assert_eq!(validate_read_range(&f, 0, 1000).unwrap(), (0, 1000));
+    assert_eq!(validate_read_range(&f, 900, 100).unwrap(), (900, 100));
+    assert!(validate_read_range(&f, -1, 10).is_err(), "negative offset");
+    assert!(validate_read_range(&f, 0, 0).is_err(), "empty body");
+    assert!(validate_read_range(&f, 901, 100).is_err(), "past EOF");
+    assert!(
+        validate_read_range(&f, i64::MAX, 100).is_err(),
+        "overflowing end"
+    );
+    assert!(validate_read_range(&f, 0, u64::MAX).is_err(), "absurd size");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[tokio::test]
+async fn a_stalled_file_does_not_block_reads_of_another_file() {
+    use super::{MAX_READS_PER_FILE, guarded_read};
+    use std::sync::mpsc;
+    use std::time::Duration;
+    use tokio::sync::Semaphore;
+
+    let global = Arc::new(Semaphore::new(2));
+    let dead = new_file_read_slots();
+    let healthy = new_file_read_slots();
+    let cancel = CancellationToken::new();
+    let (release, gate) = mpsc::channel::<()>();
+    let gate = Arc::new(std::sync::Mutex::new(gate));
+
+    // Strand every slot of the "dead" file in blocking reads that never return until released.
+    let mut stalled = Vec::new();
+    for _ in 0..MAX_READS_PER_FILE {
+        let (g, d, c, gate) = (global.clone(), dead.clone(), cancel.clone(), gate.clone());
+        stalled.push(tokio::spawn(async move {
+            guarded_read(&g, &d, 0, 1, &c, Duration::from_millis(200), move || {
+                let _ = gate.lock().unwrap().recv();
+                Ok(vec![0])
+            })
+            .await
+        }));
+    }
+    // Each stalled caller times out and gives its global permit back while the threads stay blocked.
+    for h in stalled {
+        assert!(h.await.unwrap().unwrap_err().starts_with("read stalled"));
+    }
+    assert_eq!(dead.available_permits(), 0);
+    assert_eq!(global.available_permits(), 2);
+
+    // A further read of the dead file cannot get a slot...
+    let err = guarded_read(
+        &global,
+        &dead,
+        0,
+        1,
+        &cancel,
+        Duration::from_millis(100),
+        || Ok(vec![1]),
+    )
+    .await
+    .unwrap_err();
+    assert!(err.starts_with("read stalled"));
+    // ...but another file still reads fine.
+    let ok = guarded_read(
+        &global,
+        &healthy,
+        0,
+        1,
+        &cancel,
+        Duration::from_secs(5),
+        || Ok(vec![7]),
+    )
+    .await
+    .unwrap();
+    assert_eq!(ok, vec![7]);
+
+    // Once the OS reads return, the dead file's slots come back.
+    for _ in 0..MAX_READS_PER_FILE {
+        release.send(()).unwrap();
+    }
+    for _ in 0..100 {
+        if dead.available_permits() == MAX_READS_PER_FILE {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert_eq!(dead.available_permits(), MAX_READS_PER_FILE);
 }
