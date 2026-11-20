@@ -640,3 +640,72 @@ async fn concurrent_posts_still_fan_out_across_connections() {
     assert_eq!(f.posts().len(), 40);
     assert!(pool.stats().connects <= 4);
 }
+
+/// A port where nothing listens.
+fn dead_endpoint_config() -> ProviderConfig {
+    let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = l.local_addr().unwrap().port();
+    drop(l);
+    let mut c = ProviderConfig::new(Endpoint::new("127.0.0.1", port));
+    c.connect_backoff = Duration::from_millis(20);
+    c.connections = 2;
+    c
+}
+
+#[tokio::test]
+async fn posts_move_to_the_next_provider_when_one_cannot_be_reached() {
+    let good = fake(Behavior::default()).await;
+    let client = Client::from_configs(vec![dead_endpoint_config(), cfg(&good)], 0);
+    for i in 0..6 {
+        client
+            .post(article(i))
+            .await
+            .expect("the healthy provider carries every article");
+    }
+    assert_eq!(good.posts().len(), 6);
+}
+
+#[tokio::test]
+async fn an_unreachable_provider_is_tried_last_while_it_cools_down() {
+    let good = fake(Behavior::default()).await;
+    let client = Client::from_configs(vec![dead_endpoint_config(), cfg(&good)], 0);
+    client.post(article(0)).await.unwrap();
+    client.post(article(1)).await.unwrap();
+    // once marked unreachable, posts go straight to the healthy provider
+    let t = std::time::Instant::now();
+    for i in 2..12 {
+        client.post(article(i)).await.unwrap();
+    }
+    assert_eq!(good.posts().len(), 12);
+    assert!(
+        t.elapsed() < Duration::from_secs(2),
+        "posts kept waiting on the dead provider: {:?}",
+        t.elapsed()
+    );
+}
+
+#[tokio::test]
+async fn a_refused_article_is_not_moved_to_another_provider() {
+    let refusing = fake(Behavior {
+        post_reply: |_| (441, "no"),
+        ..Default::default()
+    })
+    .await;
+    let other = fake(Behavior::default()).await;
+    let client = Client::from_configs(vec![cfg(&refusing), cfg(&other)], 0);
+    let results: Vec<_> = post_in_turn(&client, 4).await;
+    let refused = results.iter().filter(|r| r.is_err()).count();
+    assert_eq!(
+        refused, 2,
+        "articles routed to the refusing provider fail: {results:?}"
+    );
+    assert_eq!(other.posts().len(), 2, "and are not re-sent elsewhere");
+}
+
+async fn post_in_turn(client: &Client, n: usize) -> Vec<Result<(), postie_nntp::NntpError>> {
+    let mut out = Vec::new();
+    for i in 0..n {
+        out.push(client.post(article(100 + i)).await);
+    }
+    out
+}

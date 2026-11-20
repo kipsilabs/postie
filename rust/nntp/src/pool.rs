@@ -4,11 +4,13 @@
 //! until work exists, connects (with backoff), serves requests with an `inflight` window until the
 //! connection idles out, expires or breaks, and then goes back to sleep: connections are created in
 //! proportion to demand and idle ones disappear. Because every worker pulls from the same queue,
-//! load balances itself. A [`Client`] spreads requests round-robin across providers.
+//! load balances itself. A [`Client`] spreads requests round-robin across providers and moves a post
+//! to the next provider when one is unreachable or broken.
 
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use tokio::sync::oneshot;
 
@@ -77,7 +79,12 @@ pub struct ProviderPool {
     queue: async_channel::Sender<Request>,
     stats: Arc<ProviderStats>,
     scaler: Arc<Scaler>,
+    /// Until when the client prefers other providers, after this one could not be reached.
+    cooldown: Mutex<Option<Instant>>,
 }
+
+/// How long a provider that could not be reached is tried last.
+const COOLDOWN: Duration = Duration::from_secs(30);
 
 impl ProviderPool {
     /// Starts the pool; no connection is made until the first request.
@@ -107,7 +114,19 @@ impl ProviderPool {
             queue: tx,
             stats,
             scaler,
+            cooldown: Mutex::new(None),
         })
+    }
+
+    fn cooling(&self) -> bool {
+        self.cooldown
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_some_and(|t| Instant::now() < t)
+    }
+
+    fn mark_unreachable(&self) {
+        *self.cooldown.lock().unwrap_or_else(|e| e.into_inner()) = Some(Instant::now() + COOLDOWN);
     }
 
     pub fn name(&self) -> &str {
@@ -277,6 +296,11 @@ pub struct Client {
     throttle: Option<Arc<Throttle>>,
 }
 
+/// Failures that say "this provider, right now" rather than "this article".
+fn fails_over(e: &NntpError) -> bool {
+    e.is_retryable() || matches!(e, NntpError::Auth { .. } | NntpError::Protocol { .. })
+}
+
 impl Client {
     pub fn new(providers: Vec<Arc<ProviderPool>>) -> Self {
         Self::with_throttle(providers, None)
@@ -329,17 +353,53 @@ impl Client {
         }
     }
 
-    fn pick(&self) -> Option<Arc<ProviderPool>> {
-        let list = self.providers.read().unwrap_or_else(|e| e.into_inner());
-        if list.is_empty() {
-            return None;
+    /// Posts via the next provider in rotation. When that provider cannot be reached, drops the
+    /// connection, times out or refuses the session, the article goes to the next one, so a single
+    /// broken provider never fails an upload the others can carry. A refused article (`441`) is not
+    /// moved: that is about the article, not the provider. Unreachable providers are tried last for
+    /// a while, so articles do not keep waiting on them.
+    pub async fn post(&self, article: Vec<u8>) -> Result<(), NntpError> {
+        let order = self.post_order();
+        let Some(last_idx) = order.len().checked_sub(1) else {
+            return Err(NntpError::Closed);
+        };
+        let mut article = Some(article);
+        let mut last_err = NntpError::Closed;
+        for (i, p) in order.iter().enumerate() {
+            // only multi-provider setups pay for a copy, and only while a fallback remains
+            let body = if i == last_idx {
+                article.take().unwrap_or_default()
+            } else {
+                article.clone().unwrap_or_default()
+            };
+            match p.post(body).await {
+                Ok(()) => return Ok(()),
+                Err(e) if fails_over(&e) => {
+                    if matches!(e, NntpError::Connect(_)) {
+                        p.mark_unreachable();
+                    }
+                    last_err = e;
+                }
+                Err(e) => return Err(e),
+            }
         }
-        Some(list[self.next.fetch_add(1, Ordering::Relaxed) % list.len()].clone())
+        Err(last_err)
     }
 
-    /// Posts via the next provider in rotation.
-    pub async fn post(&self, article: Vec<u8>) -> Result<(), NntpError> {
-        self.pick().ok_or(NntpError::Closed)?.post(article).await
+    /// Every provider once, starting at the next in rotation, with cooling-down ones last.
+    fn post_order(&self) -> Vec<Arc<ProviderPool>> {
+        let list = self.snapshot();
+        if list.is_empty() {
+            return list;
+        }
+        let start = self.next.fetch_add(1, Ordering::Relaxed) % list.len();
+        let mut order: Vec<_> = list[start..]
+            .iter()
+            .chain(&list[..start])
+            .cloned()
+            .collect();
+        order.sort_by_key(|p| p.cooling()); // stable: rotation order within each group
+        order
     }
 
     /// Checks the article on providers in rotation order until one has it. `Ok(false)` only when
