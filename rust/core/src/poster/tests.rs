@@ -1081,3 +1081,98 @@ fn post_failure_logging_is_rate_limited_and_counts_what_it_skipped() {
     );
     assert_eq!(g.admit(t0 + POST_FAILURE_LOG_GAP * 3), Some(0));
 }
+
+/// A folder of tiny single-article files must use the connection pool, not crawl two files at a
+/// time waiting for each 240 round trip (an app bundle of 29k files uploaded at ~0.4 MB/s).
+#[tokio::test]
+async fn many_small_files_are_posted_concurrently_up_to_the_connection_count() {
+    let t = Tmp::new();
+    let mock = Mock::new(20);
+    mock.delay_ms.store(30, Ordering::Relaxed);
+    let p = poster(&mock, check_off(), None, None);
+    let files: Vec<PathBuf> = (0..30).map(|i| t.file(&format!("f{i}.bin"), 500)).collect();
+    let nzb = generator();
+    p.post(&CancellationToken::new(), &files, &nzb, None)
+        .await
+        .unwrap();
+    assert_eq!(mock.posts.lock().unwrap().len(), 30);
+    let peak = mock.max_cur.load(Ordering::SeqCst);
+    assert!(peak >= 8, "small files run in parallel: peak {peak}");
+    assert!(peak <= 20, "never above the connection count: peak {peak}");
+    assert_eq!(nzb.render().unwrap().matches("<segment ").count(), 30);
+}
+
+/// Delegates posts to a [`Mock`] and records the job's progress rows visible during each post.
+struct PostProbe {
+    inner: Arc<Mock>,
+    progress: Arc<JobProgress>,
+    seen: Mutex<Vec<(ProgressType, String, i64)>>,
+}
+impl ArticleClient for PostProbe {
+    fn post(&self, article: Vec<u8>) -> BoxFut<'_, Result<(), NntpError>> {
+        self.seen.lock().unwrap().extend(
+            self.progress
+                .get_all_progress_state()
+                .into_iter()
+                .map(|s| (s.r#type, s.description, s.max)),
+        );
+        self.inner.post(article)
+    }
+    fn stat<'a>(&'a self, message_id: &'a str) -> BoxFut<'a, Result<bool, NntpError>> {
+        self.inner.stat(message_id)
+    }
+    fn max_connections(&self) -> usize {
+        self.inner.max_connections()
+    }
+}
+
+/// A multi-file upload shows one overall row (total bytes) instead of rows for single-article files
+/// that appear and vanish at 0% faster than the dashboard refreshes.
+#[tokio::test]
+async fn a_multi_file_post_shows_one_overall_row_and_hides_single_article_rows() {
+    let t = Tmp::new();
+    let mock = Mock::new(4);
+    let progress = Arc::new(JobProgress::new("j"));
+    let probe = Arc::new(PostProbe {
+        inner: mock.clone(),
+        progress: progress.clone(),
+        seen: Mutex::default(),
+    });
+    let p = Poster::new(
+        posting(),
+        check_off(),
+        probe.clone(),
+        mock.clone(),
+        progress.clone(),
+        None,
+        None,
+    );
+    let mut files: Vec<PathBuf> = (0..5).map(|i| t.file(&format!("s{i}.bin"), 500)).collect();
+    files.push(t.file("big.bin", 2500)); // three articles: keeps its own row
+    p.post(&CancellationToken::new(), &files, &generator(), None)
+        .await
+        .unwrap();
+    let seen = probe.seen.lock().unwrap();
+    let total = 5 * 500 + 2500;
+    assert!(
+        seen.iter()
+            .any(|(ty, d, max)| *ty == ProgressType::Uploading
+                && d == "Uploading 6 files"
+                && *max == total),
+        "an overall row covers all bytes: {seen:?}"
+    );
+    assert!(
+        !seen
+            .iter()
+            .any(|(_, d, _)| d.starts_with('s') && d.ends_with(".bin")),
+        "single-article files get no row of their own: {seen:?}"
+    );
+    assert!(
+        seen.iter().any(|(_, d, _)| d == "big.bin"),
+        "multi-article files keep their row: {seen:?}"
+    );
+    assert!(
+        progress.get_all_progress_state().is_empty(),
+        "all rows are removed at the end"
+    );
+}

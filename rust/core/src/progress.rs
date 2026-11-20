@@ -287,6 +287,18 @@ impl JobProgress {
         p
     }
 
+    /// An indicator that counts like any other but is not listed for the job (for work too short to
+    /// be worth a row of its own; an aggregate row reports it instead).
+    pub fn detached(&self, name: &str, ptype: ProgressType, total: i64) -> Arc<Progress> {
+        Arc::new(Progress::new(
+            Uuid::new_v4(),
+            name.to_string(),
+            ptype,
+            total,
+            self.clock.clone(),
+        ))
+    }
+
     /// Finishes and removes the indicator; a no-op for unknown ids.
     pub fn finish_progress(&self, id: Uuid) {
         if let Some(p) = self

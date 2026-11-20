@@ -172,8 +172,31 @@ const MAX_READS_PER_FILE: usize = 4;
 pub(crate) fn new_file_read_slots() -> Arc<Semaphore> {
     Arc::new(Semaphore::new(MAX_READS_PER_FILE))
 }
-/// Files processed concurrently by one `post` call (overlaps one file's tail with the next's head).
+/// Large files processed concurrently by one `post` call (overlaps one file's tail with the next's
+/// head). Small files share the same budget by article count, so many of them run at once.
 const POST_PIPELINE_DEPTH: usize = 2;
+
+/// Removes a multi-file post's overall row when the post ends (success, error or cancel).
+struct AggregateRow(Arc<JobProgress>, Uuid);
+
+impl Drop for AggregateRow {
+    fn drop(&mut self) {
+        self.0.finish_progress(self.1);
+    }
+}
+
+/// Pipeline slots for one `post` call: one per upload connection (at least the large-file depth).
+fn pipeline_capacity(connections: usize) -> usize {
+    connections.max(POST_PIPELINE_DEPTH)
+}
+
+/// Slots a file holds while it posts: one per article, capped so `POST_PIPELINE_DEPTH` large files
+/// still overlap. A single-article file takes one slot, so a folder of tiny files fills the pool
+/// instead of waiting on two round trips at a time.
+fn pipeline_slots(articles: usize, capacity: usize) -> u32 {
+    let cap = (capacity / POST_PIPELINE_DEPTH).max(1);
+    u32::try_from(articles.clamp(1, cap)).unwrap_or(u32::MAX)
+}
 /// Posts per article on a stale connection.
 const POST_ATTEMPTS: usize = 3;
 
@@ -435,6 +458,8 @@ struct Run {
     deferred: Mutex<Vec<FailedArticleInfo>>,
     total_articles: AtomicUsize,
     first_check_done: AtomicBool,
+    /// One overall row for a multi-file post (bytes across all files).
+    aggregate: Option<Arc<Progress>>,
 }
 
 impl Run {
@@ -516,6 +541,27 @@ impl Poster {
     }
 
     /// Posts `files`; `relative_paths` maps a file to the display name used in its subject.
+    /// The overall row for a multi-file post, sized to the files' total bytes; `None` for one file.
+    fn aggregate_progress(&self, files: &[PathBuf]) -> Option<Arc<Progress>> {
+        if files.len() < 2 {
+            return None;
+        }
+        // one stat per file: blocking I/O, kept off the async workers
+        let total: i64 = crate::blocking::in_place(|| {
+            files
+                .iter()
+                .filter_map(|f| std::fs::metadata(f).ok())
+                .map(|m| i64::try_from(m.len()).unwrap_or(i64::MAX))
+                .sum()
+        });
+        Some(self.0.progress.add_progress(
+            Uuid::new_v4(),
+            &format!("Uploading {} files", files.len()),
+            ProgressType::Uploading,
+            total,
+        ))
+    }
+
     pub async fn post_with_relative_paths(
         &self,
         cancel: &CancellationToken,
@@ -537,8 +583,15 @@ impl Poster {
                 }
             })
         };
-        let run = Arc::new(Run::default());
-        let depth = Arc::new(Semaphore::new(POST_PIPELINE_DEPTH));
+        let aggregate = self.aggregate_progress(files);
+        let run = Arc::new(Run {
+            aggregate: aggregate.clone(),
+            ..Run::default()
+        });
+        // the overall row goes away however the post ends
+        let _aggregate_row = aggregate.map(|a| AggregateRow(self.0.progress.clone(), a.id()));
+        let capacity = pipeline_capacity(self.0.upload.max_connections());
+        let depth = Arc::new(Semaphore::new(capacity));
         let mut tasks: JoinSet<()> = JoinSet::new();
         let mut early: Option<PostError> = None;
 
@@ -573,7 +626,7 @@ impl Poster {
             };
             let permit = tokio::select! {
                 () = ctx.cancelled() => { early = Some(PostError::Canceled); break; }
-                p = depth.clone().acquire_owned() => p.ok(),
+                p = depth.clone().acquire_many_owned(pipeline_slots(prepared.articles.len(), capacity)) => p.ok(),
             };
             let (me, ctx2, run2, nzb2, pause2) = (
                 self.clone(),
@@ -805,12 +858,20 @@ impl Poster {
         let mut retries: u64 = 0;
         let mut label = name.clone();
         loop {
-            let progress = self.0.progress.add_progress(
-                Uuid::new_v4(),
-                &label,
-                ProgressType::Uploading,
-                prep.size,
-            );
+            // a single-article file finishes faster than the dashboard refreshes: in a multi-file post
+            // the overall row reports it instead of a row that flashes at 0%
+            let progress = if run.aggregate.is_some() && todo.len() <= 1 {
+                self.0
+                    .progress
+                    .detached(&label, ProgressType::Uploading, prep.size)
+            } else {
+                self.0.progress.add_progress(
+                    Uuid::new_v4(),
+                    &label,
+                    ProgressType::Uploading,
+                    prep.size,
+                )
+            };
             let (completed, err) = self
                 .post_articles(
                     ctx,
@@ -819,6 +880,7 @@ impl Poster {
                     &prep.path,
                     &todo,
                     &progress,
+                    run.aggregate.as_ref(),
                     pause,
                 )
                 .await;
@@ -929,6 +991,7 @@ impl Poster {
         path: &Path,
         articles: &[Article],
         progress: &Arc<Progress>,
+        aggregate: Option<&Arc<Progress>>,
         pause: Option<&PauseGate>,
     ) -> (Vec<Article>, Option<PostError>) {
         let reserve = self.0.engine.as_ref().map_or(0, |e| e.per_article_bytes());
@@ -943,6 +1006,9 @@ impl Poster {
             match r {
                 Some(Ok(Ok(a))) => {
                     progress.update_progress(a.size as i64);
+                    if let Some(all) = aggregate {
+                        all.update_progress(a.size as i64);
+                    }
                     completed.push(a);
                 }
                 Some(Ok(Err(e))) => {
