@@ -16,6 +16,8 @@ services:
     environment:
       - PORT=8080
       - HOST=0.0.0.0
+      # With authentication off, the UI only answers localhost, IPs and these hostnames.
+      # - POSTIE_ALLOWED_HOSTS=nas.local
       - PUID=1000
       - PGID=1000
     restart: unless-stopped

@@ -13,6 +13,8 @@ services:
       - HOST=0.0.0.0
       # Enable administrator login for the web UI and browser APIs.
       # - POSTIE_AUTH_ENABLED=true
+      # With authentication off, the UI only answers localhost, IPs and these hostnames.
+      # - POSTIE_ALLOWED_HOSTS=nas.local,postie.example.com
       # Behind an HTTPS reverse proxy, also set POSTIE_COOKIE_SECURE=true.
       - PUID=1000
       - PGID=1000
