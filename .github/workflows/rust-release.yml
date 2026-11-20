@@ -72,7 +72,11 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile && bun run build
         working-directory: frontend
-      - run: cargo install tauri-cli --version "^2" --locked
+      # prebuilt tauri-cli (cargo-binstall falls back to compiling it if no binary matches)
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-binstall
+      - run: cargo binstall -y --locked tauri-cli@2
       - run: cargo tauri build
         working-directory: rust/desktop
       - uses: actions/upload-artifact@v4
@@ -101,6 +105,20 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/cache@v4
+        id: cargo-cache
+        with:
+          path: docker-cargo-cache
+          key: docker-cargo-${{ hashFiles('rust/Cargo.lock') }}-${{ github.sha }}
+          restore-keys: docker-cargo-${{ hashFiles('rust/Cargo.lock') }}-
+      - uses: reproducible-containers/buildkit-cache-dance@v3
+        with:
+          cache-map: |
+            {
+              "docker-cargo-cache/registry": "/usr/local/cargo/registry",
+              "docker-cargo-cache/target": "/app/rust/target"
+            }
+          skip-extraction: ${{ steps.cargo-cache.outputs.cache-hit }}
       - id: tag
         shell: bash
         run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"

@@ -47,10 +47,25 @@ jobs:
   docker:
     name: docker image (build only)
     runs-on: ubuntu-latest
-    needs: [check]
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
+      # persist the Dockerfile's cargo cache mounts (registry + target) across runs; the gha
+      # layer cache alone does not keep `RUN --mount=type=cache`, so every build started cold
+      - uses: actions/cache@v4
+        id: cargo-cache
+        with:
+          path: docker-cargo-cache
+          key: docker-cargo-${{ hashFiles('rust/Cargo.lock') }}-${{ github.sha }}
+          restore-keys: docker-cargo-${{ hashFiles('rust/Cargo.lock') }}-
+      - uses: reproducible-containers/buildkit-cache-dance@v3
+        with:
+          cache-map: |
+            {
+              "docker-cargo-cache/registry": "/usr/local/cargo/registry",
+              "docker-cargo-cache/target": "/app/rust/target"
+            }
+          skip-extraction: ${{ steps.cargo-cache.outputs.cache-hit }}
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -74,10 +89,11 @@ jobs:
           workspaces: rust
       - run: cargo test --workspace --no-fail-fast
 
+  # Compile checks run alongside the tests (no `needs`) and use the fast `ci` profile; the
+  # LTO release binaries and desktop bundles are produced by rust-release.yml.
   binaries:
     name: build postie + postie-web (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    needs: [check, test]
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
@@ -90,25 +106,26 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile && bun run build
         working-directory: frontend
-      - run: cargo build --release -p postie-cli -p postie-web
+      - run: cargo build --profile ci -p postie-cli -p postie-web
       - name: Bundle frontend beside the binaries
         shell: bash
-        run: cp -r ../frontend/build target/release/frontend
+        run: cp -r ../frontend/build target/ci/frontend
       - uses: actions/upload-artifact@v4
         with:
           name: postie-rust-${{ matrix.os }}
           path: |
-            rust/target/release/postie
-            rust/target/release/postie.exe
-            rust/target/release/postie-web
-            rust/target/release/postie-web.exe
-            rust/target/release/frontend
+            rust/target/ci/postie
+            rust/target/ci/postie.exe
+            rust/target/ci/postie-web
+            rust/target/ci/postie-web.exe
+            rust/target/ci/frontend
           if-no-files-found: ignore
 
+  # Branch/PR CI only checks that the desktop shell compiles; bundling (dmg/msi/AppImage) is the
+  # slowest step and runs for release-candidate tags in rust-release.yml.
   desktop:
-    name: desktop bundle (${{ matrix.os }})
+    name: desktop compile (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    needs: [check, test]
     strategy:
       fail-fast: false
       matrix:
@@ -127,11 +144,5 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile && bun run build
         working-directory: frontend
-      - run: cargo install tauri-cli --version "^2" --locked
-      - run: cargo tauri build
+      - run: cargo build --locked
         working-directory: rust/desktop
-      - uses: actions/upload-artifact@v4
-        with:
-          name: postie-desktop-${{ matrix.os }}
-          path: rust/desktop/target/release/bundle/**/*
-          if-no-files-found: error
