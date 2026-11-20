@@ -76,7 +76,12 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-binstall
-      - run: cargo binstall -y --locked tauri-cli@2
+      # pin the host target: without it binstall picked the x86_64 macOS build on arm64
+      # runners, which ran cargo-tauri (and the cmake it spawns) under Rosetta
+      - shell: bash
+        run: |
+          host="$(rustc -vV | sed -n 's/^host: //p')"
+          cargo binstall -y --locked --targets "$host" tauri-cli@2
       - run: cargo tauri build
         working-directory: rust/desktop
       - uses: actions/upload-artifact@v4
