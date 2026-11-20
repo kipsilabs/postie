@@ -1,0 +1,75 @@
+name: PAR2 bench (x86)
+
+# Manual: compares the Rust PAR2 creator with par2go on the runner's CPU and
+# prints the CPU model/flags, so a run shows which SIMD tier was exercised
+# (GitHub's x86 runners are a mix of Zen 3, Zen 4 and Intel).
+on:
+  workflow_dispatch:
+    inputs:
+      size_mb:
+        description: Input size in MiB
+        default: "1024"
+      runs:
+        description: Runs per tool (median reported)
+        default: "5"
+
+jobs:
+  bench:
+    name: par2 (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04, windows-latest]
+    env:
+      SIZE_MB: ${{ inputs.size_mb }}
+      RUNS: ${{ inputs.runs }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: CPU
+        shell: bash
+        run: |
+          if [ -r /proc/cpuinfo ]; then
+            grep -m1 'model name' /proc/cpuinfo
+            grep -m1 '^flags' /proc/cpuinfo | tr ' ' '\n' \
+              | grep -E '^(sse2|ssse3|avx|avx2|avx512[a-z_0-9]*|gfni|vpclmulqdq|pclmulqdq|sha_ni)$' | sort | tr '\n' ' '; echo
+          else
+            powershell -c "(Get-CimInstance Win32_Processor).Name"
+          fi
+          nproc 2>/dev/null || echo "$NUMBER_OF_PROCESSORS"
+
+      - name: Rust creator
+        shell: bash
+        working-directory: rust
+        run: |
+          cargo build --release -p postie-core --example par2_bench
+          head -c "$((SIZE_MB * 1024 * 1024))" /dev/urandom > "$RUNNER_TEMP/in.bin"
+          for i in $(seq "$RUNS"); do
+            ./target/release/examples/par2_bench "$RUNNER_TEMP/in.bin" "$RUNNER_TEMP/out.par2" \
+              | tee -a "$RUNNER_TEMP/rust.txt"
+          done
+          echo "== rust median =="
+          sed -E 's/.*total_ms=([0-9]+).*/\1/' "$RUNNER_TEMP/rust.txt" | sort -n | awk '{a[NR]=$1} END{print a[int((NR+1)/2)] " ms"}'
+
+      - name: Cross-verify with par2cmdline (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get install -y par2 >/dev/null
+          cd "$RUNNER_TEMP"
+          par2 verify out.par2 in.bin
+
+      - name: par2go (Go app's creator)
+        shell: bash
+        env:
+          POSTIE_BENCH_MB: ${{ inputs.size_mb }}
+        run: |
+          go test -run '^$' -bench 'Pipeline/par2-only' -benchtime "${RUNS}x" ./pkg/postie

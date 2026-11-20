@@ -1,0 +1,11 @@
+[workspace]
+resolver = "3"
+members = ["core", "nntp", "server", "cli", "yenc", "article-rs", "duplicatelookup-rs", "rapidyenc-sys"]
+# desktop needs the Tauri system libraries; app is the superseded proxy front door (ADR-023)
+exclude = ["desktop", "app"]
+
+# panic stays "unwind": a panicking task must surface as a JoinError and release its slot, not abort
+[profile.release]
+lto = "thin"
+codegen-units = 1
+panic = "unwind"

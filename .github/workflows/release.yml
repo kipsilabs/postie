@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'v*.*.*'
+      # release candidates ship from rust-release.yml
+      - '!v*.*.*-rc*'
 
 env:
   # Use docker.io for Docker Hub if empty

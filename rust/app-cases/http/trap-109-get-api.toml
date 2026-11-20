@@ -1,0 +1,10 @@
+[request]
+method = "GET"
+path = "/api/auth/%F0%9F%91%A8%E2%80%8D%F0%9F%91%A9%E2%80%8D%F0%9F%91%A7%20family"
+
+[response]
+status = 404
+
+[response.headers]
+content-type = "text/plain; charset=utf-8"
+x-content-type-options = "nosniff"

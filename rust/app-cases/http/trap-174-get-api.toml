@@ -1,0 +1,9 @@
+[request]
+method = "GET"
+path = "/api//browse"
+
+[response]
+status = 301
+
+[response.headers]
+location = "/api/browse"

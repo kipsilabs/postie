@@ -256,7 +256,8 @@ func (p *NativeExecutor) CreateSet(ctx context.Context, files []fileinfo.FileInf
 		return Result{}, fmt.Errorf("par2: create output dir %s: %w", dirPath, err)
 	}
 
-	par2Inputs := setInputNames(inputs, folderDir)
+	// slices are numbered in file-ID order; see order.go
+	par2Inputs := sortInputsByFileID(setInputNames(inputs, folderDir))
 
 	// Reuse an existing set only if it was built from exactly these files.
 	if existing, ok := checkExistingPar2SetInPath(ctx, setName, dirPath, par2Inputs); ok {

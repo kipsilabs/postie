@@ -24,10 +24,9 @@ let relocatingConfig = $state(false);
 onMount(async () => {
  try {
   await apiClient.initialize();
-  isDesktop = apiClient.environment === "wails";
+  isDesktop = apiClient.isDesktop;
   if (isDesktop) {
-   const { GetConfigPath } = await import("$lib/wailsjs/go/backend/App");
-   configPath = await GetConfigPath();
+   configPath = await apiClient.getConfigPath();
   }
  } catch (error) {
   toastStore.error($t("settings.general.config_location_error"), String(error));
@@ -37,8 +36,7 @@ onMount(async () => {
 async function selectConfigDirectory() {
  relocatingConfig = true;
  try {
-  const { SelectConfigDirectory } = await import("$lib/wailsjs/go/backend/App");
-  const path = await SelectConfigDirectory();
+  const path = await apiClient.selectConfigDirectory();
   if (path && path !== configPath) {
    configPath = path;
    toastStore.success($t("settings.general.config_location_success"));

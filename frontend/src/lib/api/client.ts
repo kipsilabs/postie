@@ -1,5 +1,6 @@
 // Unified API client that switches between Wails (desktop) and HTTP (web) modes
 
+import { isTauri, tauriInvoke } from "./tauri";
 import { browser } from "$app/environment";
 import type { backend, config, processor, watcher } from "$lib/wailsjs/go/models";
 // Using backend types for pagination - remove temporary types import
@@ -491,6 +492,10 @@ export class UnifiedClient {
 			return path || null;
 		}
 
+		if (isTauri()) {
+			return (await tauriInvoke<string | null>("select_folder")) || null;
+		}
+
 		// In web mode, folder selection is handled via HTML input with webkitdirectory
 		return null;
 	}
@@ -501,6 +506,10 @@ export class UnifiedClient {
 		if (this._environment === "wails") {
 			const client = await getWailsClient();
 			return client.App.UploadFolder(folderPath);
+		}
+
+		if (isTauri()) {
+			return tauriInvoke<void>("upload_folders", { paths: [folderPath] });
 		}
 
 		// In web mode, folder upload is handled via uploadFileList with webkitdirectory files
@@ -516,6 +525,10 @@ export class UnifiedClient {
 			return paths ?? [];
 		}
 
+		if (isTauri()) {
+			return tauriInvoke<string[]>("select_folders");
+		}
+
 		// In web mode, folder selection is handled via HTML input with webkitdirectory
 		return [];
 	}
@@ -526,6 +539,10 @@ export class UnifiedClient {
 		if (this._environment === "wails") {
 			const client = await getWailsClient();
 			return client.App.UploadFolders(folderPaths);
+		}
+
+		if (isTauri()) {
+			return tauriInvoke<void>("upload_folders", { paths: folderPaths });
 		}
 
 		// In web mode, folder upload is handled via uploadFileList with webkitdirectory files
@@ -702,6 +719,10 @@ export class UnifiedClient {
 			return client.App.DownloadNZB(id);
 		}
 
+		if (isTauri()) {
+			return tauriInvoke<void>("download_nzb", { id });
+		}
+
 		if (this._environment === "web") {
 			const client = await getWebClient();
 			return client.downloadNZB(id);
@@ -740,6 +761,10 @@ export class UnifiedClient {
 				"$lib/wailsjs/go/backend/App"
 			);
 			return SelectTempDirectory();
+		}
+
+		if (isTauri()) {
+			return (await tauriInvoke<string | null>("select_folder")) ?? "";
 		}
 
 		if (this._environment === "web") {
@@ -888,12 +913,70 @@ export class UnifiedClient {
 		throw new Error("No client available");
 	}
 
+	/** True in the Wails app and in the Tauri shell (native dialogs available). */
+	get isDesktop(): boolean {
+		return this._environment === "wails" || isTauri();
+	}
+
+	async selectWatchDirectory(): Promise<string> {
+		await this.initialize();
+
+		if (this._environment === "wails") {
+			const { SelectWatchDirectory } = await import(
+				"$lib/wailsjs/go/backend/App"
+			);
+			return SelectWatchDirectory();
+		}
+
+		if (isTauri()) {
+			return (await tauriInvoke<string | null>("select_folder")) ?? "";
+		}
+
+		throw new Error("Desktop only");
+	}
+
+	async getConfigPath(): Promise<string> {
+		await this.initialize();
+
+		if (this._environment === "wails") {
+			const { GetConfigPath } = await import("$lib/wailsjs/go/backend/App");
+			return GetConfigPath();
+		}
+
+		if (isTauri()) {
+			return tauriInvoke<string>("get_config_path");
+		}
+
+		throw new Error("Desktop only");
+	}
+
+	async selectConfigDirectory(): Promise<string> {
+		await this.initialize();
+
+		if (this._environment === "wails") {
+			const { SelectConfigDirectory } = await import(
+				"$lib/wailsjs/go/backend/App"
+			);
+			return SelectConfigDirectory();
+		}
+
+		if (isTauri()) {
+			return tauriInvoke<string>("select_config_directory");
+		}
+
+		throw new Error("Desktop only");
+	}
+
 	async selectOutputDirectory(): Promise<string> {
 		await this.initialize();
 
 		if (this._environment === "wails") {
 			const client = await getWailsClient();
 			return client.App.SelectOutputDirectory();
+		}
+
+		if (isTauri()) {
+			return (await tauriInvoke<string | null>("select_folder")) ?? "";
 		}
 
 		throw new Error("No client available");

@@ -40,6 +40,23 @@ docker-compose up -d
 # Access web interface at http://localhost:8080
 ```
 
+#### Authentication and allowed hosts
+
+Set `POSTIE_AUTH_ENABLED=true` to require an administrator login for the web UI.
+
+With authentication off, the web UI only answers requests whose `Host` is `localhost`, an IP address, or
+listed in `POSTIE_ALLOWED_HOSTS` (comma separated, with or without port). This protects against
+DNS-rebinding attacks, where a malicious website points its own hostname at your server. Anything else
+gets `403`, and the first rejected request per hostname is logged to stderr.
+
+```yaml
+environment:
+  - POSTIE_ALLOWED_HOSTS=nas.local,postie.example.com
+```
+
+Behind a reverse proxy, forward the original Host (nginx: `proxy_set_header Host $host;`) and add the
+public hostname to `POSTIE_ALLOWED_HOSTS`, or enable authentication instead.
+
 ### Homebrew (CLI)
 
 Install the command-line poster on macOS or Linux (Apple Silicon/ARM64 or Intel/AMD64).

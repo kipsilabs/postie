@@ -1,0 +1,20 @@
+{
+  "schema": "rust-anything/app-cases@1",
+  "name": "home",
+  "run": [
+    "env",
+    "PORT={port}",
+    "rust/original/run.sh"
+  ],
+  "normalize": [
+    "timestamps",
+    "uuids",
+    "key-order"
+  ],
+  "normalizers": {
+    "dirsize": "\"size\": [0-9]+",
+    "homepath": "/[^\"]*/postie-original-[^\"]*"
+  },
+  "timeout_secs": 30,
+  "http": {}
+}

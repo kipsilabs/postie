@@ -114,90 +114,87 @@ func (a *Article) Encode(body []byte) (io.Reader, func(), error) {
 		encoderBufferPool.Put(buff)
 	}
 
-	buff.WriteString(header.String() + "\r\n")
-
-	encoder, err := rapidyenc.NewEncoder(buff, rapidyenc.Meta{
+	meta := rapidyenc.Meta{
 		FileName:   a.FileName,
 		FileSize:   a.FileSize,
 		PartNumber: int64(a.PartNumber),
 		TotalParts: int64(a.TotalParts),
 		Offset:     int64(a.Offset),
 		PartSize:   int64(a.Size),
-	})
-	if err != nil {
-		cleanup() // Return buffer to pool on error
-		return nil, nil, fmt.Errorf("error creating encoder: %w", err)
 	}
-
-	_, errWrite := encoder.Write(body)
-
-	if err := encoder.Close(); err != nil {
+	if err := encodeTo(buff, header.String(), meta, body); err != nil {
 		cleanup() // Return buffer to pool on error
-		return nil, nil, fmt.Errorf("error closing encoder: %w", err)
-	}
-
-	if errWrite != nil {
-		cleanup() // Return buffer to pool on error
-		return nil, nil, fmt.Errorf("error writing article body: %w", errWrite)
+		return nil, nil, err
 	}
 
 	return buff, cleanup, nil
 }
 
-// generateRandomString generates a random string of specified length
-func generateRandomString(length int) (string, error) {
+// encodeTo writes the header lines, the blank separator line and the yEnc-encoded part to buff.
+func encodeTo(buff *bytes.Buffer, header string, meta rapidyenc.Meta, body []byte) error {
+	buff.WriteString(header + "\r\n")
+
+	encoder, err := rapidyenc.NewEncoder(buff, meta)
+	if err != nil {
+		return fmt.Errorf("error creating encoder: %w", err)
+	}
+
+	_, errWrite := encoder.Write(body)
+
+	if err := encoder.Close(); err != nil {
+		return fmt.Errorf("error closing encoder: %w", err)
+	}
+
+	if errWrite != nil {
+		return fmt.Errorf("error writing article body: %w", errWrite)
+	}
+
+	return nil
+}
+
+// EncodeWire returns the bytes of one article as posted: the already formatted header
+// lines (each CRLF-terminated), a blank line, then the yEnc part (=ybegin, =ypart, data,
+// =yend with pcrc32). It is the pure core of [Article.Encode].
+func EncodeWire(header, fileName string, fileSize, partNumber, totalParts, offset, partSize int64, body []byte) ([]byte, error) {
+	var buff bytes.Buffer
+	meta := rapidyenc.Meta{
+		FileName:   fileName,
+		FileSize:   fileSize,
+		PartNumber: partNumber,
+		TotalParts: totalParts,
+		Offset:     offset,
+		PartSize:   partSize,
+	}
+	if err := encodeTo(&buff, header, meta, body); err != nil {
+		return nil, err
+	}
+	return buff.Bytes(), nil
+}
+
+// generateRandomString generates a random string of specified length.
+// crypto/rand never returns an error (Go 1.24+: it crashes the program instead),
+// so there is no error path to propagate.
+func generateRandomString(length int) string {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	max := big.NewInt(int64(len(charset)))
 	result := make([]byte, length)
 	for i := range result {
-		// Generate random index
-		idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
-		if err != nil {
-			return "", fmt.Errorf("error generating random string: %w", err)
-		}
+		idx, _ := rand.Int(rand.Reader, max)
 		result[i] = charset[idx.Int64()]
 	}
-	return string(result), nil
+	return string(result)
 }
 
-// GenerateMessageID generates a message ID following the obfuscation pattern
-func GenerateMessageID() (string, error) {
+// GenerateMessageID generates a message ID following the obfuscation pattern.
+func GenerateMessageID() string {
 	// Format: {rand(32)}@{rand(8)}.{rand(3)}
-	rand32, err := generateRandomString(32)
-	if err != nil {
-		return "", err
-	}
-	rand8, err := generateRandomString(8)
-	if err != nil {
-		return "", err
-	}
-	rand3, err := generateRandomString(3)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%s@%s.%s", rand32, rand8, rand3), nil
+	return fmt.Sprintf("%s@%s.%s", generateRandomString(32), generateRandomString(8), generateRandomString(3))
 }
 
-// GenerateFrom generates a From header following the obfuscation pattern
-func GenerateFrom() (string, error) {
+// GenerateFrom generates a From header following the obfuscation pattern.
+func GenerateFrom() string {
 	// Format: {rand(14)} <{rand(14)}@{rand(5)}.{rand(3)}>
-	rand14a, err := generateRandomString(14)
-	if err != nil {
-		return "", err
-	}
-	rand14b, err := generateRandomString(14)
-	if err != nil {
-		return "", err
-	}
-	rand5, err := generateRandomString(5)
-	if err != nil {
-		return "", err
-	}
-	rand3, err := generateRandomString(3)
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("%s <%s@%s.%s>", rand14a, rand14b, rand5, rand3), nil
+	return fmt.Sprintf("%s <%s@%s.%s>", generateRandomString(14), generateRandomString(14), generateRandomString(5), generateRandomString(3))
 }
 
 // GenerateSubject generates a subject following the obfuscation pattern
@@ -206,12 +203,7 @@ func GenerateSubject(fileNumber int, totalFiles int, fileName string, partNumber
 }
 
 func GenerateRandomSubject() string {
-	rand32, err := generateRandomString(32)
-	if err != nil {
-		return ""
-	}
-
-	return rand32
+	return generateRandomString(32)
 }
 
 func RandomDateWithinLast6Hours() time.Time {
@@ -226,10 +218,5 @@ func RandomDateWithinLast6Hours() time.Time {
 
 // GenerateRandomFilename generates a random filename
 func GenerateRandomFilename() string {
-	rand32, err := generateRandomString(32)
-	if err != nil {
-		return ""
-	}
-
-	return rand32
+	return generateRandomString(32)
 }

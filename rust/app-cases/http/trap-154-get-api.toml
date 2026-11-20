@@ -1,0 +1,9 @@
+[request]
+method = "GET"
+path = "/api//transfer-runtime"
+
+[response]
+status = 301
+
+[response.headers]
+location = "/api/transfer-runtime"
