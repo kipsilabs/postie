@@ -26,6 +26,8 @@ http-body-util = "0.1"
 reqwest = { version = "0.13", default-features = false, features = ["json", "multipart"] }
 tokio-tungstenite = "0.28"
 futures-util = { version = "0.3", default-features = false, features = ["sink"] }
+md-5 = "0.11"
+crc32fast = "1"
 
 [lints.clippy]
 all = { level = "warn", priority = -1 }

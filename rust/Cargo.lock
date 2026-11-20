@@ -1789,8 +1789,10 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "chrono",
+ "crc32fast",
  "futures-util",
  "http-body-util",
+ "md-5",
  "postie-core",
  "rand 0.10.4",
  "reqwest",

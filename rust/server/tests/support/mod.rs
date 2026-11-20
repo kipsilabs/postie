@@ -2,7 +2,9 @@
 //! Nothing here touches the user's HOME, config or queue.
 #![allow(dead_code)]
 
-use std::collections::HashSet;
+pub mod download;
+
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -47,6 +49,29 @@ pub struct Ctl {
     pub conns: AtomicUsize,
     /// Fail the AUTHINFO PASS exchange.
     pub bad_auth: Mutex<bool>,
+    /// Every accepted article as a server would keep it (headers + body, dot-unstuffed), by Message-ID.
+    pub articles: Mutex<HashMap<String, Vec<u8>>>,
+    pub faults: Mutex<Faults>,
+}
+
+/// One-off failures picked by the 1-based number of the POST that receives them, so a test injects
+/// the same number of faults however the uploads interleave.
+#[derive(Default, Debug)]
+pub struct Faults {
+    /// Answer 240 but keep nothing, as an article lost to propagation.
+    pub lose: HashSet<usize>,
+    /// Answer 441.
+    pub reject: HashSet<usize>,
+    /// Close the connection without answering.
+    pub drop: HashSet<usize>,
+}
+
+#[derive(PartialEq)]
+enum Fault {
+    None,
+    Lose,
+    Reject,
+    Drop,
 }
 
 pub struct Fake {
@@ -67,6 +92,19 @@ impl Fake {
     pub fn stats(&self) -> usize {
         self.ctl.stats.load(Ordering::SeqCst)
     }
+    /// Injects faults into the POSTs numbered in each list (counting every POST received so far).
+    pub fn inject(&self, lose: &[usize], reject: &[usize], drop: &[usize]) {
+        let mut f = self.ctl.faults.lock().unwrap();
+        f.lose.extend(lose);
+        f.reject.extend(reject);
+        f.drop.extend(drop);
+    }
+    pub fn article(&self, id: &str) -> Option<Vec<u8>> {
+        self.ctl.articles.lock().unwrap().get(id).cloned()
+    }
+    pub fn article_ids(&self) -> Vec<String> {
+        self.ctl.articles.lock().unwrap().keys().cloned().collect()
+    }
 }
 
 pub async fn fake_nntp() -> Fake {
@@ -80,6 +118,8 @@ pub async fn fake_nntp() -> Fake {
         stats: AtomicUsize::new(0),
         conns: AtomicUsize::new(0),
         bad_auth: Mutex::new(false),
+        articles: Mutex::new(HashMap::new()),
+        faults: Mutex::new(Faults::default()),
     });
     let c2 = ctl.clone();
     tokio::spawn(async move {
@@ -130,6 +170,7 @@ async fn conn(s: tokio::net::TcpStream, ctl: Arc<Ctl>) {
         } else if up == "POST" {
             let _ = w.write_all(b"340 go\r\n").await;
             let mut id = String::new();
+            let mut article = Vec::new();
             loop {
                 raw.clear();
                 // yEnc bodies are not UTF-8
@@ -145,20 +186,42 @@ async fn conn(s: tokio::net::TcpStream, ctl: Arc<Ctl>) {
                         .trim_matches(['<', '>'])
                         .to_string();
                 }
+                // RFC 3977 dot-stuffing: the server keeps the line without the extra leading dot
+                let line = if raw.starts_with(b"..") {
+                    &raw[1..]
+                } else {
+                    &raw[..]
+                };
+                article.extend_from_slice(line);
             }
-            ctl.posts.fetch_add(1, Ordering::SeqCst);
+            let n = ctl.posts.fetch_add(1, Ordering::SeqCst) + 1;
+            let fault = {
+                let mut f = ctl.faults.lock().unwrap();
+                if f.lose.remove(&n) {
+                    Fault::Lose
+                } else if f.reject.remove(&n) {
+                    Fault::Reject
+                } else if f.drop.remove(&n) {
+                    Fault::Drop
+                } else {
+                    Fault::None
+                }
+            };
             let mode = *ctl.post.lock().unwrap();
-            match mode {
-                PostMode::Accept | PostMode::Delay(_) => {
+            match (fault, mode) {
+                (Fault::Drop, _) | (_, PostMode::DropAfterBody) => return,
+                (Fault::Reject, _) => "441 rejected\r\n".into(),
+                (Fault::Lose, _) => "240 posted\r\n".into(),
+                (Fault::None, PostMode::Accept | PostMode::Delay(_)) => {
                     if let PostMode::Delay(ms) = mode {
                         tokio::time::sleep(Duration::from_millis(ms)).await;
                     }
-                    ctl.stored.lock().unwrap().insert(id);
+                    ctl.stored.lock().unwrap().insert(id.clone());
+                    ctl.articles.lock().unwrap().insert(id, article);
                     "240 posted\r\n".into()
                 }
-                PostMode::Reject(c) => format!("{c} rejected\r\n"),
-                PostMode::DropAfterBody => return,
-                PostMode::Hang => {
+                (Fault::None, PostMode::Reject(c)) => format!("{c} rejected\r\n"),
+                (Fault::None, PostMode::Hang) => {
                     std::future::pending::<()>().await;
                     return;
                 }

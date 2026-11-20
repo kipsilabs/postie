@@ -89,6 +89,16 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
+      - name: Install par2cmdline
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            sudo apt-get update && sudo apt-get install -y par2
+          else
+            brew install par2
+          fi
+          echo "POSTIE_REQUIRE_PAR2=1" >> "$GITHUB_ENV"
       - run: cargo test --workspace --no-fail-fast
 
   # Compile checks run alongside the tests (no `needs`) and use the fast `ci` profile; the

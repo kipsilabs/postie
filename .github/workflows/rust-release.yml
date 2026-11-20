@@ -9,6 +9,36 @@ permissions:
   contents: write
 
 jobs:
+  # The release gate: nothing is published (GitHub release or Docker image) unless the whole suite
+  # passes on every OS, including the round-trip suite (server/tests/roundtrip.rs), which downloads
+  # each upload back, compares it byte for byte and checks its PAR2 set with par2cmdline.
+  test:
+    name: test gate (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Install par2cmdline
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            sudo apt-get update && sudo apt-get install -y par2
+          else
+            brew install par2
+          fi
+          echo "POSTIE_REQUIRE_PAR2=1" >> "$GITHUB_ENV"
+      # Windows runs the same suite; only the external par2cmdline check is skipped there
+      - run: cargo test --workspace --no-fail-fast
+        working-directory: rust
+
   binaries:
     name: binaries (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
@@ -98,6 +128,8 @@ jobs:
 
   docker:
     name: docker image (ghcr.io, release-candidate tag only)
+    # pushes to the registry, so it waits for the test gate
+    needs: [test]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -144,7 +176,7 @@ jobs:
 
   publish:
     name: GitHub pre-release
-    needs: [binaries, desktop, docker]
+    needs: [test, binaries, desktop, docker]
     runs-on: ubuntu-latest
     steps:
       # only the release assets: the run also holds docker's build record (*.dockerbuild),
