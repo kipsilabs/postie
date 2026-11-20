@@ -601,3 +601,42 @@ async fn test_provider_reports_success_and_the_failure_kinds() {
         Err(NntpError::Connect(_) | NntpError::Timeout)
     ));
 }
+
+#[tokio::test]
+async fn sequential_requests_reuse_one_connection_however_many_complete() {
+    // the scaler must release a window slot when a request completes; otherwise after
+    // `capacity` requests every idle worker believes the pool is full and dials a connection
+    let f = fake(Behavior::default()).await;
+    let mut c = cfg(&f);
+    c.connections = 5;
+    c.inflight = 2;
+    let pool = ProviderPool::start(c, None);
+    for i in 0..60 {
+        assert!(pool.stat(&format!("seq{i}@x")).await.unwrap());
+    }
+    assert_eq!(
+        pool.stats().connects,
+        1,
+        "sequential traffic needs one connection"
+    );
+}
+
+#[tokio::test]
+async fn concurrent_posts_still_fan_out_across_connections() {
+    let f = fake(Behavior::default()).await;
+    let mut c = cfg(&f);
+    c.connections = 4;
+    c.inflight = 10;
+    let pool = ProviderPool::start(c, None);
+    let hs: Vec<_> = (0..40)
+        .map(|i| {
+            let p = pool.clone();
+            tokio::spawn(async move { p.post(article(i)).await })
+        })
+        .collect();
+    for h in hs {
+        h.await.unwrap().unwrap();
+    }
+    assert_eq!(f.posts().len(), 40);
+    assert!(pool.stats().connects <= 4);
+}

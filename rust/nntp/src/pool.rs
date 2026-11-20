@@ -125,7 +125,11 @@ impl ProviderPool {
             .send(Request { kind, reply })
             .await
             .map_err(|_| NntpError::Closed)?;
-        self.scaler.notify.notify_waiters();
+        if self.scaler.needs_more() {
+            // only a pool with no free window needs another connection; waking idle workers on
+            // every request would stampede them
+            self.scaler.notify.notify_waiters();
+        }
         rx.await.unwrap_or(Err(NntpError::Closed))
     }
 
@@ -215,9 +219,11 @@ async fn worker(
             notified.await;
             continue;
         };
-        // reserve the new connection's window before dialing so other workers do not pile on
-        scaler.add_capacity(conn_cfg.inflight);
-        scaler.add_used(1);
+        // Reserve nothing while dialing: any reservation makes `needs_more()` false and serializes
+        // ramp-up to one dial at a time. Idle queues do not fan out because workers only wake for a
+        // request they can take (`try_recv`), and the window is published once the connection is up.
+        let window = conn_cfg.inflight.saturating_sub(1);
+        let reserved = 0;
         let mut backoff = cfg.connect_backoff;
         let mut attempt = 0;
         let session = loop {
@@ -237,12 +243,12 @@ async fn worker(
             Ok(s) => s,
             Err(e) => {
                 stats.errors.fetch_add(1, Ordering::Relaxed);
-                scaler.remove_capacity(conn_cfg.inflight);
-                scaler.remove_used(1);
+                scaler.remove_avail(reserved);
                 let _ = first.reply.send(Err(e));
                 continue;
             }
         };
+        scaler.add_avail(window - reserved);
         stats.connects.fetch_add(1, Ordering::Relaxed);
         stats.active_connections.fetch_add(1, Ordering::Relaxed);
         let end = conn::run(
@@ -255,7 +261,6 @@ async fn worker(
         )
         .await;
         stats.active_connections.fetch_sub(1, Ordering::Relaxed);
-        scaler.remove_capacity(conn_cfg.inflight);
         // requests queued while this connection was ending need a worker: wake the others
         scaler.notify.notify_waiters();
         if end == End::QueueClosed {
