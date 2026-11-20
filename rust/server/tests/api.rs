@@ -155,18 +155,25 @@ async fn a_config_saved_during_a_job_is_held_then_applied_when_the_job_finishes(
     assert!(r.status().is_success(), "{}", r.status());
     assert_eq!(web.get("/api/config/pending/status").await, json!(true));
     web.wait_status("p.bin", "complete", 90).await;
-    wait("pending applied or applicable", 30, || async {
-        // either applied on its own, or held until someone applies it
-        let s = web.get("/api/config/pending/status").await;
-        (s == json!(false)).then_some(()).or(Some(()))
-    })
+    // Once no work is active the backend applies the pending config on its own. Only if it is still
+    // held after that window do we apply it by hand; the backend may win that race, so a failed
+    // manual apply is fine as long as nothing is pending afterwards.
+    let applied_on_its_own = async {
+        for _ in 0..30 {
+            if web.get("/api/config/pending/status").await == json!(false) {
+                return true;
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        }
+        false
+    }
     .await;
-    if web.get("/api/config/pending/status").await == json!(true) {
+    if !applied_on_its_own {
+        let r = web.post_json("/api/config/pending/apply", &json!({})).await;
         assert!(
-            web.post_json("/api/config/pending/apply", &json!({}))
-                .await
-                .status()
-                .is_success()
+            r.status().is_success() || web.get("/api/config/pending/status").await == json!(false),
+            "manual apply failed and the config is still pending: {}",
+            r.status()
         );
     }
     assert_eq!(web.get("/api/config").await["posting"]["max_retries"], 7);
