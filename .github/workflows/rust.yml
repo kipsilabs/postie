@@ -67,6 +67,8 @@ jobs:
             }
           skip-extraction: ${{ steps.cargo-cache.outputs.cache-hit }}
       - uses: docker/build-push-action@v6
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: false
         with:
           context: .
           file: docker/Dockerfile

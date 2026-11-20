@@ -129,6 +129,8 @@ jobs:
         run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
       # never tags `latest`: a release candidate must not replace the stable image
       - uses: docker/build-push-action@v6
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: false
         with:
           context: .
           file: docker/Dockerfile
@@ -145,8 +147,16 @@ jobs:
     needs: [binaries, desktop, docker]
     runs-on: ubuntu-latest
     steps:
+      # only the release assets: the run also holds docker's build record (*.dockerbuild),
+      # which download-artifact cannot extract
       - uses: actions/download-artifact@v4
         with:
+          pattern: binaries-*
+          path: artifacts
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
           path: artifacts
           merge-multiple: true
       - name: Create pre-release
