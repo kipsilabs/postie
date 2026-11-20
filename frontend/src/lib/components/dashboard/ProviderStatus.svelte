@@ -11,7 +11,6 @@ import { backend } from "$lib/api/models";
 import { fade } from "$lib/motion";
 import { AlertCircle, WifiOff } from "lucide-svelte";
 import { onDestroy, onMount } from "svelte";
-  import { formatElapsed } from '$lib/utils';
 
 let poolMetrics = $state<backend.NntpPoolMetrics | null>(null);
 let previousByHost = new Map<string, ProviderSnapshot>();
@@ -152,47 +151,12 @@ onDestroy(() => {
 					</div>
 
 					<div class="mt-1.5 flex flex-wrap gap-x-5 gap-y-0.5 text-xs text-base-content/60 tabular-nums">
-						<span>{$t("dashboard.provider.ttfb")}: <span class="text-base-content">{provider.ttfb || "—"}</span></span>
+						<span>{$t("dashboard.provider.uploaded")}: <span class="text-base-content">{provider.bytesUploaded > 0 ? formatBytes(provider.bytesUploaded) : "—"}</span></span>
 						<span>{$t("dashboard.provider.inflight")}: <span class="text-base-content">{provider.inflight}</span></span>
 						<span>{$t("dashboard.provider.missing")}: <span class="text-base-content">{provider.missing.toLocaleString()}</span></span>
 						<span>{$t("dashboard.provider.errors")}: <span class={provider.totalErrors > 0 ? "text-error" : "text-base-content"}>{provider.totalErrors.toLocaleString()}</span></span>
 					</div>
 
-					{#if provider.quotaBytes > 0}
-						{@const quotaRatio = Math.min(1, provider.quotaUsed / provider.quotaBytes)}
-						<div class="mt-2">
-							<div class="flex justify-between items-center gap-2 text-xs mb-1">
-								<span class="text-base-content/60 tabular-nums">
-									{$t("dashboard.provider.quota")}:
-									<span class={provider.quotaExceeded ? "text-error" : "text-base-content"}>
-										{formatBytes(provider.quotaUsed)} / {formatBytes(provider.quotaBytes)}
-									</span>
-									{#if provider.quotaExceeded}
-										<span class="badge badge-soft badge-error badge-xs ml-1">{$t("dashboard.provider.quota_exceeded")}</span>
-									{/if}
-								</span>
-								{#if provider.quotaResetAt}
-									<span class="text-base-content/65">
-										{$t("dashboard.provider.quota_resets")}: {new Date(provider.quotaResetAt).toLocaleString()}
-									</span>
-								{/if}
-							</div>
-							<div
-								class="progress-track"
-								style="height: 0.25rem"
-								role="progressbar"
-								aria-valuenow={Math.round(quotaRatio * 100)}
-								aria-valuemin={0}
-								aria-valuemax={100}
-								aria-label={$t("dashboard.provider.quota")}
-							>
-								<div
-									class="progress-fill"
-									style="transform: scaleX({quotaRatio}){provider.quotaExceeded ? '; background-color: var(--color-error)' : ''}"
-								></div>
-							</div>
-						</div>
-					{/if}
 				</div>
 			{/each}
 
@@ -206,7 +170,6 @@ onDestroy(() => {
 			{@render summaryRow($t("dashboard.provider.upload_speed"), poolMetrics.uploadSpeed > 0 ? formatSpeed(poolMetrics.uploadSpeed) : "—")}
 			{@render summaryRow($t("dashboard.provider.avg_upload_speed"), poolMetrics.uploadAvgSpeed > 0 ? formatSpeed(poolMetrics.uploadAvgSpeed) : "—")}
 			{@render summaryRow($t("dashboard.provider.uploaded"), poolMetrics.bytesUploaded > 0 ? formatBytes(poolMetrics.bytesUploaded) : "—")}
-			{@render summaryRow($t("dashboard.provider.elapsed"), formatElapsed(poolMetrics.elapsed))}
 			{@render summaryRow($t("dashboard.provider.total_errors"), poolMetrics.totalErrors.toLocaleString())}
 		</div>
 	{:else}

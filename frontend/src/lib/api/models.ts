@@ -73,17 +73,10 @@ export namespace backend {
 	    maxConnections: number;
 	    availableSlots: number;
 	    totalErrors: number;
-	    avgSpeed: number;
-	    speedEwma: number;
-	    bytesConsumed: number;
+	    bytesUploaded: number;
+	    articlesPosted: number;
 	    missing: number;
-	    pingRTT: string;
-	    ttfb: string;
 	    inflight: number;
-	    quotaBytes: number;
-	    quotaUsed: number;
-	    quotaResetAt: string;
-	    quotaExceeded: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new NntpProviderMetrics(source);
@@ -97,29 +90,20 @@ export namespace backend {
 	        this.maxConnections = source["maxConnections"];
 	        this.availableSlots = source["availableSlots"];
 	        this.totalErrors = source["totalErrors"];
-	        this.avgSpeed = source["avgSpeed"];
-	        this.speedEwma = source["speedEwma"];
-	        this.bytesConsumed = source["bytesConsumed"];
+	        this.bytesUploaded = source["bytesUploaded"];
+	        this.articlesPosted = source["articlesPosted"];
 	        this.missing = source["missing"];
-	        this.pingRTT = source["pingRTT"];
-	        this.ttfb = source["ttfb"];
 	        this.inflight = source["inflight"];
-	        this.quotaBytes = source["quotaBytes"];
-	        this.quotaUsed = source["quotaUsed"];
-	        this.quotaResetAt = source["quotaResetAt"];
-	        this.quotaExceeded = source["quotaExceeded"];
 	    }
 	}
 	export class NntpPoolMetrics {
 	    timestamp: string;
 	    activeConnections: number;
 	    totalErrors: number;
-	    avgSpeed: number;
-	    bytesConsumed: number;
 	    bytesUploaded: number;
+	    articlesPosted: number;
 	    uploadSpeed: number;
 	    uploadAvgSpeed: number;
-	    elapsed: string;
 	    providerErrors: Record<string, number>;
 	    providers: NntpProviderMetrics[];
 	
@@ -132,12 +116,10 @@ export namespace backend {
 	        this.timestamp = source["timestamp"];
 	        this.activeConnections = source["activeConnections"];
 	        this.totalErrors = source["totalErrors"];
-	        this.avgSpeed = source["avgSpeed"];
-	        this.bytesConsumed = source["bytesConsumed"];
 	        this.bytesUploaded = source["bytesUploaded"];
+	        this.articlesPosted = source["articlesPosted"];
 	        this.uploadSpeed = source["uploadSpeed"];
 	        this.uploadAvgSpeed = source["uploadAvgSpeed"];
-	        this.elapsed = source["elapsed"];
 	        this.providerErrors = source["providerErrors"];
 	        this.providers = this.convertValues(source["providers"], NntpProviderMetrics);
 	    }

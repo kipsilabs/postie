@@ -12,7 +12,6 @@ import { onMount, onDestroy } from "svelte";
 import { Tween } from "svelte/motion";
 import { Activity, AlertCircle, RotateCw } from "lucide-svelte";
 import type { backend } from "$lib/api/models";
-import { formatElapsed } from "$lib/utils";
 
 let metrics = $state<backend.NntpPoolMetrics | null>(null);
 let loading = $state(true);
@@ -85,8 +84,9 @@ function formatNumber(num: number): string {
 
 // Smoothly animated headline values (first value snaps, later ones tween).
 const connectionsTween = new Tween(0);
-const avgSpeedTween = new Tween(0);
+const uploadSpeedTween = new Tween(0);
 const bytesTween = new Tween(0);
+const articlesTween = new Tween(0);
 const errorsTween = new Tween(0);
 let tweenReady = false;
 
@@ -97,8 +97,9 @@ $effect(() => {
 		? { duration: duration("slow"), easing: easing("standard") }
 		: { duration: 0 };
 	connectionsTween.set(next.activeConnections, opts);
-	avgSpeedTween.set(next.avgSpeed, opts);
-	bytesTween.set(next.bytesConsumed, opts);
+	uploadSpeedTween.set(next.uploadSpeed, opts);
+	bytesTween.set(next.bytesUploaded, opts);
+	articlesTween.set(next.articlesPosted, opts);
 	errorsTween.set(next.totalErrors, opts);
 	tweenReady = true;
 });
@@ -177,16 +178,17 @@ $effect(() => {
 				<div class="tile-value">{Math.round(connectionsTween.current)}</div>
 			</div>
 			<div class="tile animate-fade-up anim-delay" style="--i: 1">
-				<div class="tile-title">{$t('metrics.avg_speed')}</div>
-				<div class="tile-value">{formatSpeed(Math.round(avgSpeedTween.current))}</div>
+				<div class="tile-title">{$t('metrics.upload_speed')}</div>
+				<div class="tile-value">{formatSpeed(Math.round(uploadSpeedTween.current))}</div>
+				<div class="tile-desc">{$t('metrics.avg_upload_speed')}: {formatSpeed(Math.round(metrics.uploadAvgSpeed))}</div>
 			</div>
 			<div class="tile animate-fade-up anim-delay" style="--i: 2">
-				<div class="tile-title">{$t('metrics.downloaded')}</div>
+				<div class="tile-title">{$t('metrics.uploaded')}</div>
 				<div class="tile-value">{formatBytes(Math.round(bytesTween.current))}</div>
 			</div>
 			<div class="tile animate-fade-up anim-delay" style="--i: 3">
-				<div class="tile-title">{$t('metrics.elapsed')}</div>
-				<div class="tile-value">{formatElapsed(metrics.elapsed) || "—"}</div>
+				<div class="tile-title">{$t('metrics.articles_posted')}</div>
+				<div class="tile-value">{formatNumber(Math.round(articlesTween.current))}</div>
 			</div>
 			<div class="tile animate-fade-up anim-delay" style="--i: 4">
 				<div class="tile-title">{$t('metrics.total_errors')}</div>
@@ -204,14 +206,10 @@ $effect(() => {
 							<th>{$t('metrics.server_host')}</th>
 							<th>{$t('metrics.connections')}</th>
 							<th>{$t('metrics.free_slots')}</th>
-							<th>{$t('metrics.current_speed')}</th>
-							<th>{$t('metrics.avg_speed')}</th>
-							<th>{$t('metrics.downloaded')}</th>
+							<th>{$t('metrics.uploaded')}</th>
+							<th>{$t('metrics.articles_posted')}</th>
 							<th>{$t('metrics.missing')}</th>
-							<th>{$t('metrics.ttfb')}</th>
-							<th>{$t('metrics.ping_rtt')}</th>
 							<th>{$t('metrics.errors')}</th>
-							<th>{$t('metrics.quota')}</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -220,23 +218,10 @@ $effect(() => {
 								<td class="font-medium">{provider.name || provider.host}</td>
 								<td>{provider.activeConnections}/{provider.maxConnections}</td>
 								<td>{formatNumber(provider.availableSlots)}</td>
-								<td>{provider.speedEwma > 0 ? formatSpeed(provider.speedEwma) : "—"}</td>
-								<td>{formatSpeed(provider.avgSpeed)}</td>
-								<td>{provider.bytesConsumed > 0 ? formatBytes(provider.bytesConsumed) : "—"}</td>
+								<td>{provider.bytesUploaded > 0 ? formatBytes(provider.bytesUploaded) : "—"}</td>
+								<td>{formatNumber(provider.articlesPosted)}</td>
 								<td>{formatNumber(provider.missing)}</td>
-								<td>{provider.ttfb || "—"}</td>
-								<td>{provider.pingRTT || "—"}</td>
 								<td class:text-error={provider.totalErrors > 0}>{formatNumber(provider.totalErrors)}</td>
-								<td class:text-error={provider.quotaExceeded}>
-									{#if provider.quotaBytes > 0}
-										{formatBytes(provider.quotaUsed)} / {formatBytes(provider.quotaBytes)}
-										{#if provider.quotaExceeded}
-											<span class="badge badge-error badge-xs ml-1">{$t('metrics.quota_exceeded')}</span>
-										{/if}
-									{:else}
-										—
-									{/if}
-								</td>
 							</tr>
 						{/each}
 					</tbody>

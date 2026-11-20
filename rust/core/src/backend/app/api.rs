@@ -85,20 +85,12 @@ pub struct NntpProviderMetrics {
     pub max_connections: i64,
     pub available_slots: i64,
     pub total_errors: i64,
-    #[serde(serialize_with = "crate::gofloat::serialize")]
-    pub avg_speed: f64,
-    #[serde(serialize_with = "crate::gofloat::serialize")]
-    pub speed_ewma: f64,
-    pub bytes_consumed: i64,
+    /// Article bytes this provider accepted (`240`) since the pool started.
+    pub bytes_uploaded: i64,
+    pub articles_posted: i64,
+    /// `STAT` answers of `430` (verification found the article missing).
     pub missing: i64,
-    #[serde(rename = "pingRTT")]
-    pub ping_rtt: String,
-    pub ttfb: String,
     pub inflight: i64,
-    pub quota_bytes: i64,
-    pub quota_used: i64,
-    pub quota_reset_at: String,
-    pub quota_exceeded: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -107,15 +99,12 @@ pub struct NntpPoolMetrics {
     pub timestamp: String,
     pub active_connections: i64,
     pub total_errors: i64,
-    #[serde(serialize_with = "crate::gofloat::serialize")]
-    pub avg_speed: f64,
-    pub bytes_consumed: i64,
     pub bytes_uploaded: i64,
+    pub articles_posted: i64,
     #[serde(serialize_with = "crate::gofloat::serialize")]
     pub upload_speed: f64,
     #[serde(serialize_with = "crate::gofloat::serialize")]
     pub upload_avg_speed: f64,
-    pub elapsed: String,
     pub provider_errors: BTreeMap<String, i64>,
     pub providers: Vec<NntpProviderMetrics>,
 }
@@ -577,12 +566,10 @@ impl App {
             timestamp: now.clone(),
             active_connections: 0,
             total_errors: 0,
-            avg_speed: 0.0,
-            bytes_consumed: 0,
             bytes_uploaded: 0,
+            articles_posted: 0,
             upload_speed: 0.0,
             upload_avg_speed: 0.0,
-            elapsed: String::new(),
             provider_errors: BTreeMap::new(),
             providers: vec![],
         };
@@ -611,24 +598,18 @@ impl App {
             .map(|p| {
                 provider_errors.insert(p.name.clone(), p.errors as i64);
                 let srv = servers.iter().find(|s| key(s) == p.name);
+                let max_connections = srv.map_or(0, |s| s.provider_params().connections);
                 NntpProviderMetrics {
                     name: srv.map(|s| s.name.clone()).unwrap_or_default(),
                     host: p.name.clone(),
                     active_connections: p.active_connections as i64,
-                    max_connections: srv.map_or(0, |s| s.provider_params().connections),
-                    available_slots: 0,
+                    max_connections,
+                    available_slots: available_slots(max_connections, p.active_connections),
                     total_errors: p.errors as i64,
-                    avg_speed: 0.0,
-                    speed_ewma: 0.0,
-                    bytes_consumed: 0,
+                    bytes_uploaded: to_i64(p.posted_bytes),
+                    articles_posted: to_i64(p.posted),
                     missing: p.stat_missing as i64,
-                    ping_rtt: "0s".into(),
-                    ttfb: String::new(),
                     inflight: srv.map_or(0, |s| s.provider_params().inflight),
-                    quota_bytes: 0,
-                    quota_used: 0,
-                    quota_reset_at: String::new(),
-                    quota_exceeded: false,
                 }
             })
             .collect();
@@ -636,16 +617,25 @@ impl App {
             timestamp: now,
             active_connections: stats.iter().map(|p| p.active_connections as i64).sum(),
             total_errors: stats.iter().map(|p| p.errors as i64).sum(),
-            avg_speed: 0.0,
-            bytes_consumed: 0,
             bytes_uploaded: up.upload_bytes,
+            articles_posted: stats.iter().map(|p| to_i64(p.posted)).sum(),
             upload_speed: up.upload_speed_bps,
             upload_avg_speed: up.upload_avg_speed_bps,
-            elapsed: "0s".into(),
             provider_errors,
             providers,
         })
     }
+}
+
+fn to_i64(v: u64) -> i64 {
+    i64::try_from(v).unwrap_or(i64::MAX)
+}
+
+/// Connections a provider can still open: the configured limit minus the live ones, never negative
+/// (an unknown provider has a limit of 0).
+fn available_slots(max_connections: i64, active_connections: usize) -> i64 {
+    let active = i64::try_from(active_connections).unwrap_or(i64::MAX);
+    max_connections.saturating_sub(active).max(0)
 }
 
 pub use crate::postie::paths::clean_path;
@@ -653,6 +643,15 @@ pub use crate::postie::paths::clean_path;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn available_slots_is_the_unused_part_of_the_connection_limit() {
+        assert_eq!(available_slots(50, 21), 29);
+        assert_eq!(available_slots(50, 0), 50);
+        assert_eq!(available_slots(50, 50), 0);
+        assert_eq!(available_slots(10, 12), 0, "never negative");
+        assert_eq!(available_slots(0, 3), 0, "unknown provider");
+    }
 
     #[test]
     fn log_lines_count_back_from_the_end() {

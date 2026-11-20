@@ -13,42 +13,33 @@
 			"par2_jobs": "Trabajos PAR2",
 			"queued": "en cola"
 		},
-		
 		"time_period": "Período de Tiempo",
 		"compressed_data": "Datos Comprimidos",
 		"data_source": "Fuente de Datos",
 		"compressed_metrics_title": "Métricas Históricas Comprimidas",
 		"daily_metrics_description": "Ver métricas diarias comprimidas agregadas en períodos de 24 horas. Estos datos están optimizados para almacenamiento y proporcionan información sobre patrones de uso diarios.",
 		"weekly_metrics_description": "Ver métricas semanales comprimidas agregadas en períodos de 7 días. Estos datos muestran tendencias a largo plazo y patrones de uso semanal.",
-		
 		"no_compressed_data_title": "No Hay Datos Comprimidos Disponibles",
 		"no_daily_data_description": "Aún no hay métricas diarias comprimidas disponibles. El sistema necesita tiempo para acumular datos diarios, o la versión de nntppool puede no soportar esta función.",
 		"no_weekly_data_description": "Aún no hay métricas semanales comprimidas disponibles. El sistema necesita tiempo para acumular datos semanales, o la versión de nntppool puede no soportar esta función.",
 		"showing_current_data": "Mostrando datos actuales en tiempo real",
-		
 		"periods": {
 			"current": "Tiempo Real",
 			"daily": "Historial Diario",
 			"weekly": "Historial Semanal"
 		},
-		
 		"active_connections": "Conexiones Activas",
-		"avg_speed": "Velocidad Media",
-		"elapsed": "Tiempo Activo del Pool",
 		"total_errors": "Total de Errores",
 		"missing": "Faltantes",
-		"ping_rtt": "Ping RTT",
 		"errors": "Errores",
 		"connections": "Conexiones",
-		"current_speed": "Velocidad Actual",
-		"ttfb": "TTFB",
-		"downloaded": "Descargado",
 		"free_slots": "Ranuras Libres",
-		"quota": "Cuota",
-		"quota_exceeded": "Excedida",
-
 		"nntp_servers": "Servidores NNTP",
-		"server_host": "Host del Servidor"
+		"server_host": "Host del Servidor",
+		"upload_speed": "Velocidad de Subida",
+		"avg_upload_speed": "Promedio",
+		"uploaded": "Subido",
+		"articles_posted": "Artículos Publicados"
 	},
 	"logs": {
 		"search_placeholder": "Filtrar registros",
