@@ -10,17 +10,19 @@ use tokio::sync::Notify;
 #[derive(Clone, Default)]
 pub struct SlotRunner {
     active: Arc<AtomicUsize>,
-    /// Signalled each time a task finishes so the dispatcher can refill without waiting for its tick.
+    /// Signalled (via [`SlotRunner::signal`]) when a task did real work, so the dispatcher refills
+    /// without waiting for its tick.
     wake: Arc<Notify>,
 }
 
-/// Releases the slot (and wakes the dispatcher) even if the task panics.
+/// Releases the slot even if the task panics. It deliberately does NOT wake the dispatcher: with an
+/// idle queue every task returns at once, and wake-on-finish turns refilling into a busy loop of empty
+/// queue polls. Tasks that processed something call `signal` themselves.
 struct Slot(SlotRunner);
 
 impl Drop for Slot {
     fn drop(&mut self) {
         self.0.active.fetch_sub(1, Ordering::SeqCst);
-        self.0.wake.notify_one();
     }
 }
 
@@ -116,11 +118,14 @@ mod tests {
     async fn a_freed_slot_is_refilled_without_waiting_for_the_others() {
         let s = SlotRunner::new();
         let release = Arc::new(Notify::new());
-        let r = release.clone();
+        let (r, s2) = (release.clone(), s.clone());
         assert_eq!(
             s.fill(2, move || {
-                let r = r.clone();
-                async move { r.notified().await }
+                let (r, s2) = (r.clone(), s2.clone());
+                async move {
+                    r.notified().await;
+                    s2.signal(); // a task that did work wakes the dispatcher (WakeOnDrop)
+                }
             }),
             2
         );
@@ -137,11 +142,30 @@ mod tests {
     async fn a_panicking_task_releases_its_slot() {
         let s = SlotRunner::new();
         s.fill(1, || async { panic!("boom") });
-        tokio::time::timeout(Duration::from_secs(2), s.woken())
-            .await
-            .unwrap();
-        assert_eq!(s.active(), 0);
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while s.active() > 0 {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("slot released after the panic");
         assert_eq!(s.fill(1, || async {}), 1);
+    }
+
+    /// An idle queue makes every task return at once; if finishing woke the dispatcher, it would
+    /// refill, finish and wake again forever (a 100% CPU spin of empty queue polls).
+    #[tokio::test]
+    async fn a_task_finishing_does_not_wake_the_dispatcher_by_itself() {
+        let s = SlotRunner::new();
+        assert_eq!(s.fill(2, || async {}), 2);
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        assert_eq!(s.active(), 0, "slots are released");
+        assert!(
+            tokio::time::timeout(Duration::from_millis(100), s.woken())
+                .await
+                .is_err(),
+            "no wake-up without an explicit signal"
+        );
     }
 
     #[tokio::test]
