@@ -79,8 +79,9 @@ pub struct ProviderPool {
     queue: async_channel::Sender<Request>,
     stats: Arc<ProviderStats>,
     scaler: Arc<Scaler>,
-    /// Until when the client prefers other providers, after this one could not be reached.
-    cooldown: Mutex<Option<Instant>>,
+    /// Until when the client prefers other providers, after this one could not be reached. Set by
+    /// a worker on its first failed connect attempt, so posts route around a dead host at once.
+    cooldown: Arc<Mutex<Option<Instant>>>,
 }
 
 /// How long a provider that could not be reached is tried last.
@@ -98,6 +99,7 @@ impl ProviderPool {
             stall_timeout: cfg.stall_timeout,
         };
         let scaler = Arc::new(Scaler::default());
+        let cooldown = Arc::new(Mutex::new(None));
         for _ in 0..cfg.connections.max(1) {
             tokio::spawn(worker(
                 cfg.clone(),
@@ -106,6 +108,7 @@ impl ProviderPool {
                 stats.clone(),
                 throttle.clone(),
                 scaler.clone(),
+                cooldown.clone(),
             ));
         }
         Arc::new(Self {
@@ -114,7 +117,7 @@ impl ProviderPool {
             queue: tx,
             stats,
             scaler,
-            cooldown: Mutex::new(None),
+            cooldown,
         })
     }
 
@@ -126,7 +129,7 @@ impl ProviderPool {
     }
 
     fn mark_unreachable(&self) {
-        *self.cooldown.lock().unwrap_or_else(|e| e.into_inner()) = Some(Instant::now() + COOLDOWN);
+        set_cooldown(&self.cooldown, true);
     }
 
     pub fn name(&self) -> &str {
@@ -212,6 +215,11 @@ impl ProviderPool {
     }
 }
 
+fn set_cooldown(cooldown: &Mutex<Option<Instant>>, unreachable: bool) {
+    *cooldown.lock().unwrap_or_else(|e| e.into_inner()) =
+        unreachable.then(|| Instant::now() + COOLDOWN);
+}
+
 async fn worker(
     cfg: ProviderConfig,
     conn_cfg: ConnCfg,
@@ -219,6 +227,7 @@ async fn worker(
     stats: Arc<ProviderStats>,
     throttle: Option<Arc<Throttle>>,
     scaler: Arc<Scaler>,
+    cooldown: Arc<Mutex<Option<Instant>>>,
 ) {
     loop {
         // A worker without a connection only wakes when every existing window is full (or there is
@@ -247,7 +256,9 @@ async fn worker(
         let mut attempt = 0;
         let session = loop {
             attempt += 1;
-            match conn::open(&cfg.endpoint).await {
+            let opened = conn::open(&cfg.endpoint).await;
+            set_cooldown(&cooldown, opened.is_err());
+            match opened {
                 Ok(s) => break Ok(s),
                 // bad credentials will not get better with retries
                 Err(e @ NntpError::Auth { .. }) => break Err(e),

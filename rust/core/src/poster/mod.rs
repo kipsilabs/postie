@@ -376,7 +376,7 @@ pub(crate) async fn post_yenc(
     for attempt in 0..POST_ATTEMPTS {
         if attempt > 0 {
             eprintln!(
-                "Retrying article post after stale pooled connection: messageID={} attempt={attempt}",
+                "Retrying article post: messageID={} attempt={attempt}",
                 art.message_id
             );
         }
@@ -386,6 +386,15 @@ pub(crate) async fn post_yenc(
             r = tokio::time::timeout(crate::timeouts::current().post, client.post(wire)) => r,
         };
         match res {
+            // no answer in time: the provider or connection is stuck, so try again (the client
+            // rotates to another provider and routes around unreachable ones)
+            Err(_) if attempt + 1 < POST_ATTEMPTS => {
+                eprintln!(
+                    "Article post timed out, retrying: messageID={} attempt={attempt}",
+                    art.message_id
+                );
+                last = Some(NntpError::Timeout);
+            }
             Err(_) => {
                 return Err(PostError::Other(
                     "posting article timed out: context deadline exceeded".into(),

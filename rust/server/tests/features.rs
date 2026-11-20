@@ -102,26 +102,39 @@ async fn uploads_are_spread_over_two_providers_and_download_back_whole() {
     web.stop().await;
 }
 
-#[tokio::test]
-async fn when_one_of_two_providers_goes_down_uploads_finish_on_the_other() {
+/// One of two providers fails the way `how` sets up; the upload must finish on the other.
+async fn failover(tag: &str, how: impl FnOnce(&Fake)) {
     timeouts::set_for_tests(Timeouts {
-        post: Duration::from_secs(3),
-        stall: Duration::from_secs(2),
-        connect: Duration::from_secs(2),
+        // production proportions (120 s / 120 s / 30 s): the whole connect budget, three
+        // attempts, fits inside one post timeout
+        post: Duration::from_secs(4),
+        stall: Duration::from_secs(4),
+        connect: Duration::from_secs(1),
     });
     let (a, b) = (fake_nntp().await, fake_nntp().await);
-    let dir = temp_dir("ft-failover");
+    let dir = temp_dir(tag);
     let mut cfg = fast_config(&dir, a.addr.port());
     cfg.servers = Some(vec![server(&a, "upload"), server(&b, "upload")]);
     let web = Web::start_with(&dir, cfg).await;
-    b.go_down();
+    how(&b);
     tokio::time::sleep(Duration::from_millis(200)).await;
     let (p, data) = write(&dir.join("src"), "failover.bin", 10 * A);
     add(&web, &p);
-    let item = complete(&web, "failover.bin", 90).await;
+    let item = complete(&web, "failover.bin", 120).await;
     merge_into(&a, &[&b]);
     assert_whole(&item, &a, "failover.bin", &data);
     web.stop().await;
+}
+
+#[tokio::test]
+async fn when_one_of_two_providers_goes_down_uploads_finish_on_the_other() {
+    failover("ft-failover", Fake::go_down).await;
+}
+
+/// A black-holed host: connections open but nothing ever answers, slower than any post timeout.
+#[tokio::test]
+async fn when_one_of_two_providers_never_answers_uploads_finish_on_the_other() {
+    failover("ft-blackhole", |f| f.set_conn(ConnMode::NoGreeting)).await;
 }
 
 #[tokio::test]

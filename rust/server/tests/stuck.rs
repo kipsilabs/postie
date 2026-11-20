@@ -17,9 +17,11 @@ const A: usize = 100_000;
 
 fn short_timeouts() {
     timeouts::set_for_tests(Timeouts {
-        post: Duration::from_secs(3),
-        stall: Duration::from_secs(2),
-        connect: Duration::from_secs(2),
+        // production proportions (120 s / 120 s / 30 s): the whole connect budget, three
+        // attempts, fits inside one post timeout
+        post: Duration::from_secs(4),
+        stall: Duration::from_secs(4),
+        connect: Duration::from_secs(1),
     });
 }
 
@@ -92,7 +94,7 @@ async fn a_server_that_accepts_but_never_greets_fails_the_upload_in_bounded_time
     let web = start("st-greet", &fake).await;
     fake.set_conn(ConnMode::NoGreeting);
     add_file(&web, "greet.bin", 2 * A);
-    assert_error_with_reason(&web, "greet.bin", 60).await;
+    assert_error_with_reason(&web, "greet.bin", 120).await;
     web.stop().await;
 }
 
@@ -108,7 +110,7 @@ async fn a_server_that_never_answers_authentication_fails_the_upload_in_bounded_
     let web = Web::start_with(&dir, cfg).await;
     fake.set_conn(ConnMode::HangAuth);
     add_file(&web, "auth.bin", 2 * A);
-    assert_error_with_reason(&web, "auth.bin", 60).await;
+    assert_error_with_reason(&web, "auth.bin", 120).await;
     web.stop().await;
 }
 
@@ -133,7 +135,7 @@ async fn a_server_that_never_answers_any_post_fails_the_upload_in_bounded_time()
     let web = start("st-hang-all", &fake).await;
     fake.set_post(PostMode::Hang);
     add_file(&web, "hang.bin", 2 * A);
-    assert_error_with_reason(&web, "hang.bin", 60).await;
+    assert_error_with_reason(&web, "hang.bin", 120).await;
     web.stop().await;
 }
 
@@ -155,7 +157,7 @@ async fn a_server_that_is_down_fails_the_upload_with_a_reason_in_bounded_time() 
     // let the listener close before the upload starts
     tokio::time::sleep(Duration::from_millis(200)).await;
     add_file(&web, "down.bin", 2 * A);
-    assert_error_with_reason(&web, "down.bin", 60).await;
+    assert_error_with_reason(&web, "down.bin", 120).await;
     web.stop().await;
 }
 
@@ -233,7 +235,7 @@ async fn a_server_that_goes_silent_then_recovers_lets_the_next_upload_through() 
     let web = start("st-recover", &fake).await;
     fake.set_post(PostMode::Hang);
     add_file(&web, "first.bin", 2 * A);
-    assert_error_with_reason(&web, "first.bin", 60).await;
+    assert_error_with_reason(&web, "first.bin", 120).await;
     fake.set_post(PostMode::Accept);
     let (_, data) = add_file(&web, "second.bin", 4 * A);
     assert_downloads_whole(&web, &fake, "second.bin", &data).await;
