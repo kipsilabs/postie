@@ -813,3 +813,38 @@ fn removing_a_completed_upload_copy_discards_it_unless_another_row_uses_it() {
         }
     }
 }
+
+/// A file the user adds again uploads again once its earlier run finished or failed; only a copy
+/// that is still waiting or uploading is skipped. (Desktop adds files in place, so re-adding the
+/// same path used to do nothing while reporting success.)
+#[test]
+fn a_user_re_add_requeues_finished_or_failed_paths_but_not_active_ones() {
+    let q = queue();
+    q.add_user_file("/a", 10, AddOptions::default()).unwrap();
+    assert!(
+        !q.add_user_file("/a", 10, AddOptions::default()).unwrap(),
+        "still pending"
+    );
+    assert_eq!(n(&q, "goqite"), 1);
+    let r = q.receive_file().unwrap().unwrap();
+    assert!(
+        !q.add_user_file("/a", 10, AddOptions::default()).unwrap(),
+        "uploading"
+    );
+    q.complete_file(&r.msg_id, "/a.nzb", &r.job).unwrap();
+    assert!(
+        q.add_user_file("/a", 10, AddOptions::default()).unwrap(),
+        "finished: queued again"
+    );
+    assert_eq!(n(&q, "goqite"), 1);
+    let r = q.receive_file().unwrap().unwrap();
+    q.mark_as_error(&r.msg_id, &r.job, "x").unwrap();
+    assert!(
+        q.add_user_file("/a", 10, AddOptions::default()).unwrap(),
+        "failed: queued again"
+    );
+    assert_eq!(n(&q, "goqite"), 1);
+    // the watcher path keeps skipping anything it has seen
+    q.add_file("/a", 10).unwrap();
+    assert_eq!(n(&q, "goqite"), 1);
+}

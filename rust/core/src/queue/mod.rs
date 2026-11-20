@@ -233,6 +233,44 @@ impl Queue {
         self.send_job(&Self::new_job(path, size, opts))
     }
 
+    /// A file the user chose (picker, drop, import): queued unless the same path is still pending or
+    /// uploading. Finished or failed runs keep their history and the path uploads again. Returns
+    /// whether it was queued.
+    pub fn add_user_file(&self, path: &str, size: i64, opts: AddOptions) -> Result<bool> {
+        let _guard = self.add_mu.lock().unwrap_or_else(|p| p.into_inner());
+        if self
+            .is_path_active(path)
+            .map_err(|e| QueueError::Msg(format!("failed to check if path is active: {e}")))?
+        {
+            return Ok(false);
+        }
+        self.send_job(&Self::new_job(path, size, &opts))?;
+        Ok(true)
+    }
+
+    /// Whether `path` is waiting in the queue or being uploaded right now.
+    pub fn is_path_active(&self, path: &str) -> Result<bool> {
+        let conn = self.db.lock();
+        for (what, sql) in [
+            (
+                "pending queue",
+                "SELECT COUNT(*) FROM goqite WHERE queue = 'file_jobs' AND job_path = ?1",
+            ),
+            (
+                "in-progress items",
+                "SELECT COUNT(*) FROM in_progress_items WHERE path = ?1",
+            ),
+        ] {
+            let n: i64 = conn
+                .query_row(sql, params![path], |r| r.get(0))
+                .map_err(|e| QueueError::Msg(format!("failed to check {what}: {e}")))?;
+            if n > 0 {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     /// Adds a file unless its path is already tracked anywhere in the queue.
     pub fn add_file(&self, path: &str, size: i64) -> Result<()> {
         self.add(path, size, &AddOptions::default(), true)

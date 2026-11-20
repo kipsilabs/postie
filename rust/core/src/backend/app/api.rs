@@ -330,7 +330,7 @@ impl App {
             return Err("configuration required: Please configure at least one server in the Settings page before uploading files".into());
         }
         let q = self.queue().ok_or("queue not initialized")?;
-        let mut added = 0;
+        let (mut added, mut active) = (0, 0);
         for p in paths {
             let Ok(meta) = std::fs::metadata(p) else {
                 eprintln!("backend: could not get file info for dropped file, skipping: {p}");
@@ -344,23 +344,30 @@ impl App {
                     continue;
                 }
                 let total: i64 = sizes.values().sum();
-                if let Err(e) = q.add_file_with_options(&format!("FOLDER:{p}"), total, options()) {
-                    eprintln!("backend: could not add folder to queue, skipping: {p} ({e})");
-                    continue;
+                match q.add_user_file(&format!("FOLDER:{p}"), total, options()) {
+                    Ok(true) => added += 1,
+                    Ok(false) => active += 1,
+                    Err(e) => {
+                        eprintln!("backend: could not add folder to queue, skipping: {p} ({e})")
+                    }
                 }
-                added += 1;
                 continue;
             }
-            if let Err(e) =
-                q.add_file_with_options(p, i64::try_from(meta.len()).unwrap_or(i64::MAX), options())
-            {
-                eprintln!("backend: could not add dropped file to queue, skipping: {p} ({e})");
-                continue;
+            match q.add_user_file(p, i64::try_from(meta.len()).unwrap_or(i64::MAX), options()) {
+                Ok(true) => added += 1,
+                Ok(false) => active += 1,
+                Err(e) => {
+                    eprintln!("backend: could not add dropped file to queue, skipping: {p} ({e})")
+                }
             }
-            added += 1;
         }
         if added > 0 {
             self.emit("queue-updated", None);
+        }
+        if added == 0 && active > 0 {
+            return Err(
+                "already in the queue: these files are waiting or uploading right now".into(),
+            );
         }
         if added == 0 {
             return Err("no valid files or folders could be added to queue".into());
