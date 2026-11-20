@@ -108,15 +108,27 @@ pub fn router(srv: Arc<Srv>) -> Router {
         .with_state(srv)
 }
 
+/// Go's `path.Clean` for a rooted URL path: always `/`-separated, unlike the OS file-path cleaner
+/// (which uses `\` on Windows and would turn every request into a redirect).
+fn clean_url_path(path: &str) -> String {
+    let mut parts: Vec<&str> = Vec::new();
+    for seg in path.split('/') {
+        match seg {
+            "" | "." => {}
+            ".." => {
+                parts.pop();
+            }
+            s => parts.push(s),
+        }
+    }
+    format!("/{}", parts.join("/"))
+}
+
 /// gorilla/mux's `cleanPath`: a request whose path is not clean (`//`, `.`, `..`) is redirected to the
 /// cleaned path before routing.
 async fn clean_path_redirect(req: Request, next: middleware::Next) -> Response {
     let path = req.uri().path();
-    let mut cleaned = postie_core::backend::app::api::clean_path(&if path.starts_with('/') {
-        path.to_string()
-    } else {
-        format!("/{path}")
-    });
+    let mut cleaned = clean_url_path(path);
     if path.ends_with('/') && cleaned != "/" {
         cleaned.push('/');
     }
@@ -709,6 +721,22 @@ async fn upload_folder(State(srv): S, mut mp: Multipart) -> Response {
     }
     srv.hub.emit_event("upload-complete", json!({"fileCount": count, "folderName": folder_name, "message": "Folder successfully processed and added to queue as single NZB"}));
     ok_empty()
+}
+
+#[cfg(test)]
+mod clean_url_tests {
+    use super::clean_url_path as c;
+
+    #[test]
+    fn matches_go_path_clean_on_every_os() {
+        assert_eq!(c("/api/status"), "/api/status");
+        assert_eq!(c("/"), "/");
+        assert_eq!(c(""), "/");
+        assert_eq!(c("//api//queue"), "/api/queue");
+        assert_eq!(c("/a/./b/../c"), "/a/c");
+        assert_eq!(c("/../x"), "/x");
+        assert_eq!(c("/api/queue/"), "/api/queue");
+    }
 }
 
 #[cfg(test)]
