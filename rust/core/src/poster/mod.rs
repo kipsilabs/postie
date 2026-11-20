@@ -293,6 +293,51 @@ where
 
 /// Builds the wire form of `art` around `body` and posts it, retrying on stale pooled connections.
 /// Shared by uploads and by the durable re-poster so both produce identical headers.
+/// Minimum gap between two post-failure lines in `postie.log`; failures in between are counted.
+const POST_FAILURE_LOG_GAP: Duration = Duration::from_secs(1);
+
+/// Rate limiter for [`log_post_failure`]: `Some(n)` when a line may be written now, `n` being the
+/// failures suppressed since the previous line.
+#[derive(Default)]
+struct FailureLogGate {
+    last: Option<Instant>,
+    suppressed: u64,
+}
+
+impl FailureLogGate {
+    fn admit(&mut self, now: Instant) -> Option<u64> {
+        if self
+            .last
+            .is_some_and(|t| now.duration_since(t) < POST_FAILURE_LOG_GAP)
+        {
+            self.suppressed += 1;
+            return None;
+        }
+        self.last = Some(now);
+        Some(std::mem::take(&mut self.suppressed))
+    }
+}
+
+/// Records a provider-side post failure in `postie.log` (the desktop app has no visible stderr, so
+/// without this a provider refusing connections leaves an upload silently stalled).
+fn log_post_failure(message_id: &str, err: &NntpError) {
+    static GATE: std::sync::OnceLock<Mutex<FailureLogGate>> = std::sync::OnceLock::new();
+    let admitted = GATE
+        .get_or_init(Mutex::default)
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .admit(Instant::now());
+    let Some(suppressed) = admitted else { return };
+    crate::logx::warn(
+        "Article post failed",
+        &[
+            ("messageID", message_id.into()),
+            ("error", err.to_string().into()),
+            ("suppressedSinceLast", suppressed.into()),
+        ],
+    );
+}
+
 pub(crate) async fn post_yenc(
     cancel: &CancellationToken,
     client: &dyn ArticleClient,
@@ -342,6 +387,7 @@ pub(crate) async fn post_yenc(
         }
     }
     if let Some(e) = last {
+        log_post_failure(&art.message_id, &e);
         return Err(PostError::Other(format!("error posting article: {e}")));
     }
     if let Some(s) = stats {
@@ -668,7 +714,16 @@ impl Poster {
                 a
             })
             .collect();
-        let missing = self.filter_missing(ctx, &all).await;
+        // The sweep STATs every recorded article and can take minutes for a large file: show it,
+        // or the job looks stuck (running, no progress, no upload traffic) until posting resumes.
+        let check = self.0.progress.add_progress(
+            Uuid::new_v4(),
+            &format!("{original} (resume check)"),
+            ProgressType::Checking,
+            size,
+        );
+        let missing = self.filter_missing(ctx, &all, Some(&check)).await;
+        self.0.progress.finish_progress(check.id());
         let missing_ids: std::collections::HashSet<&str> =
             missing.iter().map(|a| a.message_id.as_str()).collect();
         for a in all
@@ -694,7 +749,12 @@ impl Poster {
 
     /// STATs articles in batches and returns those NOT confirmed present, in order. A STAT error
     /// counts as missing (re-posting a present article is idempotent).
-    async fn filter_missing(&self, ctx: &CancellationToken, articles: &[Article]) -> Vec<Article> {
+    async fn filter_missing(
+        &self,
+        ctx: &CancellationToken,
+        articles: &[Article],
+        progress: Option<&Progress>,
+    ) -> Vec<Article> {
         if articles.is_empty() {
             return vec![];
         }
@@ -716,6 +776,9 @@ impl Poster {
             }
             if ctx.is_cancelled() {
                 return articles.to_vec(); // a cancelled sweep falls back to re-posting everything
+            }
+            if let Some(p) = progress {
+                p.update_progress(chunk.iter().map(|a| a.size as i64).sum());
             }
             missing.extend(
                 chunk

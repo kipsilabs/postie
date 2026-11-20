@@ -623,6 +623,97 @@ async fn recovery_reposts_only_missing_articles_but_keeps_all_in_the_nzb() {
     );
 }
 
+/// Delegates to a [`Mock`] and records the job's progress entries visible while each STAT runs.
+struct StatProbe {
+    inner: Arc<Mock>,
+    progress: Arc<JobProgress>,
+    seen: Mutex<Vec<(ProgressType, String)>>,
+}
+impl ArticleClient for StatProbe {
+    fn post(&self, article: Vec<u8>) -> BoxFut<'_, Result<(), NntpError>> {
+        self.inner.post(article)
+    }
+    fn stat<'a>(&'a self, message_id: &'a str) -> BoxFut<'a, Result<bool, NntpError>> {
+        let states = self.progress.get_all_progress_state();
+        self.seen
+            .lock()
+            .unwrap()
+            .extend(states.into_iter().map(|s| (s.r#type, s.description)));
+        self.inner.stat(message_id)
+    }
+    fn max_connections(&self) -> usize {
+        self.inner.max_connections()
+    }
+}
+
+#[tokio::test]
+async fn recovery_sweep_shows_a_checking_progress_and_removes_it_afterwards() {
+    let t = Tmp::new();
+    let file = t.file("a.bin", 2000);
+    let mock = Mock::new(2);
+    let recs: Vec<ArticleRecord> = (0..2)
+        .map(|i| ArticleRecord {
+            index: i,
+            source_path: file.to_string_lossy().into_owned(),
+            file_role: "original".into(),
+            offset: i * 1000,
+            body_size: 1000,
+            message_id: format!("old{i}@x"),
+            subject: "s".into(),
+            original_subject: "os".into(),
+            from: "f <f@x.y>".into(),
+            groups: vec!["alt.test".into()],
+            date: chrono::DateTime::parse_from_rfc3339("2023-11-14T22:13:20Z").unwrap(),
+            custom_headers: BTreeMap::new(),
+            xnxg_header: String::new(),
+            file_name: "a.bin".into(),
+            part_number: i + 1,
+            total_parts: 2,
+            file_size: 2000,
+        })
+        .collect();
+    mock.present
+        .lock()
+        .unwrap()
+        .extend(["old0@x".to_string(), "old1@x".to_string()]);
+    let sink = Sink::new(Arc::new(Mutex::new(vec![])));
+    *sink.existing.lock().unwrap() = Some(recs);
+    let progress = Arc::new(JobProgress::new("j"));
+    let probe = Arc::new(StatProbe {
+        inner: mock.clone(),
+        progress: progress.clone(),
+        seen: Mutex::default(),
+    });
+    let p = Poster::new(
+        posting(),
+        check_off(),
+        mock.clone(),
+        probe.clone(),
+        progress.clone(),
+        None,
+        Some(Arc::new(sink)),
+    );
+    p.post(
+        &CancellationToken::new(),
+        std::slice::from_ref(&file),
+        &generator(),
+        None,
+    )
+    .await
+    .unwrap();
+    let seen = probe.seen.lock().unwrap();
+    assert!(!seen.is_empty(), "the sweep STATs the recorded articles");
+    assert!(
+        seen.iter()
+            .all(|(ty, d)| *ty == ProgressType::Checking && d.contains("a.bin")),
+        "a checking indicator is visible during every STAT: {seen:?}"
+    );
+    assert!(
+        progress.get_all_progress_state().is_empty(),
+        "the indicator is removed once the sweep ends"
+    );
+}
+
 fn check_on(max_repost: u64, deferred_ms: i64) -> PostCheck {
     PostCheck {
         enabled: Some(true),
@@ -974,4 +1065,19 @@ async fn a_stalled_file_does_not_block_reads_of_another_file() {
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
     assert_eq!(dead.available_permits(), MAX_READS_PER_FILE);
+}
+
+#[test]
+fn post_failure_logging_is_rate_limited_and_counts_what_it_skipped() {
+    let mut g = FailureLogGate::default();
+    let t0 = Instant::now();
+    assert_eq!(g.admit(t0), Some(0), "first failure is logged");
+    assert_eq!(g.admit(t0 + Duration::from_millis(100)), None);
+    assert_eq!(g.admit(t0 + Duration::from_millis(900)), None);
+    assert_eq!(
+        g.admit(t0 + POST_FAILURE_LOG_GAP),
+        Some(2),
+        "next line reports the two suppressed failures"
+    );
+    assert_eq!(g.admit(t0 + POST_FAILURE_LOG_GAP * 3), Some(0));
 }
