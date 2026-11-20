@@ -26,6 +26,7 @@ pub mod processor;
 pub mod progress;
 pub mod queue;
 pub mod throttle;
+pub mod timeouts;
 pub mod transfercleaner;
 pub mod transferstore;
 pub mod transferwriter;

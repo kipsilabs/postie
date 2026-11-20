@@ -151,8 +151,6 @@ impl Stats {
     }
 }
 
-/// How long one article may take to be accepted before the post fails.
-const POST_TIMEOUT: Duration = Duration::from_secs(120);
 /// A single read that takes longer than this fails the post instead of hanging on a dead mount.
 const READ_STALL_TIMEOUT: Duration = Duration::from_secs(60);
 /// Articles a single file may have read ahead or in flight.
@@ -385,7 +383,7 @@ pub(crate) async fn post_yenc(
         let wire = art.encode(body).map_err(PostError::Other)?;
         let res = tokio::select! {
             () = cancel.cancelled() => return Err(PostError::Canceled),
-            r = tokio::time::timeout(POST_TIMEOUT, client.post(wire)) => r,
+            r = tokio::time::timeout(crate::timeouts::current().post, client.post(wire)) => r,
         };
         match res {
             Err(_) => {

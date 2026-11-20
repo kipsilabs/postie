@@ -96,11 +96,11 @@ fn write_config(dir: &Path, addr: SocketAddr) -> PathBuf {
     p
 }
 
+/// The binary under test: the one cargo built, or `POSTIE_BIN` (the release job points it at the
+/// packaged LTO binary, so what ships is what is tested).
 fn run(args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_postie"))
-        .args(args)
-        .output()
-        .unwrap()
+    let bin = std::env::var("POSTIE_BIN").unwrap_or_else(|_| env!("CARGO_BIN_EXE_postie").into());
+    Command::new(bin).args(args).output().unwrap()
 }
 
 fn file(dir: &Path, name: &str, len: usize) -> PathBuf {

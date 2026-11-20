@@ -38,6 +38,20 @@ pub enum StatMode {
     Stored,
     Missing,
     Code(u16),
+    /// Read the command and never answer.
+    Hang,
+}
+
+/// How a new connection behaves before any command.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ConnMode {
+    Normal,
+    /// Accept the TCP connection and never send the greeting.
+    NoGreeting,
+    /// Greet, then never answer AUTHINFO.
+    HangAuth,
+    /// Answer 340 to POST, then stop reading: the client's writes back up until it gives up.
+    StopReadingBody,
 }
 
 pub struct Ctl {
@@ -52,6 +66,11 @@ pub struct Ctl {
     /// Every accepted article as a server would keep it (headers + body, dot-unstuffed), by Message-ID.
     pub articles: Mutex<HashMap<String, Vec<u8>>>,
     pub faults: Mutex<Faults>,
+    pub conn_mode: Mutex<ConnMode>,
+    /// Set by [`Fake::go_down`]: open connections are cut at their next command.
+    pub down: std::sync::atomic::AtomicBool,
+    /// Servers that receive a copy of every accepted article, as a provider propagating to peers.
+    pub mirrors: Mutex<Vec<Arc<Ctl>>>,
 }
 
 /// One-off failures picked by the 1-based number of the POST that receives them, so a test injects
@@ -64,6 +83,8 @@ pub struct Faults {
     pub reject: HashSet<usize>,
     /// Close the connection without answering.
     pub drop: HashSet<usize>,
+    /// Never answer.
+    pub hang: HashSet<usize>,
 }
 
 #[derive(PartialEq)]
@@ -72,11 +93,13 @@ enum Fault {
     Lose,
     Reject,
     Drop,
+    Hang,
 }
 
 pub struct Fake {
     pub addr: std::net::SocketAddr,
     pub ctl: Arc<Ctl>,
+    accept: tokio::task::AbortHandle,
 }
 
 impl Fake {
@@ -99,6 +122,25 @@ impl Fake {
         f.reject.extend(reject);
         f.drop.extend(drop);
     }
+    /// Never answers the POSTs with these numbers.
+    pub fn hang_posts(&self, posts: &[usize]) {
+        self.ctl.faults.lock().unwrap().hang.extend(posts);
+    }
+    pub fn set_conn(&self, m: ConnMode) {
+        *self.ctl.conn_mode.lock().unwrap() = m;
+    }
+    /// Copies every article this server accepts to `other`, so `other` can answer STAT for it.
+    pub fn propagate_to(&self, other: &Fake) {
+        self.ctl.mirrors.lock().unwrap().push(other.ctl.clone());
+    }
+    /// Takes the server down: new connections are refused and open ones are cut.
+    pub fn go_down(&self) {
+        self.accept.abort();
+        self.ctl.down.store(true, Ordering::SeqCst);
+    }
+    pub fn conns(&self) -> usize {
+        self.ctl.conns.load(Ordering::SeqCst)
+    }
     pub fn article(&self, id: &str) -> Option<Vec<u8>> {
         self.ctl.articles.lock().unwrap().get(id).cloned()
     }
@@ -120,21 +162,32 @@ pub async fn fake_nntp() -> Fake {
         bad_auth: Mutex::new(false),
         articles: Mutex::new(HashMap::new()),
         faults: Mutex::new(Faults::default()),
+        conn_mode: Mutex::new(ConnMode::Normal),
+        down: std::sync::atomic::AtomicBool::new(false),
+        mirrors: Mutex::new(Vec::new()),
     });
     let c2 = ctl.clone();
-    tokio::spawn(async move {
+    let accept = tokio::spawn(async move {
         loop {
             let Ok((s, _)) = l.accept().await else { return };
             c2.conns.fetch_add(1, Ordering::SeqCst);
             tokio::spawn(conn(s, c2.clone()));
         }
-    });
-    Fake { addr, ctl }
+    })
+    .abort_handle();
+    Fake { addr, ctl, accept }
 }
 
 async fn conn(s: tokio::net::TcpStream, ctl: Arc<Ctl>) {
     let (r, mut w) = s.into_split();
     let mut r = BufReader::new(r);
+    let conn_mode = *ctl.conn_mode.lock().unwrap();
+    if conn_mode == ConnMode::NoGreeting {
+        // hold the socket open without a word until the client gives up
+        let mut sink = Vec::new();
+        let _ = tokio::io::AsyncReadExt::read_to_end(&mut r, &mut sink).await;
+        return;
+    }
     let _ = w.write_all(b"200 fake ready\r\n").await;
     let mut raw = Vec::new();
     loop {
@@ -142,10 +195,18 @@ async fn conn(s: tokio::net::TcpStream, ctl: Arc<Ctl>) {
         if r.read_until(b'\n', &mut raw).await.unwrap_or(0) == 0 {
             return;
         }
+        if ctl.down.load(Ordering::SeqCst) {
+            return;
+        }
         let cmd = String::from_utf8_lossy(&raw).trim_end().to_string();
         let up = cmd.to_uppercase();
         if std::env::var_os("FAKE_TRACE").is_some() {
             eprintln!("fake <- {}", &cmd[..cmd.len().min(60)]);
+        }
+        if conn_mode == ConnMode::HangAuth && up.starts_with("AUTHINFO") {
+            let mut sink = Vec::new();
+            let _ = tokio::io::AsyncReadExt::read_to_end(&mut r, &mut sink).await;
+            return;
         }
         let reply: String = if up.starts_with("AUTHINFO USER") {
             "381 pass\r\n".into()
@@ -160,6 +221,10 @@ async fn conn(s: tokio::net::TcpStream, ctl: Arc<Ctl>) {
             let id = cmd[5..].trim().trim_matches(['<', '>']).to_string();
             let mode = *ctl.stat.lock().unwrap();
             match mode {
+                StatMode::Hang => {
+                    std::future::pending::<()>().await;
+                    return;
+                }
                 StatMode::Code(c) => format!("{c} nope\r\n"),
                 StatMode::Missing => "430 no such article\r\n".into(),
                 StatMode::Stored if ctl.stored.lock().unwrap().contains(&id) => {
@@ -169,6 +234,10 @@ async fn conn(s: tokio::net::TcpStream, ctl: Arc<Ctl>) {
             }
         } else if up == "POST" {
             let _ = w.write_all(b"340 go\r\n").await;
+            if *ctl.conn_mode.lock().unwrap() == ConnMode::StopReadingBody {
+                std::future::pending::<()>().await;
+                return;
+            }
             let mut id = String::new();
             let mut article = Vec::new();
             loop {
@@ -203,6 +272,8 @@ async fn conn(s: tokio::net::TcpStream, ctl: Arc<Ctl>) {
                     Fault::Reject
                 } else if f.drop.remove(&n) {
                     Fault::Drop
+                } else if f.hang.remove(&n) {
+                    Fault::Hang
                 } else {
                     Fault::None
                 }
@@ -210,11 +281,22 @@ async fn conn(s: tokio::net::TcpStream, ctl: Arc<Ctl>) {
             let mode = *ctl.post.lock().unwrap();
             match (fault, mode) {
                 (Fault::Drop, _) | (_, PostMode::DropAfterBody) => return,
+                (Fault::Hang, _) => {
+                    std::future::pending::<()>().await;
+                    return;
+                }
                 (Fault::Reject, _) => "441 rejected\r\n".into(),
                 (Fault::Lose, _) => "240 posted\r\n".into(),
                 (Fault::None, PostMode::Accept | PostMode::Delay(_)) => {
                     if let PostMode::Delay(ms) = mode {
                         tokio::time::sleep(Duration::from_millis(ms)).await;
+                    }
+                    for m in ctl.mirrors.lock().unwrap().iter() {
+                        m.stored.lock().unwrap().insert(id.clone());
+                        m.articles
+                            .lock()
+                            .unwrap()
+                            .insert(id.clone(), article.clone());
                     }
                     ctl.stored.lock().unwrap().insert(id.clone());
                     ctl.articles.lock().unwrap().insert(id, article);

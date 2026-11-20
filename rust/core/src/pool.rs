@@ -52,7 +52,10 @@ pub fn provider_config(s: &ServerConfig) -> ProviderConfig {
     endpoint.proxy = (!s.proxy_url.is_empty())
         .then(|| Socks5::parse(&s.proxy_url))
         .flatten();
+    let t = crate::timeouts::current();
+    endpoint.connect_timeout = t.connect;
     let mut c = ProviderConfig::new(endpoint);
+    c.stall_timeout = t.stall;
     c.connections = usize::try_from(params.connections).unwrap_or(10);
     c.inflight = usize::try_from(params.inflight).unwrap_or(10);
     c.idle_timeout = Duration::from_secs(u64::try_from(params.idle_timeout_secs).unwrap_or(300));

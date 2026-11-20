@@ -60,6 +60,11 @@ jobs:
         working-directory: frontend
       - run: cargo build --release -p postie-cli -p postie-web
         working-directory: rust
+      # smoke-test the binary that ships: one-shot upload, rejection and bad-input paths
+      - name: Smoke-test the release binary
+        shell: bash
+        working-directory: rust
+        run: POSTIE_BIN="$PWD/target/release/postie${{ matrix.exe }}" cargo test -p postie-cli --test cli
       - name: Package
         shell: bash
         run: |
