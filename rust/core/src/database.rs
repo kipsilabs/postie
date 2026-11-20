@@ -16,57 +16,57 @@ pub const MIGRATIONS: &[(i64, &str, &str)] = &[
     (
         1,
         "001_initial_schema.sql",
-        include_str!("../../../internal/database/migrations/001_initial_schema.sql"),
+        include_str!("../migrations/001_initial_schema.sql"),
     ),
     (
         2,
         "002_add_script_execution_tracking.sql",
-        include_str!("../../../internal/database/migrations/002_add_script_execution_tracking.sql"),
+        include_str!("../migrations/002_add_script_execution_tracking.sql"),
     ),
     (
         3,
         "003_add_script_first_failure_at.sql",
-        include_str!("../../../internal/database/migrations/003_add_script_first_failure_at.sql"),
+        include_str!("../migrations/003_add_script_first_failure_at.sql"),
     ),
     (
         4,
         "004_add_pending_article_checks.sql",
-        include_str!("../../../internal/database/migrations/004_add_pending_article_checks.sql"),
+        include_str!("../migrations/004_add_pending_article_checks.sql"),
     ),
     (
         5,
         "005_add_in_progress_items.sql",
-        include_str!("../../../internal/database/migrations/005_add_in_progress_items.sql"),
+        include_str!("../migrations/005_add_in_progress_items.sql"),
     ),
     (
         6,
         "006_add_api_keys.sql",
-        include_str!("../../../internal/database/migrations/006_add_api_keys.sql"),
+        include_str!("../migrations/006_add_api_keys.sql"),
     ),
     (
         7,
         "007_add_transfer_files.sql",
-        include_str!("../../../internal/database/migrations/007_add_transfer_files.sql"),
+        include_str!("../migrations/007_add_transfer_files.sql"),
     ),
     (
         8,
         "008_add_check_attempts.sql",
-        include_str!("../../../internal/database/migrations/008_add_check_attempts.sql"),
+        include_str!("../migrations/008_add_check_attempts.sql"),
     ),
     (
         9,
         "009_add_verification_status_index.sql",
-        include_str!("../../../internal/database/migrations/009_add_verification_status_index.sql"),
+        include_str!("../migrations/009_add_verification_status_index.sql"),
     ),
     (
         10,
         "010_add_web_auth.sql",
-        include_str!("../../../internal/database/migrations/010_add_web_auth.sql"),
+        include_str!("../migrations/010_add_web_auth.sql"),
     ),
     (
         11,
         "011_add_goqite_job_columns.sql",
-        include_str!("../../../internal/database/migrations/011_add_goqite_job_columns.sql"),
+        include_str!("../migrations/011_add_goqite_job_columns.sql"),
     ),
 ];
 
@@ -313,10 +313,7 @@ mod tests {
 
     #[test]
     fn embedded_list_matches_the_migrations_directory() {
-        let dir = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../internal/database/migrations"
-        );
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/migrations");
         let mut on_disk: Vec<String> = std::fs::read_dir(dir)
             .unwrap()
             .filter_map(|e| e.ok()?.file_name().into_string().ok())
