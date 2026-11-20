@@ -291,7 +291,11 @@ impl Queue {
     pub fn pending_total_size(&self) -> Result<i64> {
         self.db
             .lock()
-            .query_row("SELECT COALESCE(SUM(CAST(json_extract(body, '$.size') AS INTEGER)), 0) FROM goqite WHERE queue = 'file_jobs'", [], |r| r.get(0))
+            .query_row(
+                "SELECT COALESCE(SUM(job_size), 0) FROM goqite WHERE queue = 'file_jobs'",
+                [],
+                |r| r.get(0),
+            )
             .map_err(|e| QueueError::Msg(format!("failed to compute pending total size: {e}")))
     }
 
@@ -463,7 +467,7 @@ impl Queue {
         for (what, sql) in [
             (
                 "pending queue",
-                "SELECT COUNT(*) FROM goqite WHERE queue = 'file_jobs' AND json_extract(body, '$.path') = ?1",
+                "SELECT COUNT(*) FROM goqite WHERE queue = 'file_jobs' AND job_path = ?1",
             ),
             (
                 "completed items",
@@ -501,7 +505,50 @@ impl Queue {
         p.map_or_else(|| msg(format!("completed item not found: {id}")), Ok)
     }
 
+    /// Runs a `DELETE ... RETURNING <path column>` and returns the paths of the rows it deleted.
+    fn delete_returning_paths(&self, sql: &str, id: Option<&str>) -> Result<Vec<String>> {
+        let conn = self.db.lock();
+        let mut stmt = conn.prepare(sql)?;
+        let rows = stmt.query_map(params![id], |r| r.get::<_, Option<String>>(0))?;
+        Ok(rows
+            .collect::<std::result::Result<Vec<_>, _>>()?
+            .into_iter()
+            .flatten()
+            .collect())
+    }
+
+    /// True when any live row (pending, running, errored or completed) still references `path`.
+    fn path_in_use(&self, path: &str) -> bool {
+        let raw = path.strip_prefix("FOLDER:").unwrap_or(path);
+        let folder = format!("FOLDER:{raw}");
+        let conn = self.db.lock();
+        [
+            "SELECT EXISTS(SELECT 1 FROM in_progress_items WHERE path IN (?1, ?2))",
+            "SELECT EXISTS(SELECT 1 FROM goqite WHERE queue = 'file_jobs' AND job_path IN (?1, ?2))",
+            "SELECT EXISTS(SELECT 1 FROM errored_items WHERE path IN (?1, ?2))",
+            "SELECT EXISTS(SELECT 1 FROM completed_items WHERE path IN (?1, ?2))",
+        ]
+        .iter()
+        // on a query error assume in use: never delete on doubt
+        .any(|sql| {
+            conn.query_row(sql, params![raw, folder], |r| r.get::<_, bool>(0))
+                .unwrap_or(true)
+        })
+    }
+
+    /// Deletes the web-upload temp copies of rows that were just removed, unless another live row
+    /// (notably a job the processor has just started) still references the same path.
+    fn discard_unreferenced(&self, paths: &[String]) {
+        for p in paths {
+            if self.path_in_use(p) {
+                continue;
+            }
+            crate::uploadtemp::discard_copy(p);
+        }
+    }
+
     /// Removes an item from whichever table holds it (completed, errored, in progress, then pending).
+    /// A removed errored/pending/completed item that was a web-upload temp copy has its copy deleted too.
     pub fn remove_from_queue(&self, id: &str) -> Result<()> {
         let exists = |sql: &str| -> Result<bool> {
             Ok(self.db.lock().query_row(sql, params![id], |r| r.get(0))?)
@@ -519,21 +566,26 @@ impl Queue {
                 .map_err(|e| QueueError::Msg(format!("failed to remove in-progress item: {e}")))?;
             return Ok(());
         }
-        Ok(self.q.delete(id)?)
+        let paths = self.delete_returning_paths(
+            "DELETE FROM goqite WHERE queue = 'file_jobs' AND id = ?1 RETURNING job_path",
+            Some(id),
+        )?;
+        self.discard_unreferenced(&paths);
+        Ok(())
     }
 
     /// Removes a completed item, its legacy checks, its durable transfers and its NZB file.
     pub fn remove_completed_item(&self, id: &str) -> Result<()> {
-        let nzb: Option<String> = self
+        let row: Option<(String, Option<String>)> = self
             .db
             .lock()
             .query_row(
-                "SELECT nzb_path FROM completed_items WHERE id = ?1",
+                "SELECT nzb_path, path FROM completed_items WHERE id = ?1",
                 params![id],
-                |r| r.get(0),
+                |r| Ok((r.get(0)?, r.get(1)?)),
             )
             .optional()?;
-        let Some(nzb) = nzb else {
+        let Some((nzb, job_path)) = row else {
             return msg(format!("completed item not found: {id}"));
         };
         self.db
@@ -551,6 +603,8 @@ impl Queue {
             .execute("DELETE FROM completed_items WHERE id = ?1", params![id])
             .map_err(|e| QueueError::Msg(format!("failed to delete completed item: {e}")))?;
         remove_nzb(&nzb);
+        // durable mode keeps the upload copy until verification, which this removal just cancelled
+        self.discard_unreferenced(&job_path.into_iter().collect::<Vec<_>>());
         Ok(())
     }
 
@@ -610,48 +664,56 @@ impl Queue {
     }
 
     pub fn remove_errored_item(&self, id: &str) -> Result<()> {
-        self.db
-            .lock()
-            .execute("DELETE FROM errored_items WHERE id = ?1", params![id])
+        let paths = self
+            .delete_returning_paths(
+                "DELETE FROM errored_items WHERE id = ?1 RETURNING path",
+                Some(id),
+            )
             .map_err(|e| QueueError::Msg(format!("failed to delete errored item: {e}")))?;
+        self.discard_unreferenced(&paths);
         Ok(())
     }
 
-    fn completed_nzb_paths(&self) -> Result<Vec<String>> {
-        let conn = self.db.lock();
-        let mut stmt = conn.prepare("SELECT nzb_path FROM completed_items")?;
-        Ok(stmt
-            .query_map([], |r| r.get(0))?
-            .filter_map(std::result::Result::ok)
-            .collect())
-    }
-
-    fn clear_completed_rows(&self) -> Result<Vec<String>> {
-        let paths = self.completed_nzb_paths()?;
+    /// Deletes every completed row; returns (nzb paths, job paths) of the rows actually deleted.
+    fn clear_completed_rows(&self) -> Result<(Vec<String>, Vec<String>)> {
         self.db
             .lock()
             .execute("DELETE FROM pending_article_checks", [])?;
         self.detach_transfers("completed_item_id IS NOT NULL", None)?;
-        self.db.lock().execute("DELETE FROM completed_items", [])?;
-        Ok(paths)
+        let conn = self.db.lock();
+        let mut stmt = conn.prepare("DELETE FROM completed_items RETURNING nzb_path, path")?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?))
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok((
+            rows.iter().map(|(n, _)| n.clone()).collect(),
+            rows.into_iter().filter_map(|(_, p)| p).collect(),
+        ))
     }
 
     /// Removes all completed, errored and active items.
     pub fn clear_queue(&self) -> Result<()> {
-        let paths = self.clear_completed_rows()?;
-        self.db.lock().execute("DELETE FROM errored_items", [])?;
-        paths.iter().for_each(|p| remove_nzb(p));
-        self.db
-            .lock()
-            .execute("DELETE FROM goqite WHERE queue = 'file_jobs'", [])?;
+        let (nzbs, mut copies) = self.clear_completed_rows()?;
+        copies.extend(self.delete_returning_paths(
+            "DELETE FROM errored_items WHERE (?1 IS NULL OR id = ?1) RETURNING path",
+            None,
+        )?);
+        nzbs.iter().for_each(|p| remove_nzb(p));
+        copies.extend(self.delete_returning_paths(
+            "DELETE FROM goqite WHERE queue = 'file_jobs' AND (?1 IS NULL OR id = ?1) RETURNING job_path",
+            None,
+        )?);
+        self.discard_unreferenced(&copies);
         Ok(())
     }
 
     /// Removes only completed items and their NZB files.
     pub fn clear_completed_items(&self) -> Result<()> {
-        self.clear_completed_rows()?
-            .iter()
-            .for_each(|p| remove_nzb(p));
+        let (nzbs, copies) = self.clear_completed_rows()?;
+        nzbs.iter().for_each(|p| remove_nzb(p));
+        self.discard_unreferenced(&copies);
         Ok(())
     }
 

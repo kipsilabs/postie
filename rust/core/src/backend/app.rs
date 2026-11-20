@@ -319,6 +319,7 @@ impl App {
             return Err("no config file specified".into());
         }
         let cfg = config::load(&path).map_err(|e| e.to_string())?;
+        crate::uploadtemp::register_root(Path::new(&cfg.par2.temp_dir));
         lock(&self.state).config = Some(Arc::new(cfg));
         Ok(())
     }
@@ -403,6 +404,7 @@ impl App {
                 }
             }
         }
+        self.start_upload_sweeper();
         let skip = lock(&self.state).first_start || self.applied_config().is_none();
         if skip {
             crate::logx::info(
@@ -422,6 +424,25 @@ impl App {
         if let Err(e) = self.initialize_watchers() {
             eprintln!("backend: failed to initialize watchers: {e}");
         }
+    }
+
+    /// Hourly sweep of empty web-upload temp dirs (never files), starting at launch.
+    fn start_upload_sweeper(self: &Arc<Self>) {
+        let cancel = self.root.clone();
+        tokio::spawn(async move {
+            loop {
+                match tokio::task::spawn_blocking(crate::uploadtemp::sweep).await {
+                    Ok(n) if n > 0 => {
+                        eprintln!("backend: removed empty upload temp dirs: count={n}");
+                    }
+                    _ => {}
+                }
+                tokio::select! {
+                    () = tokio::time::sleep(crate::uploadtemp::SWEEP_INTERVAL) => {}
+                    () = cancel.cancelled() => return,
+                }
+            }
+        });
     }
 
     /// Port of `eventBroadcaster`: one shared ticker per metric replaces per-client polling. Running jobs

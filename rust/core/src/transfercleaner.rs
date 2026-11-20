@@ -104,7 +104,10 @@ fn remove(path: &str, kind: &str) {
         eprintln!(
             "transfercleaner: failed to remove file during cleanup: kind={kind} path={path} error={e}"
         );
+        return;
     }
+    // web-upload temp copies leave empty `postie-*` dirs behind; no-op for any other path
+    crate::uploadtemp::prune_after_delete(Path::new(path));
 }
 
 impl Cleaner for TransferCleaner {

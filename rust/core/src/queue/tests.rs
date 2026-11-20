@@ -35,7 +35,12 @@ fn fixture(name: &str) -> PathBuf {
 fn go_queue() -> Queue {
     let copy = tempdir().join("go-queue.db");
     std::fs::copy(fixture("go-queue.db"), &copy).unwrap();
-    Queue::without_recovery(Db::new(Connection::open(copy).unwrap()))
+    let db = Db::new(Connection::open(copy).unwrap());
+    // the app migrates at startup; the fixture predates migration 011
+    crate::database::MigrationRunner::new(db.clone())
+        .migrate_up()
+        .unwrap();
+    Queue::without_recovery(db)
 }
 
 /// Every listing the Go queue produced over the same database (all sort/filter/status combinations,
@@ -716,4 +721,95 @@ fn tempdir() -> PathBuf {
     ));
     std::fs::create_dir_all(&p).unwrap();
     p
+}
+
+/// A real upload-copy file (`<temp>/postie-<n>/a.bin`) so the discard logic recognises it.
+fn upload_copy() -> (PathBuf, PathBuf) {
+    let dir = std::env::temp_dir().join(format!("postie-{}", rand::random::<u32>()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let f = dir.join("a.bin");
+    std::fs::write(&f, b"x").unwrap();
+    (dir, f)
+}
+
+fn pending_id(q: &Queue) -> String {
+    q.db()
+        .lock()
+        .query_row("SELECT id FROM goqite WHERE queue = 'file_jobs'", [], |r| {
+            r.get(0)
+        })
+        .unwrap()
+}
+
+#[test]
+fn a_path_that_is_running_is_never_discarded_by_remove_or_clear() {
+    let q = queue();
+    let (dir, f) = upload_copy();
+    let p = f.to_string_lossy().into_owned();
+    q.add_file(&p, 1).unwrap();
+    let _running = q.receive_file().unwrap().unwrap();
+    // the window in receive_file: the job is both running and still pending
+    q.add_file_without_duplicate_check(&p, 1).unwrap();
+    q.remove_from_queue(&pending_id(&q)).unwrap();
+    assert!(
+        f.exists(),
+        "remove_from_queue must not delete a running job's file"
+    );
+    q.add_file_without_duplicate_check(&p, 1).unwrap();
+    q.clear_queue().unwrap();
+    assert!(
+        f.exists(),
+        "clear_queue must not delete a running job's file"
+    );
+    assert_eq!(n(&q, "in_progress_items"), 1);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn removing_pending_or_errored_upload_copies_deletes_them_but_not_user_files() {
+    let q = queue();
+    let (dir, f) = upload_copy();
+    let p = f.to_string_lossy().into_owned();
+    q.add_file(&p, 1).unwrap();
+    q.remove_from_queue(&pending_id(&q)).unwrap();
+    assert!(
+        !f.exists() && !dir.exists(),
+        "copy and its empty upload dir go"
+    );
+
+    let user = tempdir().join("keep.mkv");
+    std::fs::write(&user, b"x").unwrap();
+    q.add_file(&user.to_string_lossy(), 1).unwrap();
+    q.remove_from_queue(&pending_id(&q)).unwrap();
+    q.add_file(&user.to_string_lossy(), 1).unwrap();
+    q.clear_queue().unwrap();
+    assert!(user.exists(), "non-upload files are never deleted");
+    std::fs::remove_dir_all(user.parent().unwrap()).unwrap();
+}
+
+#[test]
+fn removing_a_completed_upload_copy_discards_it_unless_another_row_uses_it() {
+    let q = queue();
+    for mode in ["remove", "clear_completed", "clear_queue"] {
+        let (dir, f) = upload_copy();
+        let p = f.to_string_lossy().into_owned();
+        q.add_file(&p, 1).unwrap();
+        let r = q.receive_file().unwrap().unwrap();
+        q.complete_file(&r.msg_id, "/x.nzb", &r.job).unwrap();
+        // another live row still references the path: keep the copy
+        q.add_file_without_duplicate_check(&p, 1).unwrap();
+        match mode {
+            "remove" => q.remove_from_queue(&r.msg_id).unwrap(),
+            "clear_completed" => q.clear_completed_items().unwrap(),
+            _ => {}
+        }
+        if mode != "clear_queue" {
+            assert!(f.exists(), "{mode}: still referenced by a pending row");
+            q.remove_from_queue(&pending_id(&q)).unwrap();
+            assert!(!f.exists() && !dir.exists(), "{mode}: now unreferenced");
+        } else {
+            q.clear_queue().unwrap();
+            assert!(!f.exists() && !dir.exists(), "{mode}: everything cleared");
+        }
+    }
 }

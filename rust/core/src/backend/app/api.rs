@@ -319,6 +319,20 @@ impl App {
 
     /// Queues dropped/uploaded/imported paths: files individually, directories as one `FOLDER:` job.
     pub fn handle_dropped_files(&self, paths: &[String]) -> Result<(), String> {
+        self.enqueue_dropped(paths, false)
+    }
+
+    /// Like [`Self::handle_dropped_files`] for Postie's own temporary copies of web uploads: the
+    /// copies are deleted once uploaded (after verification in durable mode), so they never pile up.
+    pub fn handle_uploaded_copies(&self, paths: &[String]) -> Result<(), String> {
+        self.enqueue_dropped(paths, true)
+    }
+
+    fn enqueue_dropped(&self, paths: &[String], delete_after: bool) -> Result<(), String> {
+        let options = || AddOptions {
+            delete_original: Some(delete_after),
+            ..Default::default()
+        };
         if paths.is_empty() {
             return Err("no files dropped".into());
         }
@@ -341,14 +355,16 @@ impl App {
                     continue;
                 }
                 let total: i64 = sizes.values().sum();
-                if let Err(e) = q.add_manual_file(&format!("FOLDER:{p}"), total) {
+                if let Err(e) = q.add_file_with_options(&format!("FOLDER:{p}"), total, options()) {
                     eprintln!("backend: could not add folder to queue, skipping: {p} ({e})");
                     continue;
                 }
                 added += 1;
                 continue;
             }
-            if let Err(e) = q.add_manual_file(p, i64::try_from(meta.len()).unwrap_or(i64::MAX)) {
+            if let Err(e) =
+                q.add_file_with_options(p, i64::try_from(meta.len()).unwrap_or(i64::MAX), options())
+            {
                 eprintln!("backend: could not add dropped file to queue, skipping: {p} ({e})");
                 continue;
             }
