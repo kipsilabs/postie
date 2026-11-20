@@ -36,6 +36,30 @@ pub async fn select_folders(app: AppHandle) -> Vec<String> {
     .unwrap_or_default()
 }
 
+#[tauri::command]
+pub async fn select_files(app: AppHandle) -> Vec<String> {
+    let d = app.dialog().file().set_title("Select files to upload");
+    tokio::task::spawn_blocking(move || {
+        d.blocking_pick_files()
+            .map(|v| v.into_iter().filter_map(path_string).collect())
+            .unwrap_or_default()
+    })
+    .await
+    .unwrap_or_default()
+}
+
+/// Queues files picked natively, read in place from disk: no copy, and the originals are kept.
+#[tauri::command]
+pub async fn add_files(app: State<'_, Arc<App>>, paths: Vec<String>) -> Result<(), String> {
+    if paths.is_empty() {
+        return Err("no file paths provided".into());
+    }
+    let app = app.inner().clone();
+    tokio::task::spawn_blocking(move || app.handle_dropped_files(&paths))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 /// Queues folders picked natively (each becomes its own NZB).
 #[tauri::command]
 pub async fn upload_folders(app: State<'_, Arc<App>>, paths: Vec<String>) -> Result<(), String> {
@@ -89,10 +113,15 @@ pub async fn download_nzb(
     let (bytes, name) = tokio::task::spawn_blocking(move || app.get_nzb(&id))
         .await
         .map_err(|e| e.to_string())??;
-    let dialog = handle.dialog().file().set_title("Save NZB File").set_file_name(name);
-    let picked = tokio::task::spawn_blocking(move || dialog.blocking_save_file().and_then(path_string))
-        .await
-        .map_err(|e| e.to_string())?;
+    let dialog = handle
+        .dialog()
+        .file()
+        .set_title("Save NZB File")
+        .set_file_name(name);
+    let picked =
+        tokio::task::spawn_blocking(move || dialog.blocking_save_file().and_then(path_string))
+            .await
+            .map_err(|e| e.to_string())?;
     let Some(dest) = picked else {
         return Ok(());
     };

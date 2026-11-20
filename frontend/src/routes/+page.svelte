@@ -26,6 +26,8 @@ onMount(() => {
 	window.addEventListener("dragleave", handleDragLeave);
 	window.addEventListener("dragover", handleDragOver);
 	window.addEventListener("drop", handleDrop);
+	// Desktop: the shell handles file drags natively (the page gets no drag events) and reports them
+	window.addEventListener(NATIVE_DRAG_EVENT, handleNativeDrag);
 
 	// Listen for file drop events from backend
 	apiClient.on("file-drop-success", () => {
@@ -94,7 +96,17 @@ onDestroy(() => {
 	window.removeEventListener("dragleave", handleDragLeave);
 	window.removeEventListener("dragover", handleDragOver);
 	window.removeEventListener("drop", handleDrop);
+	window.removeEventListener(NATIVE_DRAG_EVENT, handleNativeDrag);
 });
+
+// Must match NATIVE_DRAG_EVENT in rust/desktop/src/main.rs
+const NATIVE_DRAG_EVENT = "postie:native-drag";
+
+function handleNativeDrag(e: Event) {
+	const over = (e as CustomEvent<{ over?: unknown }>).detail?.over === true;
+	isDragOver = over;
+	dragCounter = 0;
+}
 
 function handleDragEnter(e: DragEvent) {
 	e.preventDefault();
@@ -138,6 +150,8 @@ async function handleDrop(e: DragEvent) {
 }
 
 async function handleFileUpload(files: FileList) {
+	// Desktop drops are handled natively by the shell (queued by path), never uploaded
+	if (apiClient.isDesktop) return;
 	try {
 		if (apiClient.environment === "web") {
 			// In web mode, upload files directly via HTTP with progress tracking
@@ -198,7 +212,20 @@ async function handleFileUpload(files: FileList) {
 
 async function handleUpload() {
 	try {
-		// trigger the file input dialog
+		if (apiClient.isDesktop) {
+			// Desktop: pick files natively and queue them by path (read in place, no upload/copy)
+			const paths = await apiClient.selectFiles();
+			if (paths.length === 0) return;
+			await apiClient.addFilePaths(paths);
+			toastStore.success(
+				$t("common.common.success"),
+				$t("common.messages.files_added_description"),
+			);
+			return;
+		}
+
+		// Web: trigger the browser file input and upload the contents
+
 		const input = document.createElement("input");
 		input.type = "file";
 		input.multiple = true;

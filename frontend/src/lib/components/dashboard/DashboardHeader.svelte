@@ -53,7 +53,9 @@ async function fetchInitialPauseStatus() {
 
 onMount(async () => {
   await apiClient.initialize();
-  isWebMode = apiClient.environment === "web";
+  // The desktop page also runs in "web" environment over loopback HTTP; Import (server-side
+  // file browser) only makes sense when the browser is not on the same machine as the files.
+  isWebMode = apiClient.environment === "web" && !apiClient.isDesktop;
 
   await fetchInitialPauseStatus();
 

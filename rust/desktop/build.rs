@@ -3,6 +3,8 @@ fn main() {
     let commands = &[
         "select_folder",
         "select_folders",
+        "select_files",
+        "add_files",
         "upload_folders",
         "select_config_directory",
         "download_nzb",

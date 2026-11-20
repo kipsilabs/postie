@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-select-files"
+description = "Enables the select_files command without any pre-configured scope."
+commands.allow = ["select_files"]
+
+[[permission]]
+identifier = "deny-select-files"
+description = "Denies the select_files command without any pre-configured scope."
+commands.deny = ["select_files"]

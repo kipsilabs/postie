@@ -309,6 +309,28 @@ export class UnifiedClient {
 		throw new Error("No client available");
 	}
 
+	// Desktop only: native file picker returning absolute paths (empty when cancelled)
+	async selectFiles(): Promise<string[]> {
+		await this.initialize();
+
+		if (isTauri()) {
+			return tauriInvoke<string[]>("select_files");
+		}
+
+		return [];
+	}
+
+	// Desktop only: queue files by path; they are read in place, never copied
+	async addFilePaths(paths: string[]): Promise<void> {
+		await this.initialize();
+
+		if (isTauri()) {
+			return tauriInvoke<void>("add_files", { paths });
+		}
+
+		throw new Error("Adding files by path is only available in the desktop app");
+	}
+
 	// Folder upload
 	async selectFolder(): Promise<string | null> {
 		await this.initialize();

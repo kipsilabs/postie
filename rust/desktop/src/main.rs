@@ -31,6 +31,26 @@ struct Backend {
     shutdown: tokio_util::sync::CancellationToken,
 }
 
+/// Name of the DOM event the page listens to for native file drags (`detail.over`: bool).
+const NATIVE_DRAG_EVENT: &str = "postie:native-drag";
+
+/// Whether a native drag event should show (`Some(true)`) or hide (`Some(false)`) the page's drop
+/// overlay; `None` for moves that change nothing.
+fn drag_overlay_state(event: &tauri::DragDropEvent) -> Option<bool> {
+    match event {
+        tauri::DragDropEvent::Enter { paths, .. } => Some(!paths.is_empty()),
+        tauri::DragDropEvent::Over { .. } => None,
+        tauri::DragDropEvent::Drop { .. } | tauri::DragDropEvent::Leave => Some(false),
+        _ => None,
+    }
+}
+
+fn native_drag_script(over: bool) -> String {
+    format!(
+        "window.dispatchEvent(new CustomEvent({NATIVE_DRAG_EVENT:?}, {{ detail: {{ over: {over} }} }}))"
+    )
+}
+
 fn main() {
     let paths = get_app_paths().unwrap_or_else(|_| AppPaths {
         config: "./config.yaml".into(),
@@ -51,6 +71,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             commands::select_folder,
             commands::select_folders,
+            commands::select_files,
+            commands::add_files,
             commands::upload_folders,
             commands::select_config_directory,
             commands::download_nzb,
@@ -87,10 +109,17 @@ fn main() {
                 .build()?;
             // files dropped on the window are queued by path (no copy through HTTP)
             let dropped = app_for_drop;
+            let page = window.clone();
             window.on_window_event(move |event| {
-                if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) =
-                    event
-                {
+                let tauri::WindowEvent::DragDrop(drag) = event else {
+                    return;
+                };
+                // the native handler swallows the page's own drag events, so tell the page when a
+                // file drag is over the window to show its drop overlay
+                if let Some(over) = drag_overlay_state(drag) {
+                    let _ = page.eval(native_drag_script(over));
+                }
+                if let tauri::DragDropEvent::Drop { paths, .. } = drag {
                     let paths: Vec<String> = paths
                         .iter()
                         .map(|p| p.to_string_lossy().into_owned())
@@ -118,4 +147,46 @@ fn main() {
             tauri::async_runtime::block_on(b.app.shutdown());
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn overlay_follows_the_native_drag_lifecycle() {
+        let pos = tauri::PhysicalPosition::new(0.0, 0.0);
+        let file = vec![PathBuf::from("/tmp/a.bin")];
+        let enter = |paths| tauri::DragDropEvent::Enter {
+            paths,
+            position: pos,
+        };
+        assert_eq!(drag_overlay_state(&enter(file.clone())), Some(true));
+        assert_eq!(
+            drag_overlay_state(&enter(vec![])),
+            Some(false),
+            "no files, no overlay"
+        );
+        assert_eq!(
+            drag_overlay_state(&tauri::DragDropEvent::Over { position: pos }),
+            None
+        );
+        assert_eq!(
+            drag_overlay_state(&tauri::DragDropEvent::Leave),
+            Some(false)
+        );
+        let drop = tauri::DragDropEvent::Drop {
+            paths: file,
+            position: pos,
+        };
+        assert_eq!(drag_overlay_state(&drop), Some(false));
+    }
+
+    #[test]
+    fn script_dispatches_the_event_the_page_listens_for() {
+        assert_eq!(
+            native_drag_script(true),
+            r#"window.dispatchEvent(new CustomEvent("postie:native-drag", { detail: { over: true } }))"#
+        );
+    }
 }
