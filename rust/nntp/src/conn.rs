@@ -456,10 +456,23 @@ async fn handle(
             pending.push_front(Pending::AwaitResult(reply));
         }
         Some(Pending::AwaitGo(_, reply)) => {
-            let _ = reply.send(Err(NntpError::PostRejected {
-                code: resp.code,
-                text: resp.text,
-            }));
+            // 440 / 480 / 502 refuse POST itself (this provider, this session), not the article, so
+            // they are classified for failover; anything else stays an article refusal
+            let err = match resp.code {
+                480 => NntpError::Auth {
+                    code: resp.code,
+                    text: resp.text,
+                },
+                440 | 502 => NntpError::Protocol {
+                    code: resp.code,
+                    text: resp.text,
+                },
+                _ => NntpError::PostRejected {
+                    code: resp.code,
+                    text: resp.text,
+                },
+            };
+            let _ = reply.send(Err(err));
         }
         Some(Pending::AwaitResult(reply)) => {
             let _ = reply.send(if resp.code == 240 {

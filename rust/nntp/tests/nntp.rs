@@ -18,6 +18,8 @@ struct Behavior {
     stat_code: Option<u16>,
     /// Drop the connection right after the first POST body (no reply).
     drop_first_post: bool,
+    /// Answer the `POST` command itself with this code instead of `340`.
+    post_cmd_reply: Option<u16>,
     tls: bool,
 }
 
@@ -30,6 +32,7 @@ impl Default for Behavior {
             post_reply: |_| (240, "posted"),
             stat_code: None,
             drop_first_post: false,
+            post_cmd_reply: None,
             tls: false,
         }
     }
@@ -123,6 +126,9 @@ async fn serve_conn<S: AsyncRead + AsyncWrite + Unpin>(
                 let _ = w.write_all(reply.repeat(n).as_bytes()).await;
                 held = 0;
             }
+        } else if up == "POST" && b.post_cmd_reply.is_some() {
+            let c = b.post_cmd_reply.unwrap_or(440);
+            let _ = w.write_all(format!("{c} refused\r\n").as_bytes()).await;
         } else if up == "POST" {
             let _ = w.write_all(b"340 go\r\n").await;
             let mut body = Vec::new();
@@ -700,6 +706,47 @@ async fn a_refused_article_is_not_moved_to_another_provider() {
         "articles routed to the refusing provider fail: {results:?}"
     );
     assert_eq!(other.posts().len(), 2, "and are not re-sent elsewhere");
+}
+
+#[tokio::test]
+async fn a_provider_refusing_post_itself_is_failed_over() {
+    for code in [440u16, 480, 502] {
+        let refusing = fake(Behavior {
+            post_cmd_reply: Some(code),
+            ..Default::default()
+        })
+        .await;
+        let good = fake(Behavior::default()).await;
+        let client = Client::from_configs(vec![cfg(&refusing), cfg(&good)], 0);
+        for r in post_in_turn(&client, 4).await {
+            r.unwrap_or_else(|e| panic!("{code} must move to the healthy provider: {e}"));
+        }
+        assert_eq!(good.posts().len(), 4, "{code}");
+        assert!(refusing.posts().is_empty(), "{code}");
+    }
+}
+
+#[tokio::test]
+async fn a_duplicate_refusal_after_a_dropped_provider_is_confirmed_by_stat() {
+    let dropper = fake(Behavior {
+        drop_first_post: true,
+        ..Default::default()
+    })
+    .await;
+    let keeper = fake(Behavior {
+        post_reply: |_| (441, "dup"),
+        ..Default::default()
+    })
+    .await;
+    let client = Client::from_configs(vec![cfg(&dropper), cfg(&keeper)], 0);
+    // the first article goes to `dropper` (connection lost after the body), then `keeper` answers
+    // 441; its STAT says present, so the article counts as posted
+    let mut with_id = b"Message-ID: <dup-1@test>\r\n".to_vec();
+    with_id.extend(article(1));
+    client
+        .post(with_id)
+        .await
+        .expect("a duplicate after a lost send is confirmed by STAT");
 }
 
 async fn post_in_turn(client: &Client, n: usize) -> Vec<Result<(), postie_nntp::NntpError>> {
