@@ -383,6 +383,39 @@ async fn parallel_folder_mode_also_produces_the_nzb() {
 }
 
 #[tokio::test]
+async fn a_failed_main_upload_cancels_the_parallel_par2_branch() {
+    let (src, out) = (tmp(), tmp());
+    let f = file(&src, "Show/a.bin", 5_000);
+    for folder in [false, true] {
+        let mock = Arc::new(Mock::default());
+        mock.fail_all.store(true, Ordering::SeqCst);
+        let mut p = postie(&cfg(true, false), &mock, None, "");
+        let fake = FakePar2::new(true);
+        p.par2 = fake.clone();
+        let outer = CancellationToken::new();
+        let e = p
+            .post(
+                &outer,
+                std::slice::from_ref(&f),
+                src.to_str().unwrap(),
+                out.to_str().unwrap(),
+                folder,
+            )
+            .await
+            .unwrap_err();
+        assert!(matches!(e, PostieError::Post(_)), "folder={folder}: {e}");
+        assert_eq!(fake.calls.load(Ordering::SeqCst), 1, "folder={folder}");
+        assert!(
+            fake.saw_cancel.load(Ordering::SeqCst),
+            "folder={folder}: PAR2 observed the cancellation"
+        );
+        assert!(!outer.is_cancelled(), "the caller's token is untouched");
+        assert_eq!(mock.posted.load(Ordering::SeqCst), 0);
+        p.close();
+    }
+}
+
+#[tokio::test]
 async fn cancellation_is_reported_as_canceled() {
     let (src, out) = (tmp(), tmp());
     let f = file(&src, "a.bin", 5_000);

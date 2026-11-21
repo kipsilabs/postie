@@ -546,11 +546,13 @@ impl Postie {
         output_dir: &str,
     ) -> Result<PostOutcome, PostieError> {
         let nzb = self.new_generator();
+        // A failed main upload cancels the PAR2 work instead of letting it run to completion.
+        let par2_cancel = &cancel.child_token();
         let par2_branch = async {
             let dir = self.par2_output_dir(root_dir, output_dir, f);
             let res = match self
                 .par2
-                .create_in_directory(cancel, std::slice::from_ref(f), &dir)
+                .create_in_directory(par2_cancel, std::slice::from_ref(f), &dir)
                 .await
             {
                 Ok(r) => r,
@@ -570,7 +572,7 @@ impl Postie {
             }
             if let Err(e) = self
                 .poster
-                .post(cancel, &paths_of(&par2_paths), &nzb, self.pause())
+                .post(par2_cancel, &paths_of(&par2_paths), &nzb, self.pause())
                 .await
             {
                 if !is_canceled(&e) {
@@ -594,6 +596,7 @@ impl Postie {
                     if !is_canceled(&e) {
                         eprintln!("postie: error during upload: {}: {e}", f.path);
                     }
+                    par2_cancel.cancel();
                     Err(if is_canceled(&e) {
                         PostieError::Canceled
                     } else {
@@ -720,13 +723,15 @@ impl Postie {
             });
         }
 
+        // A failed main upload cancels the PAR2 work instead of letting it run to completion.
+        let par2_cancel = &cancel.child_token();
         let par2_branch = async {
             if skip_par2 {
                 return Par2Result::default();
             }
             let res = match self
                 .par2
-                .create_set(cancel, files, &par2_out, &folder, &folder_dir)
+                .create_set(par2_cancel, files, &par2_out, &folder, &folder_dir)
                 .await
             {
                 Ok(r) => r,
@@ -747,7 +752,7 @@ impl Postie {
             if let Err(e) = self
                 .poster
                 .post_with_relative_paths(
-                    cancel,
+                    par2_cancel,
                     &paths_of(&par2_paths),
                     &nzb,
                     &HashMap::new(),
@@ -782,6 +787,7 @@ impl Postie {
                     if !is_canceled(&e) {
                         eprintln!("postie: error during folder upload: folder={folder}: {e}");
                     }
+                    par2_cancel.cancel();
                     Err(if is_canceled(&e) {
                         PostieError::Canceled
                     } else {
