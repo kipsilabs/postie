@@ -373,6 +373,9 @@ pub(crate) async fn post_yenc(
         t.wait(art.size as i64).await;
     }
     let mut last: Option<NntpError> = None;
+    // an earlier attempt ended without a verdict (connection lost, timed out), so the server may
+    // already hold the article
+    let mut outcome_unknown = false;
     for attempt in 0..POST_ATTEMPTS {
         if attempt > 0 {
             eprintln!(
@@ -394,6 +397,7 @@ pub(crate) async fn post_yenc(
                     art.message_id
                 );
                 last = Some(NntpError::Timeout);
+                outcome_unknown = true;
             }
             Err(_) => {
                 return Err(PostError::Other(
@@ -408,6 +412,19 @@ pub(crate) async fn post_yenc(
                 break;
             }
             Ok(Err(e)) => {
+                // a refusal of a resend (typically 441 duplicate) means the earlier attempt landed
+                // after all: trust that only when STAT confirms the article is there
+                if outcome_unknown
+                    && matches!(e, NntpError::PostRejected { .. })
+                    && matches!(client.stat(&art.message_id).await, Ok(true))
+                {
+                    if let Some(m) = meter {
+                        m.record(body.len() as i64);
+                    }
+                    last = None;
+                    break;
+                }
+                outcome_unknown |= matches!(e, NntpError::Disconnected | NntpError::Timeout);
                 let retry = e.is_retryable() && !matches!(e, NntpError::Connect(_));
                 last = Some(e);
                 if !retry {

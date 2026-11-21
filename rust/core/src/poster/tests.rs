@@ -1176,3 +1176,104 @@ async fn a_multi_file_post_shows_one_overall_row_and_hides_single_article_rows()
         "all rows are removed at the end"
     );
 }
+
+/// Loses the connection on the first send of an id (the server may still have kept it), then
+/// answers `441` to every resend; `stat` answers `stat_answer`.
+struct DupClient {
+    seen: Mutex<HashSet<String>>,
+    stat_answer: bool,
+}
+
+impl ArticleClient for DupClient {
+    fn post(&self, article: Vec<u8>) -> BoxFut<'_, Result<(), NntpError>> {
+        Box::pin(async move {
+            let id = header(&article, "Message-ID");
+            if self.seen.lock().unwrap().insert(id) {
+                return Err(NntpError::Disconnected);
+            }
+            Err(NntpError::PostRejected {
+                code: 441,
+                text: "435 Duplicate".into(),
+            })
+        })
+    }
+    fn stat<'a>(&'a self, _id: &'a str) -> BoxFut<'a, Result<bool, NntpError>> {
+        Box::pin(async move { Ok(self.stat_answer) })
+    }
+    fn max_connections(&self) -> usize {
+        1
+    }
+}
+
+/// Answers `441` to every send; `stat` says present.
+struct AlwaysDuplicate;
+
+impl ArticleClient for AlwaysDuplicate {
+    fn post(&self, _a: Vec<u8>) -> BoxFut<'_, Result<(), NntpError>> {
+        Box::pin(async {
+            Err(NntpError::PostRejected {
+                code: 441,
+                text: "dup".into(),
+            })
+        })
+    }
+    fn stat<'a>(&'a self, _id: &'a str) -> BoxFut<'a, Result<bool, NntpError>> {
+        Box::pin(async { Ok(true) })
+    }
+    fn max_connections(&self) -> usize {
+        1
+    }
+}
+
+fn poster_over(c: Arc<dyn ArticleClient>) -> Poster {
+    Poster::new(
+        posting(),
+        check_off(),
+        c.clone(),
+        c,
+        Arc::new(JobProgress::new("j")),
+        None,
+        None,
+    )
+}
+
+async fn post_one(p: &Poster, t: &Tmp) -> Result<(), PostError> {
+    p.post(
+        &CancellationToken::new(),
+        &[t.file("a.bin", 500)],
+        &generator(),
+        None,
+    )
+    .await
+    .map(|_| ())
+}
+
+#[tokio::test]
+async fn a_duplicate_reply_to_a_resend_counts_as_posted_when_stat_confirms_it() {
+    let t = Tmp::new();
+    let c = Arc::new(DupClient {
+        seen: Mutex::default(),
+        stat_answer: true,
+    });
+    post_one(&poster_over(c), &t)
+        .await
+        .expect("the first send landed, so the resend's 441 is not a failure");
+}
+
+#[tokio::test]
+async fn a_duplicate_reply_to_a_resend_still_fails_when_stat_misses_it() {
+    let t = Tmp::new();
+    let c = Arc::new(DupClient {
+        seen: Mutex::default(),
+        stat_answer: false,
+    });
+    let r = post_one(&poster_over(c), &t).await;
+    assert!(r.is_err(), "unconfirmed duplicate must fail: {r:?}");
+}
+
+#[tokio::test]
+async fn a_duplicate_reply_on_a_first_attempt_fails_even_if_stat_says_present() {
+    let t = Tmp::new();
+    let r = post_one(&poster_over(Arc::new(AlwaysDuplicate)), &t).await;
+    assert!(r.is_err(), "a fresh 441 is not success: {r:?}");
+}

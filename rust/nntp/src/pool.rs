@@ -312,6 +312,23 @@ fn fails_over(e: &NntpError) -> bool {
     e.is_retryable() || matches!(e, NntpError::Auth { .. } | NntpError::Protocol { .. })
 }
 
+/// The `Message-ID` header value of a wire article, without angle brackets.
+fn header_message_id(article: &[u8]) -> Option<String> {
+    let head_end = article
+        .windows(4)
+        .position(|w| w == b"\r\n\r\n")
+        .unwrap_or(article.len());
+    String::from_utf8_lossy(&article[..head_end])
+        .lines()
+        .find_map(|l| {
+            let (k, v) = l.split_once(':')?;
+            k.trim()
+                .eq_ignore_ascii_case("message-id")
+                .then(|| v.trim().trim_matches(['<', '>']).to_string())
+        })
+        .filter(|id| !id.is_empty())
+}
+
 impl Client {
     pub fn new(providers: Vec<Arc<ProviderPool>>) -> Self {
         Self::with_throttle(providers, None)
@@ -366,16 +383,23 @@ impl Client {
 
     /// Posts via the next provider in rotation. When that provider cannot be reached, drops the
     /// connection, times out or refuses the session, the article goes to the next one, so a single
-    /// broken provider never fails an upload the others can carry. A refused article (`441`) is not
-    /// moved: that is about the article, not the provider. Unreachable providers are tried last for
+    /// broken provider never fails an upload the others can carry (this includes a provider that
+    /// refuses `POST` itself with 440/480/502). A refused article (`441`) is not moved: that is
+    /// about the article, not the provider, except that after an earlier provider dropped or timed
+    /// out mid-post, a refusal is checked with `STAT` and counts as posted if the article exists. Unreachable providers are tried last for
     /// a while, so articles do not keep waiting on them.
     pub async fn post(&self, article: Vec<u8>) -> Result<(), NntpError> {
         let order = self.post_order();
         let Some(last_idx) = order.len().checked_sub(1) else {
             return Err(NntpError::Closed);
         };
+        let message_id = (order.len() > 1)
+            .then(|| header_message_id(&article))
+            .flatten();
         let mut article = Some(article);
         let mut last_err = NntpError::Closed;
+        // an earlier provider dropped or timed out mid-post, so it may have accepted the article
+        let mut outcome_unknown = false;
         for (i, p) in order.iter().enumerate() {
             // only multi-provider setups pay for a copy, and only while a fallback remains
             let body = if i == last_idx {
@@ -389,7 +413,17 @@ impl Client {
                     if matches!(e, NntpError::Connect(_)) {
                         p.mark_unreachable();
                     }
+                    outcome_unknown |= matches!(e, NntpError::Disconnected | NntpError::Timeout);
                     last_err = e;
+                }
+                // a duplicate refusal after an unknown outcome means the earlier provider kept it
+                Err(e @ NntpError::PostRejected { .. }) if outcome_unknown => {
+                    if let Some(id) = &message_id
+                        && matches!(self.stat(id).await, Ok(true))
+                    {
+                        return Ok(());
+                    }
+                    return Err(e);
                 }
                 Err(e) => return Err(e),
             }
