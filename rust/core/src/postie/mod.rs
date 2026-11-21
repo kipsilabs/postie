@@ -488,11 +488,10 @@ impl Postie {
                             "postie: error during par2 creation. Upload will continue without par2: {e}"
                         ));
                     }
-                    return Err(if e == ExecError::Cancelled {
-                        PostieError::Canceled
-                    } else {
-                        PostieError::Msg(e.to_string())
-                    });
+                    if e == ExecError::Cancelled {
+                        return Err(PostieError::Canceled);
+                    }
+                    Par2Result::default()
                 }
             };
             self.track_generated(&par2_res);

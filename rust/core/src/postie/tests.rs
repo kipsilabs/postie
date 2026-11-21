@@ -111,6 +111,68 @@ fn nzb_text(p: &str) -> String {
     std::fs::read_to_string(p).unwrap()
 }
 
+/// A PAR2 executor double: fails immediately, or blocks until its cancel token fires.
+struct FakePar2 {
+    block_until_cancelled: bool,
+    saw_cancel: AtomicBool,
+    calls: AtomicUsize,
+}
+
+impl FakePar2 {
+    fn new(block_until_cancelled: bool) -> Arc<Self> {
+        Arc::new(Self {
+            block_until_cancelled,
+            saw_cancel: AtomicBool::new(false),
+            calls: AtomicUsize::new(0),
+        })
+    }
+
+    fn run<'a>(
+        &'a self,
+        cancel: &'a CancellationToken,
+    ) -> BoxFut<'a, Result<Par2Result, ExecError>> {
+        Box::pin(async move {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            if !self.block_until_cancelled {
+                return Err(ExecError::Msg("par2 exploded".into()));
+            }
+            tokio::time::timeout(std::time::Duration::from_secs(30), cancel.cancelled())
+                .await
+                .map_err(|_| ExecError::Msg("never cancelled".into()))?;
+            self.saw_cancel.store(true, Ordering::SeqCst);
+            Err(ExecError::Cancelled)
+        })
+    }
+}
+
+impl Par2Executor for FakePar2 {
+    fn create<'a>(
+        &'a self,
+        cancel: &'a CancellationToken,
+        _: &'a [FileInfo],
+    ) -> BoxFut<'a, Result<Par2Result, ExecError>> {
+        self.run(cancel)
+    }
+    fn create_in_directory<'a>(
+        &'a self,
+        cancel: &'a CancellationToken,
+        _: &'a [FileInfo],
+        _: &'a str,
+    ) -> BoxFut<'a, Result<Par2Result, ExecError>> {
+        self.run(cancel)
+    }
+    fn create_set<'a>(
+        &'a self,
+        cancel: &'a CancellationToken,
+        _: &'a [FileInfo],
+        _: &'a str,
+        _: &'a str,
+        _: &'a str,
+    ) -> BoxFut<'a, Result<Par2Result, ExecError>> {
+        self.run(cancel)
+    }
+}
+
 #[tokio::test]
 async fn one_nzb_per_file_with_par2_posted_and_cleaned_up_in_standalone_mode() {
     let (src, out) = (tmp(), tmp());
@@ -178,6 +240,33 @@ async fn maintain_par2_writes_them_to_the_output_dir_and_keeps_them() {
         o.nzb_path
     );
     assert!(out.join("sub/a.bin.par2").exists());
+}
+
+#[tokio::test]
+async fn par2_creation_failure_does_not_fail_the_upload_in_any_mode() {
+    let (src, out) = (tmp(), tmp());
+    let f = file(&src, "a.bin", 5_000);
+    for wait in [true, false] {
+        let mock = Arc::new(Mock::default());
+        let mut p = postie(&cfg(true, wait), &mock, None, "");
+        let fake = FakePar2::new(false);
+        p.par2 = fake.clone();
+        let o = p
+            .post(
+                &CancellationToken::new(),
+                std::slice::from_ref(&f),
+                src.to_str().unwrap(),
+                out.to_str().unwrap(),
+                false,
+            )
+            .await
+            .unwrap();
+        assert_eq!(fake.calls.load(Ordering::SeqCst), 1, "wait={wait}");
+        let nzb = nzb_text(&o.nzb_path);
+        assert!(nzb.contains("a.bin"), "wait={wait}");
+        assert!(!nzb.contains(".par2"), "wait={wait}: only the source file");
+        p.close();
+    }
 }
 
 #[tokio::test]
