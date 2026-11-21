@@ -26,7 +26,7 @@ let { config = $bindable() }: ComponentProps = $props();
 let maxRetries = $state(config.posting.max_retries || 3);
 let retryDelay = $state(config.posting.retry_delay || "5s");
 let articleSizeInBytes = $state(config.posting.article_size_in_bytes || 750000);
-let waitForPar2 = $state(config.posting.wait_for_par2 ?? true);
+let waitForPar2 = $state(config.posting.wait_for_par2 ?? false);
 let groups = $state(
 	config.posting.groups?.length > 0 
 		? [...config.posting.groups] 

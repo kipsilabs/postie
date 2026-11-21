@@ -324,7 +324,7 @@ impl Postie {
     }
 
     fn wait_for_par2(&self) -> bool {
-        self.posting_cfg.wait_for_par2.unwrap_or(true)
+        self.posting_cfg.wait_for_par2.unwrap_or(false)
     }
 
     fn par2_enabled(&self) -> bool {

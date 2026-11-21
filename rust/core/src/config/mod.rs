@@ -486,7 +486,7 @@ pub fn default_config() -> ConfigData {
             health_check_interval: Duration::new("1m"),
         },
         posting: PostingConfig {
-            wait_for_par2: some_bool(true),
+            wait_for_par2: some_bool(false),
             max_retries: 3,
             retry_delay: Duration::new("5s"),
             article_size_in_bytes: 768_000, // 768KB
@@ -819,11 +819,12 @@ impl ConfigData {
             cfg.par2.enabled = Some(true);
         }
         match cfg.posting.wait_for_par2 {
-            None => cfg.posting.wait_for_par2 = Some(true),
+            // unlike Go: PAR2 overlaps the upload unless the config asks to wait (or has no PAR2)
+            None => cfg.posting.wait_for_par2 = Some(cfg.par2.enabled == Some(false)),
             Some(false) if cfg.par2.enabled == Some(false) => {
                 cfg.posting.wait_for_par2 = Some(true)
             }
-            Some(false) => {} // par2 runs in parallel with the upload (at the user's risk)
+            Some(false) => {} // par2 runs in parallel with the upload
             Some(true) => {}
         }
         if cfg.post_check.enabled.is_none() {
@@ -1018,6 +1019,27 @@ mod tests {
         config: Value,
         #[serde(default)]
         error: String,
+    }
+
+    /// Postie departs from Go here on purpose: a config that does not say otherwise creates PAR2 while
+    /// the upload runs instead of before it, so the uplink is not idle during parity creation.
+    #[test]
+    fn a_config_without_wait_for_par2_overlaps_par2_with_the_upload() {
+        const BASE: &str = "servers:\n  - host: news.example.com\n    port: 563\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\n";
+        assert_eq!(default_config().posting.wait_for_par2, Some(false));
+        assert_eq!(load_str(BASE).unwrap().posting.wait_for_par2, Some(false));
+        let explicit = format!("{BASE}  wait_for_par2: true\n");
+        assert_eq!(
+            load_str(&explicit).unwrap().posting.wait_for_par2,
+            Some(true),
+            "a saved choice is kept"
+        );
+        let no_par2 = format!("{BASE}par2:\n  enabled: false\n");
+        assert_eq!(
+            load_str(&no_par2).unwrap().posting.wait_for_par2,
+            Some(true),
+            "nothing to overlap without PAR2"
+        );
     }
 
     /// Every case recorded from Go's `config.Load` (YAML in, JSON config or error text out).
