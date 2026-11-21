@@ -119,7 +119,7 @@ watchers:
     delete_original_file: false # Delete source files after successful upload
     single_nzb_per_folder: false # Create one NZB per folder instead of per file (default: false)
     follow_symlinks: false # Follow symbolic links during directory scanning (default: false)
-    min_file_age: 60s # Min time since last modification before processing (default: 60s)
+    min_file_age: 60s # Min time since last modification before processing (default: 60s; 0s = no wait)
     min_file_age_to_delete: 0s # Min time after upload before deleting source file (default: 0s)
 
 # Database configuration (used for queue persistence)
@@ -318,7 +318,7 @@ watchers:
     delete_original_file: false # Delete source files after upload
     single_nzb_per_folder: false # Create one NZB per folder instead of per file (default: false)
     follow_symlinks: false # Follow symbolic links during scanning (default: false)
-    min_file_age: 60s # Min time since last modification before processing (default: 60s)
+    min_file_age: 60s # Min time since last modification before processing (default: 60s; 0s = no wait)
     min_file_age_to_delete: 0s # Min time after upload before deleting source (default: 0s; requires delete_original_file: true)
 ```
 

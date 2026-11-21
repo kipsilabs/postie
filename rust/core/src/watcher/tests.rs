@@ -554,3 +554,26 @@ async fn the_loop_scans_on_its_interval_and_stops_on_cancel() {
     tokio::time::sleep(Duration::from_millis(200)).await;
     assert_eq!(q.added.lock().unwrap().len(), 2);
 }
+
+#[test]
+fn a_min_file_age_of_zero_means_no_wait_and_an_unset_one_means_the_default() {
+    let (w, q, _, dir) = setup(WatcherConfig {
+        min_file_age: D::new("0s"),
+        ..cfg()
+    });
+    write(&dir, "fresh.bin", 50);
+    scan_twice(&w);
+    assert_eq!(added(&q).len(), 1, "0s uploads a fresh file at once");
+    for unset in ["", "not a duration"] {
+        let (w, q, _, dir) = setup(WatcherConfig {
+            min_file_age: D::new(unset),
+            ..cfg()
+        });
+        write(&dir, "fresh.bin", 50);
+        scan_twice(&w);
+        assert!(
+            added(&q).is_empty(),
+            "{unset:?} falls back to the 60 s default"
+        );
+    }
+}

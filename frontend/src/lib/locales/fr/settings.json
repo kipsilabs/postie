@@ -160,7 +160,7 @@
 			"check_interval": "Intervalle de Vérification",
 			"check_interval_description": "Fréquence de recherche de nouveaux fichiers",
 			"min_file_age": "Âge Minimum du Fichier",
-			"min_file_age_description": "Durée minimale depuis la dernière modification avant qu'un fichier soit éligible à l'envoi. Évite d'envoyer des fichiers encore en cours d'écriture (ex. copies lentes, torrents).",
+			"min_file_age_description": "Durée minimale depuis la dernière modification avant qu'un fichier soit éligible à l'envoi. Évite d'envoyer des fichiers encore en cours d'écriture (ex. copies lentes, torrents). 0s = aucune attente.",
 			"min_file_age_to_delete": "Âge Minimum avant Suppression",
 			"min_file_age_to_delete_description": "Durée minimale d'attente après un envoi réussi avant de supprimer le fichier original. Utile lorsqu'un outil en aval (ex. AltMount) a besoin de temps pour traiter le NZB avant que le fichier disparaisse. Nécessite l'option 'Supprimer le fichier original'. Par défaut : 0s.",
 			"size_threshold": "Seuil de Taille",

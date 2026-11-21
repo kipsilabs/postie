@@ -247,7 +247,7 @@ async fn the_watcher_uploads_new_files_skips_ignored_and_small_ones_and_deletes_
     w.name = "test".into();
     w.watch_directory = watch.to_string_lossy().into_owned();
     w.check_interval = config::Duration::new("1s");
-    w.min_file_age = config::Duration::new("1s"); // 0 means the 60 s default
+    w.min_file_age = config::Duration::new("0s"); // no wait
     w.min_file_size = 1000;
     w.ignore_patterns = Some(vec!["*.tmp".into()]);
     w.delete_original_file = true;

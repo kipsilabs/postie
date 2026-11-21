@@ -12,7 +12,7 @@ use chrono::{DateTime, Local, NaiveTime, TimeZone};
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 
-use crate::config::{Par2Config, WatcherConfig};
+use crate::config::{Par2Config, WatcherConfig, duration};
 use crate::par2::existing::reusable_set_for;
 use crate::par2::{existing::set_source_for, is_par2_file};
 use crate::queue::{AddOptions, Queue};
@@ -370,11 +370,12 @@ impl Watcher {
         self.passes_filters(path, meta.len()) && self.is_file_stable(path, meta)
     }
 
-    /// Stable = untouched for `min_file_age` (default 60 s) and the same size as at the previous scan.
+    /// Stable = untouched for `min_file_age` and the same size as at the previous scan. An explicit
+    /// `0s` means no wait; an unset or invalid value means the 60 s default.
     fn is_file_stable(&self, path: &str, meta: &std::fs::Metadata) -> bool {
-        let min_age = u64::try_from(self.cfg.min_file_age.nanos())
+        let min_age = duration::parse_duration(&self.cfg.min_file_age.0)
             .ok()
-            .filter(|n| *n > 0)
+            .and_then(|n| u64::try_from(n).ok())
             .map_or(DEFAULT_MIN_FILE_AGE, Duration::from_nanos);
         let age = meta
             .modified()

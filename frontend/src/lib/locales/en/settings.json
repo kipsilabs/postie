@@ -160,7 +160,7 @@
 			"check_interval": "Check Interval",
 			"check_interval_description": "How often to scan for new files",
 			"min_file_age": "Min File Age",
-			"min_file_age_description": "Minimum time since last modification before a file is eligible for upload. Prevents uploading files still being written (e.g. slow copies, torrents).",
+			"min_file_age_description": "Minimum time since last modification before a file is eligible for upload. Prevents uploading files still being written (e.g. slow copies, torrents). 0s = no wait.",
 			"min_file_age_to_delete": "Min File Age to Delete",
 			"min_file_age_to_delete_description": "Minimum time to wait after a successful upload before deleting the original file. Use this when a downstream tool (e.g. AltMount) needs time to process the NZB before the source file disappears. Requires 'Delete Original File' to be enabled. Default: 0s (delete immediately).",
 			"size_threshold": "Size Threshold",

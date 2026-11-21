@@ -160,7 +160,7 @@
 			"check_interval": "Intervalo de Verificación",
 			"check_interval_description": "Frecuencia para buscar nuevos archivos",
 			"min_file_age": "Antigüedad Mínima del Archivo",
-			"min_file_age_description": "Tiempo mínimo desde la última modificación antes de que un archivo sea elegible para carga. Evita subir archivos que aún se están escribiendo (p. ej. copias lentas, torrents).",
+			"min_file_age_description": "Tiempo mínimo desde la última modificación antes de que un archivo sea elegible para carga. Evita subir archivos que aún se están escribiendo (p. ej. copias lentas, torrents). 0s = sin espera.",
 			"min_file_age_to_delete": "Antigüedad Mínima para Eliminar",
 			"min_file_age_to_delete_description": "Tiempo mínimo de espera tras una subida exitosa antes de eliminar el archivo original. Útil cuando una herramienta dependiente (p. ej. AltMount) necesita tiempo para procesar el NZB antes de que el archivo desaparezca. Requiere 'Eliminar archivo original' activado. Predeterminado: 0s.",
 			"size_threshold": "Umbral de Tamaño",

@@ -160,7 +160,7 @@
 			"check_interval": "Kontrol Aralığı",
 			"check_interval_description": "Yeni dosyaların ne sıklıkla taranacağı",
 			"min_file_age": "Minimum Dosya Yaşı",
-			"min_file_age_description": "Bir dosyanın yüklenmeye uygun sayılması için son değişiklikten bu yana geçmesi gereken minimum süre. Hâlâ yazılmakta olan dosyaların (ör. yavaş kopyalar, torrentler) yüklenmesini önler.",
+			"min_file_age_description": "Bir dosyanın yüklenmeye uygun sayılması için son değişiklikten bu yana geçmesi gereken minimum süre. Hâlâ yazılmakta olan dosyaların (ör. yavaş kopyalar, torrentler) yüklenmesini önler. 0s = beklemeden.",
 			"min_file_age_to_delete": "Silme için Minimum Dosya Yaşı",
 			"min_file_age_to_delete_description": "Başarılı bir yüklemeden sonra orijinal dosyayı silmeden önce beklenmesi gereken minimum süre. AltMount gibi bir aracın dosya kaybolmadan önce NZB'yi işlemesi için süre tanır. 'Orijinal Dosyayı Sil' seçeneğinin etkin olması gerekir. Varsayılan: 0s.",
 			"size_threshold": "Boyut Eşiği",

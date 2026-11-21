@@ -48,7 +48,7 @@ watchers:
     delete_original_file: false # Whether to delete source files after successful upload
     single_nzb_per_folder: false # Create one NZB per folder instead of per file (default: false)
     follow_symlinks: false # Follow symbolic links during scanning (default: false)
-    min_file_age: 60s # Min time since last modification before a file is eligible (default: 60s)
+    min_file_age: 60s # Min time since last modification before a file is eligible (default: 60s; 0s = no wait)
     min_file_age_to_delete: 0s # Min time after upload before deleting source file (default: 0s)
 ```
 
@@ -83,7 +83,7 @@ watchers:
 - **delete_original_file**: Whether to permanently delete source files after successful upload (default: false)
 - **single_nzb_per_folder**: When true, creates one NZB per folder instead of one NZB per file (default: false)
 - **follow_symlinks**: Whether to follow symbolic links during directory scanning; set to false (default) to avoid double-counting files outside the watch directory
-- **min_file_age**: Minimum time since last modification before a file is eligible for upload — prevents uploading files still being written (default: 60s)
+- **min_file_age**: Minimum time since last modification before a file is eligible for upload — prevents uploading files still being written (default: 60s). `0s` uploads as soon as the file size stops changing between two scans
 - **min_file_age_to_delete**: Minimum time after a successful upload before the source file is deleted; useful when a downstream tool needs time to import the NZB (requires `delete_original_file: true`, default: 0s)
 
 ## Starting the Watcher
