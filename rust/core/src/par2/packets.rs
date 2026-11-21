@@ -38,14 +38,28 @@ pub fn write_packet<W: Write>(
     ptype: &[u8; 16],
     body: &[u8],
 ) -> io::Result<()> {
-    let length = (HEADER_SIZE + body.len()) as u64;
-    let hash = md5_of(&[set_id, ptype, body]);
+    write_packet_parts(w, set_id, ptype, &[body])
+}
+
+/// Like [`write_packet`] for a body that is the concatenation of `parts`, so a caller holding the
+/// body in pieces (recovery blocks split into worker column ranges) need not assemble a copy.
+pub fn write_packet_parts<W: Write>(
+    w: &mut W,
+    set_id: &Md5Sum,
+    ptype: &[u8; 16],
+    parts: &[&[u8]],
+) -> io::Result<()> {
+    let length = (HEADER_SIZE + parts.iter().map(|p| p.len()).sum::<usize>()) as u64;
+    let mut hashed: Vec<&[u8]> = Vec::with_capacity(parts.len() + 2);
+    hashed.extend([&set_id[..], &ptype[..]]);
+    hashed.extend_from_slice(parts);
+    let hash = md5_of(&hashed);
     w.write_all(&MAGIC)?;
     w.write_all(&length.to_le_bytes())?;
     w.write_all(&hash)?;
     w.write_all(set_id)?;
     w.write_all(ptype)?;
-    w.write_all(body)
+    parts.iter().try_for_each(|p| w.write_all(p))
 }
 
 /// File ID: MD5 of the first-16 KiB hash, the file length and the in-set name.
@@ -126,6 +140,29 @@ mod tests {
         assert_eq!(out[16..32], md5_of(&[&set, &TYPE_CREATOR, &out[64..]]));
         assert_eq!((&out[32..48], &out[48..64]), (&set[..], &TYPE_CREATOR[..]));
         assert_eq!(&out[64..], b"Postie\0\0");
+    }
+
+    #[test]
+    fn a_body_written_in_parts_matches_the_assembled_body() {
+        let set = [3u8; 16];
+        let mut whole = Vec::new();
+        write_packet(
+            &mut whole,
+            &set,
+            &TYPE_RECOVERY,
+            &recovery_body(7, b"abcdefgh"),
+        )
+        .unwrap();
+        let mut parts = Vec::new();
+        let exp = 7u32.to_le_bytes();
+        write_packet_parts(
+            &mut parts,
+            &set,
+            &TYPE_RECOVERY,
+            &[&exp, b"abc", b"", b"defgh"],
+        )
+        .unwrap();
+        assert_eq!(whole, parts);
     }
 
     #[test]
