@@ -848,3 +848,21 @@ fn a_user_re_add_requeues_finished_or_failed_paths_but_not_active_ones() {
     q.add_file("/a", 10).unwrap();
     assert_eq!(n(&q, "goqite"), 1);
 }
+
+#[test]
+fn peek_shows_the_job_receive_would_take_without_claiming_it() {
+    let q = queue();
+    assert!(q.peek_file().unwrap().is_none());
+    q.add_file_with_priority("/low", 10, 0).unwrap();
+    q.add_file_with_priority("/high", 20, 5).unwrap();
+    let peeked = q.peek_file().unwrap().unwrap();
+    assert_eq!(peeked.job.path, "/high");
+    assert_eq!(n(&q, "in_progress_items"), 0, "peek claims nothing");
+    let got = q.receive_file().unwrap().unwrap();
+    assert_eq!(
+        (got.msg_id, got.job.path),
+        (peeked.msg_id, "/high".to_string())
+    );
+    // the received job is no longer visible; the next one is
+    assert_eq!(q.peek_file().unwrap().unwrap().job.path, "/low");
+}

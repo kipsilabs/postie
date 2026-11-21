@@ -25,7 +25,7 @@
     "health_check_interval": ""
    },
    "posting": {
-    "wait_for_par2": true,
+    "wait_for_par2": false,
     "max_retries": 3,
     "retry_delay": "5s",
     "article_size_in_bytes": 750000,
@@ -226,7 +226,7 @@
     "health_check_interval": ""
    },
    "posting": {
-    "wait_for_par2": true,
+    "wait_for_par2": false,
     "max_retries": 3,
     "retry_delay": "5s",
     "article_size_in_bytes": 750000,
@@ -406,7 +406,7 @@
     "health_check_interval": ""
    },
    "posting": {
-    "wait_for_par2": true,
+    "wait_for_par2": false,
     "max_retries": 3,
     "retry_delay": "5s",
     "article_size_in_bytes": 750000,
@@ -581,7 +581,7 @@
     "health_check_interval": ""
    },
    "posting": {
-    "wait_for_par2": true,
+    "wait_for_par2": false,
     "max_retries": 3,
     "retry_delay": "5s",
     "article_size_in_bytes": 750000,
@@ -736,7 +736,7 @@
     "health_check_interval": ""
    },
    "posting": {
-    "wait_for_par2": true,
+    "wait_for_par2": false,
     "max_retries": 3,
     "retry_delay": "5s",
     "article_size_in_bytes": 750000,
@@ -896,7 +896,7 @@
     "health_check_interval": ""
    },
    "posting": {
-    "wait_for_par2": true,
+    "wait_for_par2": false,
     "max_retries": 3,
     "retry_delay": "5s",
     "article_size_in_bytes": 750000,
@@ -1061,7 +1061,7 @@
     "health_check_interval": ""
    },
    "posting": {
-    "wait_for_par2": true,
+    "wait_for_par2": false,
     "max_retries": 3,
     "retry_delay": "5s",
     "article_size_in_bytes": 750000,
@@ -1216,7 +1216,7 @@
     "health_check_interval": ""
    },
    "posting": {
-    "wait_for_par2": true,
+    "wait_for_par2": false,
     "max_retries": 3,
     "retry_delay": "5s",
     "article_size_in_bytes": 750000,
@@ -1376,7 +1376,7 @@
     "health_check_interval": ""
    },
    "posting": {
-    "wait_for_par2": true,
+    "wait_for_par2": false,
     "max_retries": 3,
     "retry_delay": "5s",
     "article_size_in_bytes": 750000,
@@ -1576,7 +1576,7 @@
     "health_check_interval": ""
    },
    "posting": {
-    "wait_for_par2": true,
+    "wait_for_par2": false,
     "max_retries": 3,
     "retry_delay": "5s",
     "article_size_in_bytes": 750000,
@@ -1731,7 +1731,7 @@
     "health_check_interval": ""
    },
    "posting": {
-    "wait_for_par2": true,
+    "wait_for_par2": false,
     "max_retries": 3,
     "retry_delay": "5s",
     "article_size_in_bytes": 750000,
@@ -1888,7 +1888,7 @@
     "health_check_interval": ""
    },
    "posting": {
-    "wait_for_par2": true,
+    "wait_for_par2": false,
     "max_retries": 3,
     "retry_delay": "5s",
     "article_size_in_bytes": 750000,
@@ -2043,7 +2043,7 @@
     "health_check_interval": ""
    },
    "posting": {
-    "wait_for_par2": true,
+    "wait_for_par2": false,
     "max_retries": 3,
     "retry_delay": "5s",
     "article_size_in_bytes": 750000,
@@ -2198,7 +2198,7 @@
     "health_check_interval": ""
    },
    "posting": {
-    "wait_for_par2": true,
+    "wait_for_par2": false,
     "max_retries": 3,
     "retry_delay": "5s",
     "article_size_in_bytes": 750000,
@@ -2353,7 +2353,7 @@
     "health_check_interval": ""
    },
    "posting": {
-    "wait_for_par2": true,
+    "wait_for_par2": false,
     "max_retries": 3,
     "retry_delay": "5s",
     "article_size_in_bytes": 750000,
@@ -2522,7 +2522,7 @@
     "health_check_interval": ""
    },
    "posting": {
-    "wait_for_par2": true,
+    "wait_for_par2": false,
     "max_retries": 3,
     "retry_delay": "5s",
     "article_size_in_bytes": 750000,
@@ -2677,7 +2677,7 @@
     "health_check_interval": ""
    },
    "posting": {
-    "wait_for_par2": true,
+    "wait_for_par2": false,
     "max_retries": 3,
     "retry_delay": "5s",
     "article_size_in_bytes": 750000,
@@ -2837,7 +2837,7 @@
     "health_check_interval": ""
    },
    "posting": {
-    "wait_for_par2": true,
+    "wait_for_par2": false,
     "max_retries": 3,
     "retry_delay": "5s",
     "article_size_in_bytes": 750000,
@@ -2988,7 +2988,7 @@
     "health_check_interval": ""
    },
    "posting": {
-    "wait_for_par2": true,
+    "wait_for_par2": false,
     "max_retries": 3,
     "retry_delay": "5s",
     "article_size_in_bytes": 750000,
@@ -3157,7 +3157,7 @@
     "health_check_interval": ""
    },
    "posting": {
-    "wait_for_par2": true,
+    "wait_for_par2": false,
     "max_retries": 3,
     "retry_delay": "5s",
     "article_size_in_bytes": 750000,
@@ -3327,7 +3327,7 @@
     "health_check_interval": ""
    },
    "posting": {
-    "wait_for_par2": true,
+    "wait_for_par2": false,
     "max_retries": 3,
     "retry_delay": "5s",
     "article_size_in_bytes": 750000,
@@ -3502,7 +3502,7 @@
     "health_check_interval": ""
    },
    "posting": {
-    "wait_for_par2": true,
+    "wait_for_par2": false,
     "max_retries": 3,
     "retry_delay": "5s",
     "article_size_in_bytes": 750000,

@@ -27,6 +27,7 @@ use crate::par2::binary::new_executor;
 use crate::par2::executor::{ExecError, Par2Executor};
 use crate::par2::existing::{Par2Result, work_dir};
 use crate::par2::is_par2_file;
+use crate::par2::prefetch::{Par2Request, PrefetchingExecutor};
 use crate::par2::scheduler::{ScheduledExecutor, Scheduler};
 use crate::pausable::PauseGate;
 use crate::poster::{ArticleClient, DeferredCheckError, ManifestSink, PostError, Poster};
@@ -89,6 +90,85 @@ fn par2_failure(message: &str) {
 
 fn has_par2_files(files: &[FileInfo]) -> bool {
     files.iter().any(|f| is_par2_file(&f.path))
+}
+
+/// Where a per-file job's PAR2 goes: straight into the output dir when `maintain_par2_files` is on,
+/// else `""` (the executor's work dir).
+fn file_par2_output_dir(
+    par2: &Par2Config,
+    root_dir: &str,
+    output_dir: &str,
+    f: &FileInfo,
+) -> String {
+    if par2.maintain_par2_files == Some(true) {
+        Path::new(output_dir)
+            .join(relative_path_from(root_dir, &f.path))
+            .to_string_lossy()
+            .into_owned()
+    } else {
+        String::new()
+    }
+}
+
+/// A folder job's set: (set name = folder name, folder dir its names are relative to, PAR2 output dir).
+fn folder_set_args(
+    par2: &Par2Config,
+    files: &[FileInfo],
+    root_dir: &str,
+    output_dir: &str,
+) -> (String, String, String) {
+    let folder = derive_folder_name(root_dir, files);
+    let folder_dir = Path::new(root_dir)
+        .join(&folder)
+        .to_string_lossy()
+        .into_owned();
+    let par2_out = if par2.maintain_par2_files == Some(true) {
+        Path::new(output_dir)
+            .join(&folder)
+            .to_string_lossy()
+            .into_owned()
+    } else {
+        String::new()
+    };
+    (folder, folder_dir, par2_out)
+}
+
+/// A folder job creates no set when PAR2 is off or the folder already ships PAR2 files (if so asked).
+fn folder_skips_par2(par2: &Par2Config, files: &[FileInfo]) -> bool {
+    !par2.enabled.unwrap_or(true)
+        || (par2.skip_if_par2_exists == Some(true) && has_par2_files(files))
+}
+
+/// The PAR2 executor call that posting `files` makes, or `None` when it makes none (or several). The
+/// posting paths and the PAR2 prefetch both use it, since a prefetch must make exactly that call.
+pub fn par2_request(
+    cfg: &ConfigData,
+    files: &[FileInfo],
+    root_dir: &str,
+    output_dir: &str,
+    folder_mode: bool,
+) -> Option<Par2Request> {
+    let par2 = &cfg.par2;
+    if folder_mode {
+        if files.is_empty() || folder_skips_par2(par2, files) {
+            return None;
+        }
+        let (set_name, folder_dir, output_dir) = folder_set_args(par2, files, root_dir, output_dir);
+        return Some(Par2Request::Set {
+            files: files.to_vec(),
+            output_dir,
+            set_name,
+            folder_dir,
+        });
+    }
+    let [file] = files else { return None };
+    if !par2.enabled.unwrap_or(true) {
+        return None;
+    }
+    Some(Par2Request::File {
+        file: file.clone(),
+        output_dir: file_par2_output_dir(par2, root_dir, output_dir, file),
+    })
 }
 
 /// Removes PAR2 files from the NZB after their upload failed part-way: an NZB pointing at an incomplete
@@ -161,7 +241,13 @@ impl Postie {
             || Arc::new(Scheduler::new(par2_cfg.max_concurrent_jobs.max(1))),
             |r| r.par2_scheduler(),
         );
-        let par2 = ScheduledExecutor::wrap(executor, Some(scheduler));
+        let scheduled = ScheduledExecutor::wrap(executor, Some(scheduler));
+        let par2 = match &rt {
+            Some(r) => {
+                PrefetchingExecutor::wrap(scheduled, r.par2_prefetcher(), Some(progress.clone()))
+            }
+            None => scheduled,
+        };
         let recorder = rt
             .as_ref()
             .and_then(|r| r.new_manifest_recorder(transfer_id));
@@ -324,7 +410,7 @@ impl Postie {
     }
 
     fn wait_for_par2(&self) -> bool {
-        self.posting_cfg.wait_for_par2.unwrap_or(true)
+        self.posting_cfg.wait_for_par2.unwrap_or(false)
     }
 
     fn par2_enabled(&self) -> bool {
@@ -439,14 +525,7 @@ impl Postie {
 
     /// Where to write PAR2 files: straight into the output dir when `maintain_par2_files` is on.
     fn par2_output_dir(&self, root_dir: &str, output_dir: &str, f: &FileInfo) -> String {
-        if self.par2_cfg.maintain_par2_files == Some(true) {
-            Path::new(output_dir)
-                .join(relative_path_from(root_dir, &f.path))
-                .to_string_lossy()
-                .into_owned()
-        } else {
-            String::new()
-        }
+        file_par2_output_dir(&self.par2_cfg, root_dir, output_dir, f)
     }
 
     fn nzb_target(&self, root_dir: &str, output_dir: &str, f: &FileInfo) -> PathBuf {
@@ -630,7 +709,8 @@ impl Postie {
         output_dir: &str,
     ) -> Result<PostOutcome, PostieError> {
         let start = Instant::now();
-        let folder = derive_folder_name(root_dir, files);
+        let (folder, folder_dir, par2_out) =
+            folder_set_args(&self.par2_cfg, files, root_dir, output_dir);
         let folder_out = Path::new(output_dir).join(&folder);
         eprintln!(
             "postie: posting folder as single NZB: folder={folder} files={}",
@@ -643,17 +723,7 @@ impl Postie {
             .filter(|f| !f.relative_path.is_empty())
             .map(|f| (f.path.clone(), f.relative_path.clone()))
             .collect();
-        let folder_dir = Path::new(root_dir)
-            .join(&folder)
-            .to_string_lossy()
-            .into_owned();
-        let par2_out = if self.par2_cfg.maintain_par2_files == Some(true) {
-            folder_out.to_string_lossy().into_owned()
-        } else {
-            String::new()
-        };
-        let skip_par2 = !self.par2_enabled()
-            || (self.par2_cfg.skip_if_par2_exists == Some(true) && has_par2_files(files));
+        let skip_par2 = folder_skips_par2(&self.par2_cfg, files);
         if self.par2_enabled() && skip_par2 {
             eprintln!(
                 "postie: skipping PAR2 generation: existing PAR2 files detected in source folder: folder={folder}"

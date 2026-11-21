@@ -16,11 +16,15 @@ use super::slots::SlotRunner;
 use super::utils::{is_symlink, is_within_path};
 use crate::config::{ConfigData, QueueConfig};
 use crate::fileinfo::FileInfo;
+use crate::par2::binary::new_executor;
+use crate::par2::executor::parse_redundancy_percentage;
+use crate::par2::prefetch::Discarded;
+use crate::par2::scheduler::ScheduledExecutor;
 use crate::pausable::PauseGate;
 use crate::poster::{ArticleClient, DeferredCheckError};
 use crate::postie::runtime::{Runtime, RuntimeDeps, RuntimeMetrics};
 use crate::postie::script::ScriptQueue;
-use crate::postie::{Postie, PostieError};
+use crate::postie::{Postie, PostieError, par2_request};
 use crate::progress::{JobProgress, ProgressState};
 use crate::queue::{FileJob, PendingArticleCheck, Queue};
 use crate::transferstore::Store;
@@ -104,6 +108,33 @@ impl From<PostieError> for ProcessError {
 
 /// A processed job: the NZB path, the job's Postie (for the script and reuse queries) and the non-fatal
 /// deferred-check error when some articles still need verification.
+/// Free space a PAR2 prefetch leaves untouched in the work dir, on top of room for the set itself.
+const PREFETCH_DISK_RESERVE: u64 = 1 << 30;
+
+/// Rough size of a PAR2 set for `input_bytes` at `redundancy`: the recovery data plus a margin for
+/// slice rounding, packet headers and the index file.
+fn prefetch_set_estimate(input_bytes: u64, redundancy: &str) -> u64 {
+    let pct = parse_redundancy_percentage(redundancy).max(0.0);
+    let recovery = input_bytes as f64 * pct / 100.0;
+    (recovery * 1.02) as u64 + (1 << 20)
+}
+
+/// A prefetch adds a second set to the work dir next to the uploading job's, so it needs room for
+/// the set twice over plus a fixed reserve; unknown free space does not block it.
+fn prefetch_fits(available: Option<u64>, estimate: u64) -> bool {
+    available.is_none_or(|a| {
+        a >= estimate
+            .saturating_mul(2)
+            .saturating_add(PREFETCH_DISK_RESERVE)
+    })
+}
+
+struct JobInputs {
+    files: Vec<FileInfo>,
+    input_folder: String,
+    folder_path: Option<String>,
+}
+
 struct Processed {
     nzb_path: String,
     postie: Arc<Postie>,
@@ -142,6 +173,11 @@ pub struct Processor {
     monitor_cancel: CancellationToken,
     verification_started: std::sync::Once,
     jobs_done: tokio::sync::Notify,
+    /// A predecessor's PAR2 prefetch, removed before this processor dispatches its first job.
+    inherited_prefetch: Mutex<Option<Discarded>>,
+    /// Orders a prefetch's peek-and-start against a job's receive-and-claim, so a prefetch is never
+    /// started for a job that has already been taken off the queue.
+    prefetch_gate: tokio::sync::Mutex<()>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -232,10 +268,21 @@ impl Processor {
             monitor_cancel,
             verification_started: std::sync::Once::new(),
             jobs_done: tokio::sync::Notify::new(),
+            inherited_prefetch: Mutex::new(None),
+            prefetch_gate: tokio::sync::Mutex::new(()),
         });
         if p.pool.is_some() {
             let me = p.clone();
             tokio::spawn(async move { me.monitor_provider_availability().await });
+        }
+        if let Some(rt) = &p.runtime {
+            // weak: the runtime is owned by the processor, so a strong ref would be a cycle
+            let me = Arc::downgrade(&p);
+            rt.par2_prefetcher().set_trigger(Arc::new(move || {
+                if let Some(me) = me.upgrade() {
+                    drop(me.spawn_prefetch_next());
+                }
+            }));
         }
         p
     }
@@ -268,6 +315,11 @@ impl Processor {
                 tokio::spawn(rt.clone().run_par2_sweeper(cancel.clone()));
             }
         });
+        // a predecessor's prefetch could share paths with the jobs this processor is about to run
+        let inherited = lock(&self.inherited_prefetch).take();
+        if let Some(p) = inherited {
+            p.discard().await;
+        }
         let mut tick = tokio::time::interval(Duration::from_secs(2));
         loop {
             tokio::select! {
@@ -278,15 +330,16 @@ impl Processor {
         }
     }
 
+    /// Paused, auto-blocked or held by the callback: no new job may start.
+    fn dispatch_held(&self) -> bool {
+        self.paused.load(Ordering::SeqCst)
+            || lock(&self.auto).blocking_new
+            || self.can_process_next_item.as_ref().is_some_and(|f| !f())
+    }
+
     /// Refills free slots unless paused, auto-blocked or held by the callback.
     pub fn process_queue_items(self: &Arc<Self>, cancel: &CancellationToken) {
-        if self.paused.load(Ordering::SeqCst) {
-            return;
-        }
-        if lock(&self.auto).blocking_new {
-            return;
-        }
-        if self.can_process_next_item.as_ref().is_some_and(|f| !f()) {
+        if self.dispatch_held() {
             return;
         }
         let limit = usize::try_from(self.cfg.max_concurrent_uploads).unwrap_or(0);
@@ -343,6 +396,7 @@ impl Processor {
                 ),
             }
         }
+        let gate = self.prefetch_gate.lock().await;
         let received = self
             .queue
             .receive_file()
@@ -358,6 +412,14 @@ impl Processor {
         };
         // only a real item wakes the dispatcher; an empty receive must not, or an idle queue would spin
         let _wake = WakeOnDrop(&self.slots);
+        // a prefetch for another job (queue reordered or item removed) goes before this job writes PAR2,
+        // so its files cannot collide with this job's set
+        if let Some(rt) = &self.runtime
+            && let Some(stale) = rt.par2_prefetcher().take_unless_owner(&msg_id)
+        {
+            stale.discard().await;
+        }
+        drop(gate);
         eprintln!(
             "processor: processing file: msg={msg_id} path={} priority={}",
             job.path, job.priority
@@ -611,30 +673,22 @@ impl Processor {
         msg_id: &str,
         job: &FileJob,
     ) -> Result<Processed, ProcessError> {
-        let folder_path = job.path.strip_prefix(FOLDER_PREFIX).map(str::to_string);
+        let JobInputs {
+            files,
+            input_folder,
+            folder_path,
+        } = self.job_inputs(job)?;
         let is_folder = folder_path.is_some();
-        let (file_name, files): (String, Vec<FileInfo>) = if let Some(fp) = &folder_path {
-            let files = self.collect_files_in_folder(fp).map_err(|e| {
-                ProcessError::Msg(format!("failed to collect files in folder {fp}: {e}"))
-            })?;
-            if files.is_empty() {
-                return Err(ProcessError::Msg(format!("no files found in folder {fp}")));
+        let file_name = match &folder_path {
+            Some(fp) => {
+                eprintln!(
+                    "processor: processing folder as single NZB: folder={} files={}",
+                    file_name_of(fp),
+                    files.len()
+                );
+                file_name_of(fp)
             }
-            eprintln!(
-                "processor: processing folder as single NZB: folder={} files={}",
-                file_name_of(fp),
-                files.len()
-            );
-            (file_name_of(fp), files)
-        } else {
-            (
-                file_name_of(&job.path),
-                vec![FileInfo {
-                    path: job.path.clone(),
-                    size: u64::try_from(job.size).unwrap_or(0),
-                    relative_path: String::new(),
-                }],
-            )
+            None => file_name_of(&job.path),
         };
 
         let job_cancel = cancel.child_token();
@@ -690,22 +744,19 @@ impl Processor {
         let mut delete_original = job.delete_original.unwrap_or(self.delete_original_file);
         postie.set_delete_original(delete_original);
 
-        let input_folder = if !job.input_folder.is_empty() {
-            job.input_folder.clone()
-        } else if let Some(fp) = &folder_path {
-            Path::new(fp)
-                .parent()
-                .map(|d| d.to_string_lossy().into_owned())
-                .unwrap_or_default()
-        } else if !self.watch_folder.is_empty() && is_within_path(&job.path, &self.watch_folder) {
-            self.watch_folder.clone()
-        } else {
-            Path::new(&job.path)
-                .parent()
-                .map(|d| d.to_string_lossy().into_owned())
-                .unwrap_or_default()
-        };
-
+        // a job that creates no PAR2 of its own never reaches the prefetch trigger, so it starts the
+        // next job's prefetch itself
+        if par2_request(
+            &self.config,
+            &files,
+            &input_folder,
+            &self.output_folder,
+            is_folder,
+        )
+        .is_none()
+        {
+            drop(self.spawn_prefetch_next());
+        }
         let outcome = postie
             .post(
                 &job_cancel,
@@ -765,6 +816,145 @@ impl Processor {
             postie: postie.clone(),
             deferred: None,
         })
+    }
+
+    /// What a job posts: its files, the folder their paths are relative to, and (folder jobs) the folder.
+    fn job_inputs(&self, job: &FileJob) -> Result<JobInputs, ProcessError> {
+        let folder_path = job.path.strip_prefix(FOLDER_PREFIX).map(str::to_string);
+        let files = if let Some(fp) = &folder_path {
+            let files = self.collect_files_in_folder(fp).map_err(|e| {
+                ProcessError::Msg(format!("failed to collect files in folder {fp}: {e}"))
+            })?;
+            if files.is_empty() {
+                return Err(ProcessError::Msg(format!("no files found in folder {fp}")));
+            }
+            files
+        } else {
+            vec![FileInfo {
+                path: job.path.clone(),
+                size: u64::try_from(job.size).unwrap_or(0),
+                relative_path: String::new(),
+            }]
+        };
+        let input_folder = if !job.input_folder.is_empty() {
+            job.input_folder.clone()
+        } else if let Some(fp) = &folder_path {
+            Path::new(fp)
+                .parent()
+                .map(|d| d.to_string_lossy().into_owned())
+                .unwrap_or_default()
+        } else if !self.watch_folder.is_empty() && is_within_path(&job.path, &self.watch_folder) {
+            self.watch_folder.clone()
+        } else {
+            Path::new(&job.path)
+                .parent()
+                .map(|d| d.to_string_lossy().into_owned())
+                .unwrap_or_default()
+        };
+        Ok(JobInputs {
+            files,
+            input_folder,
+            folder_path,
+        })
+    }
+
+    /// Whether a prefetch could apply at all: PAR2 on, one upload slot (more slots already overlap
+    /// jobs), a PAR2 work dir, and a processor that is not shutting down.
+    fn prefetch_possible(&self) -> bool {
+        self.runtime
+            .as_ref()
+            .is_some_and(|rt| !rt.par2_work_dir().is_empty())
+            && self.config.par2.enabled != Some(false)
+            && self.cfg.max_concurrent_uploads == 1
+            && !self.shutting_down.load(Ordering::SeqCst)
+    }
+
+    /// Plans the next job's PAR2 prefetch on a blocking thread: it reads the queue, walks a folder job's
+    /// tree and stats every input, none of which may hold up the calling job's upload.
+    fn spawn_prefetch_next(self: &Arc<Self>) -> Option<tokio::task::JoinHandle<()>> {
+        if !self.prefetch_possible() {
+            return None;
+        }
+        let me = self.clone();
+        Some(tokio::task::spawn_blocking(move || me.prefetch_next_par2()))
+    }
+
+    /// Starts creating the next queued job's PAR2 set while the current job uploads, so one upload
+    /// slot does not leave the uplink idle during parity creation. Runs after a job's own PAR2 call
+    /// (or at the start of a job that makes none), on a blocking thread. Only when a new job could
+    /// start, only into Postie's own work dir, never over a set of the same name already there, and
+    /// only when the disk has room for the extra set.
+    fn prefetch_next_par2(&self) {
+        let Some(rt) = &self.runtime else { return };
+        if !self.prefetch_possible() || self.dispatch_held() {
+            return;
+        }
+        let _gate = self.prefetch_gate.blocking_lock();
+        if self.cfg.min_size_to_start > 0
+            && self
+                .queue
+                .pending_total_size()
+                .is_ok_and(|n| n < self.cfg.min_size_to_start)
+        {
+            return;
+        }
+        let next = match self.queue.peek_file() {
+            Ok(Some(next)) => next,
+            Ok(None) => return,
+            Err(e) => {
+                eprintln!(
+                    "processor: could not look at the next queued job for PAR2 prefetch: {e}"
+                );
+                return;
+            }
+        };
+        let Ok(inputs) = self.job_inputs(&next.job) else {
+            return;
+        };
+        let Some(request) = par2_request(
+            &self.config,
+            &inputs.files,
+            &inputs.input_folder,
+            &self.output_folder,
+            inputs.folder_path.is_some(),
+        ) else {
+            return;
+        };
+        let store = rt.par2_prefetcher();
+        if store.owner().as_deref() == Some(next.msg_id.as_str()) {
+            return;
+        }
+        let main = Path::new(rt.par2_work_dir()).join(format!("{}.par2", request.set_base()));
+        if !request.output_dir().is_empty() || main.exists() {
+            return;
+        }
+        let input_bytes = request.files().iter().map(|f| f.size).sum();
+        let estimate = prefetch_set_estimate(input_bytes, &self.config.par2.redundancy);
+        let available = crate::diskspace::available_bytes(Path::new(rt.par2_work_dir()));
+        if !prefetch_fits(available, estimate) {
+            eprintln!(
+                "processor: not creating the next job's PAR2 early: too little free space in the PAR2 work dir: needed={} available={available:?}",
+                estimate
+                    .saturating_mul(2)
+                    .saturating_add(PREFETCH_DISK_RESERVE)
+            );
+            return;
+        }
+        eprintln!(
+            "processor: creating PAR2 for the next queued job during this upload: path={}",
+            next.job.path
+        );
+        let exec = ScheduledExecutor::wrap(
+            new_executor(
+                self.config.posting.article_size_in_bytes,
+                &self.config.par2,
+                None,
+            ),
+            Some(rt.par2_scheduler()),
+        );
+        if let Some(old) = store.start(&next.msg_id, request, exec) {
+            tokio::spawn(old.discard());
+        }
     }
 
     /// Recursively lists a folder's files (lexical order, like Go's `filepath.Walk`) with paths relative
@@ -959,10 +1149,31 @@ impl Processor {
     }
 
     /// Cancels every running job and waits up to 30 s for them to finish.
+    /// Stops prefetching (this processor is being replaced) and returns its held PAR2 prefetch, which
+    /// the replacement removes before it starts: `close` runs concurrently with the new processor and
+    /// would otherwise remove it while the new one may already be writing the same set.
+    pub fn stop_par2_prefetch(&self) -> Option<Discarded> {
+        self.shutting_down.store(true, Ordering::SeqCst);
+        self.runtime
+            .as_ref()
+            .and_then(|rt| rt.par2_prefetcher().close())
+    }
+
+    /// Takes over a replaced processor's prefetch; see [`Processor::stop_par2_prefetch`].
+    pub fn inherit_par2_discard(&self, prefetch: Discarded) {
+        *lock(&self.inherited_prefetch) = Some(prefetch);
+    }
+
     pub async fn close(&self) {
         eprintln!("processor: shutdown initiated");
         self.shutting_down.store(true, Ordering::SeqCst);
         self.monitor_cancel.cancel();
+        // closed first, so a prefetch being planned right now cannot land after this point
+        if let Some(rt) = &self.runtime
+            && let Some(p) = rt.par2_prefetcher().close()
+        {
+            p.discard().await;
+        }
         let count = {
             let running = lock(&self.running);
             running.values().for_each(|j| j.cancel.cancel());
