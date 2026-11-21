@@ -60,6 +60,7 @@ struct Pool {
 }
 
 impl PoolManager for Pool {
+    #[allow(deprecated)] // `try_update` on newer toolchains
     fn upload_client(&self) -> Option<Arc<dyn ArticleClient>> {
         if self
             .no_upload_calls
