@@ -55,10 +55,19 @@ impl ArticleClient for Mock {
 struct Pool {
     client: Arc<Mock>,
     health: Mutex<Vec<ProviderHealth>>,
+    /// Number of initial `upload_client` calls that report no pool (a legacy, non-durable runtime).
+    no_upload_calls: AtomicUsize,
 }
 
 impl PoolManager for Pool {
     fn upload_client(&self) -> Option<Arc<dyn ArticleClient>> {
+        if self
+            .no_upload_calls
+            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
+            .is_ok()
+        {
+            return None;
+        }
         Some(self.client.clone())
     }
     fn verify_client(&self) -> Option<Arc<dyn ArticleClient>> {
@@ -129,6 +138,7 @@ fn env_with(delete_original: bool, tweak: impl FnOnce(&mut ProcessorOptions)) ->
     let pool = Arc::new(Pool {
         client: client.clone(),
         health: Mutex::new(vec![]),
+        no_upload_calls: AtomicUsize::new(0),
     });
     let errors = Arc::new(Mutex::new(Vec::new()));
     let completes = Arc::new(AtomicUsize::new(0));
@@ -323,6 +333,41 @@ async fn cancelling_a_running_job_cleans_up_without_an_error_or_retry() {
         (0, 0, 0, 0)
     );
     assert!(e.p.get_running_jobs().is_empty() && !e.p.is_path_being_processed(&path));
+}
+
+#[tokio::test]
+async fn cancelling_during_the_delete_delay_keeps_the_originals() {
+    // the runtime is built while the pool reports no upload client, so the job runs in legacy
+    // (non-durable) mode and the delete delay applies
+    let e = env_with(true, |o| {
+        o.delete_delay = Duration::from_secs(30);
+        o.pool = Some(Arc::new(Pool {
+            client: Arc::new(Mock::default()),
+            health: Mutex::new(vec![]),
+            no_upload_calls: AtomicUsize::new(1),
+        }));
+    });
+    assert!(!e.p.durable_mode_enabled());
+    let path = write(&e.src, "keep.bin", 4000);
+    e.q.add_file(&path, 4000).unwrap();
+    let c = CancellationToken::new();
+    let (p2, c2) = (e.p.clone(), c.clone());
+    let h = tokio::spawn(async move { p2.process_next_item(&c2).await });
+    let id = loop {
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        if let Some(id) = e.p.get_running_jobs().into_keys().next() {
+            break id;
+        }
+    };
+    // the upload is near-instant, so after this the job is waiting out the delete delay
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    e.p.cancel_job(&id).unwrap();
+    tokio::time::timeout(Duration::from_secs(10), h)
+        .await
+        .expect("the delete delay must end on cancel")
+        .unwrap()
+        .unwrap();
+    assert!(Path::new(&path).exists(), "originals must survive a cancel");
 }
 
 #[tokio::test]

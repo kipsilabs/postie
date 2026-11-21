@@ -743,8 +743,9 @@ impl Processor {
                 );
                 tokio::select! {
                     () = tokio::time::sleep(self.delete_delay) => {}
-                    () = cancel.cancelled() => {
-                        eprintln!("processor: context cancelled while waiting to delete files");
+                    // job_cancel is a child of the dispatcher token: it also fires on a user cancel
+                    () = job_cancel.cancelled() => {
+                        eprintln!("processor: cancelled while waiting to delete files; originals kept");
                         return Ok(Processed { nzb_path: outcome.nzb_path, postie: postie.clone(), deferred: None });
                     }
                 }
