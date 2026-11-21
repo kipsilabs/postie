@@ -611,3 +611,169 @@ async fn close_cancels_running_jobs_and_blocks_new_ones() {
         .unwrap();
     assert_eq!(count(&e, "goqite"), 1, "a closed processor takes nothing");
 }
+
+/// PAR2 on, written to a private work dir, `uploads` upload slots, uploads slowed so a prefetch can run.
+fn prefetch_env(uploads: i64, tweak: impl FnOnce(&mut ProcessorOptions)) -> Env {
+    let work = tmp();
+    let e = env_with(false, |o| {
+        let mut c = (*o.config).clone();
+        c.par2.enabled = Some(true);
+        c.par2.temp_dir = work.to_string_lossy().into_owned();
+        c.par2.redundancy = "10%".into();
+        o.config = Arc::new(c);
+        o.queue_config.max_concurrent_uploads = uploads;
+        tweak(o);
+    });
+    e.client.delay_ms.store(5, Ordering::SeqCst);
+    e
+}
+
+fn prefetcher(e: &Env) -> Arc<crate::par2::prefetch::Prefetcher> {
+    e.p.runtime().unwrap().par2_prefetcher()
+}
+
+/// Two queued jobs; the second one's PAR2 is created during the first one's upload and then used.
+async fn assert_next_job_par2_is_prefetched(
+    wait_for_par2: bool,
+    make_jobs: impl FnOnce(&Path) -> [String; 2],
+) {
+    let e = prefetch_env(1, |o| {
+        let mut c = (*o.config).clone();
+        c.posting.wait_for_par2 = Some(wait_for_par2);
+        o.config = Arc::new(c);
+    });
+    for j in make_jobs(&e.src) {
+        e.q.add_file(&j, 20_000).unwrap();
+    }
+    let c = CancellationToken::new();
+    e.p.process_next_item(&c).await.unwrap();
+    let held = prefetcher(&e)
+        .owner()
+        .expect("the second job's PAR2 is prefetched during the first upload");
+    assert_eq!(held, e.q.peek_file().unwrap().unwrap().msg_id);
+    e.p.process_next_item(&c).await.unwrap();
+    assert_eq!(
+        prefetcher(&e).hits(),
+        1,
+        "the second job used the prefetched set"
+    );
+    assert_eq!(count(&e, "completed_items"), 2);
+    assert!(e.errors.lock().unwrap().is_empty());
+    assert!(prefetcher(&e).owner().is_none(), "nothing left to prefetch");
+}
+
+#[tokio::test]
+async fn the_next_jobs_par2_is_created_while_the_current_job_uploads() {
+    for wait in [true, false] {
+        assert_next_job_par2_is_prefetched(wait, |src| {
+            ["a.bin", "b.bin"].map(|n| write(src, n, 20_000))
+        })
+        .await;
+    }
+}
+
+#[tokio::test]
+async fn a_queued_folder_jobs_set_is_prefetched_with_the_arguments_posting_uses() {
+    assert_next_job_par2_is_prefetched(true, |src| {
+        ["Show.S01", "Show.S02"].map(|folder| {
+            for f in ["e1.mkv", "e2.mkv"] {
+                write(src, &format!("{folder}/{f}"), 20_000);
+            }
+            format!("{FOLDER_PREFIX}{}", src.join(folder).to_string_lossy())
+        })
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn several_upload_slots_already_overlap_jobs_so_nothing_is_prefetched() {
+    let e = prefetch_env(2, |_| {});
+    for n in ["a.bin", "b.bin"] {
+        let p = write(&e.src, n, 20_000);
+        e.q.add_file(&p, 20_000).unwrap();
+    }
+    e.p.process_next_item(&CancellationToken::new())
+        .await
+        .unwrap();
+    assert!(prefetcher(&e).owner().is_none());
+}
+
+#[tokio::test]
+async fn a_held_dispatcher_prefetches_nothing() {
+    let e = prefetch_env(1, |o| o.can_process_next_item = Some(Arc::new(|| false)));
+    for n in ["a.bin", "b.bin"] {
+        let p = write(&e.src, n, 20_000);
+        e.q.add_file(&p, 20_000).unwrap();
+    }
+    e.p.process_next_item(&CancellationToken::new())
+        .await
+        .unwrap();
+    assert!(prefetcher(&e).owner().is_none());
+}
+
+#[tokio::test]
+async fn a_next_job_whose_set_name_is_taken_in_the_work_dir_is_not_prefetched() {
+    let e = prefetch_env(1, |_| {});
+    // same file name in two folders: both sets would be <work>/x.bin.par2
+    let (a, b) = (
+        write(&e.src, "one/x.bin", 20_000),
+        write(&e.src, "two/x.bin", 30_000),
+    );
+    e.q.add_file(&a, 20_000).unwrap();
+    e.q.add_file(&b, 30_000).unwrap();
+    let c = CancellationToken::new();
+    e.p.process_next_item(&c).await.unwrap();
+    assert!(
+        prefetcher(&e).owner().is_none(),
+        "job a's set is still in the work dir"
+    );
+    e.p.process_next_item(&c).await.unwrap();
+    assert_eq!(count(&e, "completed_items"), 2);
+    assert_eq!(prefetcher(&e).hits(), 0);
+}
+
+fn file_name_of_path(path: &str) -> String {
+    Path::new(path)
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned()
+}
+
+#[tokio::test]
+async fn a_replaced_processor_hands_its_prefetch_over_to_be_removed_before_the_new_one_starts() {
+    let old = prefetch_env(1, |_| {});
+    for n in ["a.bin", "b.bin"] {
+        let p = write(&old.src, n, 20_000);
+        old.q.add_file(&p, 20_000).unwrap();
+    }
+    old.p
+        .process_next_item(&CancellationToken::new())
+        .await
+        .unwrap();
+    let work = PathBuf::from(old.p.runtime().unwrap().par2_work_dir());
+    let next = file_name_of_path(&old.q.peek_file().unwrap().unwrap().job.path);
+    let handed = old
+        .p
+        .stop_par2_prefetch()
+        .expect("the held prefetch is handed over");
+    assert!(prefetcher(&old).owner().is_none());
+    // a stopped processor starts no new prefetch
+    old.p.prefetch_next_par2();
+    assert!(prefetcher(&old).owner().is_none());
+
+    let new = env();
+    new.p.inherit_par2_discard(handed);
+    let c = CancellationToken::new();
+    c.cancel();
+    new.p.start(&c).await;
+    let left: Vec<_> = std::fs::read_dir(&work)
+        .unwrap()
+        .filter_map(|e| e.ok().map(|e| e.file_name().to_string_lossy().into_owned()))
+        .filter(|n| n.starts_with(&next))
+        .collect();
+    assert!(
+        left.is_empty(),
+        "removed before the new processor's first dispatch: {left:?}"
+    );
+}

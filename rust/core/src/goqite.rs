@@ -83,6 +83,26 @@ impl Queue {
             .optional()
     }
 
+    /// The message [`Queue::receive`] would return now, without receiving it.
+    pub fn peek(&self) -> rusqlite::Result<Option<Message>> {
+        self.db
+            .lock()
+            .query_row(
+                "select id, body from goqite
+                 where queue = ?1 and ?2 >= timeout and received < ?3
+                 order by priority desc, created
+                 limit 1",
+                params![self.name, fmt(Utc::now()), self.max_receive],
+                |r| {
+                    Ok(Message {
+                        id: r.get(0)?,
+                        body: r.get(1)?,
+                    })
+                },
+            )
+            .optional()
+    }
+
     /// Pushes a received message's visibility timeout `delay` into the future.
     pub fn extend(&self, id: &str, delay: Duration) -> rusqlite::Result<()> {
         let timeout = fmt(Utc::now() + delay.max(Duration::zero()));

@@ -59,6 +59,8 @@ posting:
   # false (default): create PAR2 while the file uploads, so the uplink is never idle during
   # parity creation; PAR2 competes with the upload for CPU and disk while both run.
   # true: create PAR2 first, then upload. In both modes a PAR2 failure posts the file without PAR2.
+  # With one upload slot and a PAR2 temp_dir, the next queued job's PAR2 is also created while the
+  # current job uploads, so in a queue only the first job waits for parity.
   wait_for_par2: false
   max_retries: 3
   retry_delay: 5s

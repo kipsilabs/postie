@@ -15,6 +15,7 @@ use crate::config::{ConfigData, PostCheck, PostUploadScriptConfig};
 use crate::engine::Engine;
 use crate::manifest;
 use crate::par2::existing::work_dir;
+use crate::par2::prefetch::Prefetcher;
 use crate::par2::scheduler::Scheduler;
 use crate::par2::sweep::Sweeper;
 use crate::poster::{ArticleClient, BoxFut, Reposter};
@@ -176,6 +177,8 @@ pub struct Runtime {
     verify_service: Option<Arc<verification::Service>>,
     par2_work_dir: String,
     par2_in_use: Mutex<HashMap<String, u32>>,
+    /// The next queued job's PAR2 set, created while the current job uploads.
+    par2_prefetch: Arc<Prefetcher>,
 }
 
 /// Point-in-time process-wide transfer resource usage (JSON names as Go's `RuntimeMetrics`).
@@ -255,14 +258,28 @@ impl Runtime {
             }
             verify_service = Some(Arc::new(svc));
         }
-        Arc::new(Self {
-            par2_scheduler: Arc::new(Scheduler::new(max_jobs)),
-            upload_engine,
-            store: deps.store,
-            manifest_dir: deps.manifest_dir,
-            verify_service,
-            par2_work_dir,
-            par2_in_use: Mutex::new(HashMap::new()),
+        Arc::new_cyclic(|me: &std::sync::Weak<Self>| {
+            // prefetched sets are kept from the sweeper like a running job's (weak: no cycle)
+            let me = me.clone();
+            let hold = Arc::new(move |paths: &[String], keep: bool| {
+                if let Some(rt) = me.upgrade() {
+                    if keep {
+                        rt.reserve_par2(paths);
+                    } else {
+                        rt.release_par2(paths);
+                    }
+                }
+            });
+            Self {
+                par2_scheduler: Arc::new(Scheduler::new(max_jobs)),
+                upload_engine,
+                store: deps.store,
+                manifest_dir: deps.manifest_dir,
+                verify_service,
+                par2_work_dir,
+                par2_in_use: Mutex::new(HashMap::new()),
+                par2_prefetch: Arc::new(Prefetcher::new(hold)),
+            }
         })
     }
 
@@ -318,6 +335,15 @@ impl Runtime {
 
     pub fn par2_scheduler(&self) -> Arc<Scheduler> {
         self.par2_scheduler.clone()
+    }
+
+    pub fn par2_prefetcher(&self) -> Arc<Prefetcher> {
+        self.par2_prefetch.clone()
+    }
+
+    /// The PAR2 work directory (`""` when sets are written next to their sources).
+    pub fn par2_work_dir(&self) -> &str {
+        &self.par2_work_dir
     }
 
     pub fn upload_engine(&self) -> Option<Arc<Engine>> {

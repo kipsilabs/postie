@@ -5,6 +5,7 @@ pub mod create;
 pub mod executor;
 pub mod existing;
 pub mod packets;
+pub mod prefetch;
 pub mod scheduler;
 pub mod sweep;
 

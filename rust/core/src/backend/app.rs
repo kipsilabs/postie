@@ -560,6 +560,8 @@ impl App {
     fn initialize_processor(self: &Arc<Self>) -> Result<(), String> {
         let cfg = self.applied_config().ok_or("config not loaded")?;
         let old = lock(&self.state).processor.take();
+        // taken synchronously, before the old processor's close runs concurrently with the new one
+        let mut inherited = InheritedPrefetch(old.as_ref().and_then(|p| p.stop_par2_prefetch()));
         if let Some(p) = old {
             eprintln!("backend: closing existing processor before reinitialization");
             drop(tokio::spawn(async move { p.close().await }));
@@ -611,6 +613,9 @@ impl App {
                 }
             })),
         });
+        if let Some(prefetch) = inherited.0.take() {
+            processor.inherit_par2_discard(prefetch);
+        }
         let p2 = processor.clone();
         let token = cancel.clone();
         tokio::spawn(async move { p2.start(&token).await });
@@ -1216,6 +1221,18 @@ impl App {
                 end_time: wc.schedule.end_time.clone(),
             }),
             error: String::new(),
+        }
+    }
+}
+
+/// A replaced processor's PAR2 prefetch on its way to the new processor; removed in the background
+/// if initialization stops before handing it over.
+struct InheritedPrefetch(Option<crate::par2::prefetch::Discarded>);
+
+impl Drop for InheritedPrefetch {
+    fn drop(&mut self) {
+        if let Some(p) = self.0.take() {
+            drop(tokio::spawn(p.discard()));
         }
     }
 }

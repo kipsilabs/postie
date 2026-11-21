@@ -337,6 +337,17 @@ impl Queue {
             .map_err(|e| QueueError::Msg(format!("failed to compute pending total size: {e}")))
     }
 
+    /// The job [`Queue::receive_file`] would take next, left in the queue (`None` when empty or
+    /// unreadable).
+    pub fn peek_file(&self) -> Result<Option<ReceivedJob>> {
+        let Some(m) = self.q.peek()? else {
+            return Ok(None);
+        };
+        Ok(serde_json::from_slice(&m.body)
+            .ok()
+            .map(|job| ReceivedJob { msg_id: m.id, job }))
+    }
+
     /// Takes the next job and tracks it in `in_progress_items` until completed or errored.
     pub fn receive_file(&self) -> Result<Option<ReceivedJob>> {
         let Some(m) = self.q.receive()? else {
