@@ -632,6 +632,22 @@ fn prefetcher(e: &Env) -> Arc<crate::par2::prefetch::Prefetcher> {
     e.p.runtime().unwrap().par2_prefetcher()
 }
 
+/// The prefetch is planned off the job's thread, so it is waited for rather than read at once.
+async fn held_prefetch(e: &Env) -> Option<String> {
+    for _ in 0..200 {
+        if let Some(o) = prefetcher(e).owner() {
+            return Some(o);
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    None
+}
+
+/// Lets any planned prefetch land before asserting that none was made.
+async fn settle_prefetch() {
+    tokio::time::sleep(Duration::from_millis(200)).await;
+}
+
 /// Two queued jobs; the second one's PAR2 is created during the first one's upload and then used.
 async fn assert_next_job_par2_is_prefetched(
     wait_for_par2: bool,
@@ -647,8 +663,8 @@ async fn assert_next_job_par2_is_prefetched(
     }
     let c = CancellationToken::new();
     e.p.process_next_item(&c).await.unwrap();
-    let held = prefetcher(&e)
-        .owner()
+    let held = held_prefetch(&e)
+        .await
         .expect("the second job's PAR2 is prefetched during the first upload");
     assert_eq!(held, e.q.peek_file().unwrap().unwrap().msg_id);
     e.p.process_next_item(&c).await.unwrap();
@@ -695,6 +711,7 @@ async fn several_upload_slots_already_overlap_jobs_so_nothing_is_prefetched() {
     e.p.process_next_item(&CancellationToken::new())
         .await
         .unwrap();
+    settle_prefetch().await;
     assert!(prefetcher(&e).owner().is_none());
 }
 
@@ -708,6 +725,7 @@ async fn a_held_dispatcher_prefetches_nothing() {
     e.p.process_next_item(&CancellationToken::new())
         .await
         .unwrap();
+    settle_prefetch().await;
     assert!(prefetcher(&e).owner().is_none());
 }
 
@@ -723,6 +741,7 @@ async fn a_next_job_whose_set_name_is_taken_in_the_work_dir_is_not_prefetched() 
     e.q.add_file(&b, 30_000).unwrap();
     let c = CancellationToken::new();
     e.p.process_next_item(&c).await.unwrap();
+    settle_prefetch().await;
     assert!(
         prefetcher(&e).owner().is_none(),
         "job a's set is still in the work dir"
@@ -751,6 +770,7 @@ async fn a_replaced_processor_hands_its_prefetch_over_to_be_removed_before_the_n
         .process_next_item(&CancellationToken::new())
         .await
         .unwrap();
+    held_prefetch(&old).await.expect("a prefetch is held");
     let work = PathBuf::from(old.p.runtime().unwrap().par2_work_dir());
     let next = file_name_of_path(&old.q.peek_file().unwrap().unwrap().job.path);
     let handed = old
@@ -759,7 +779,9 @@ async fn a_replaced_processor_hands_its_prefetch_over_to_be_removed_before_the_n
         .expect("the held prefetch is handed over");
     assert!(prefetcher(&old).owner().is_none());
     // a stopped processor starts no new prefetch
-    old.p.prefetch_next_par2();
+    if let Some(h) = old.p.spawn_prefetch_next() {
+        h.await.unwrap();
+    }
     assert!(prefetcher(&old).owner().is_none());
 
     let new = env();
@@ -775,5 +797,43 @@ async fn a_replaced_processor_hands_its_prefetch_over_to_be_removed_before_the_n
     assert!(
         left.is_empty(),
         "removed before the new processor's first dispatch: {left:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_job_without_its_own_par2_still_starts_the_next_jobs_prefetch() {
+    let e = prefetch_env(1, |o| {
+        let mut c = (*o.config).clone();
+        c.par2.skip_if_par2_exists = Some(true);
+        o.config = Arc::new(c);
+    });
+    // first: a folder that ships its own PAR2, so its job makes no PAR2 call
+    write(&e.src, "Shipped/data.bin", 20_000);
+    write(&e.src, "Shipped/data.bin.par2", 100);
+    let folder = format!("{FOLDER_PREFIX}{}", e.src.join("Shipped").to_string_lossy());
+    e.q.add_file_with_priority(&folder, 20_100, 5).unwrap();
+    let next = write(&e.src, "next.bin", 20_000);
+    e.q.add_file(&next, 20_000).unwrap();
+    let c = CancellationToken::new();
+    e.p.process_next_item(&c).await.unwrap();
+    held_prefetch(&e)
+        .await
+        .expect("the next job's PAR2 is prefetched during the folder upload");
+    e.p.process_next_item(&c).await.unwrap();
+    assert_eq!(prefetcher(&e).hits(), 1);
+    assert_eq!(count(&e, "completed_items"), 2);
+}
+
+#[test]
+fn a_prefetch_needs_room_for_the_extra_set_twice_over_plus_a_reserve() {
+    const GIB: u64 = 1 << 30;
+    // 10 GiB of input at 10% is a ~1 GiB set: needs 2 GiB + 1 GiB reserve
+    let est = prefetch_set_estimate(10 * GIB, "10%");
+    assert!((GIB..GIB + GIB / 10).contains(&est), "{est}");
+    assert!(prefetch_fits(Some(4 * GIB), est));
+    assert!(!prefetch_fits(Some(2 * GIB), est));
+    assert!(
+        prefetch_fits(None, est),
+        "unknown free space does not block it"
     );
 }

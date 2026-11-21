@@ -8,6 +8,7 @@ pub mod blocking;
 pub mod config;
 pub mod database;
 pub mod db;
+pub mod diskspace;
 pub mod duplicatelookup;
 pub mod engine;
 pub mod fileinfo;

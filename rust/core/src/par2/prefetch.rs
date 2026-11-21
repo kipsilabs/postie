@@ -116,6 +116,8 @@ struct Entry {
 /// Holds at most one prefetched (or in-flight) PAR2 request.
 pub struct Prefetcher {
     slot: Mutex<Option<Entry>>,
+    /// Set by [`Prefetcher::close`] while holding `slot`; `start` checks it under the same lock.
+    closed: std::sync::atomic::AtomicBool,
     hold: HoldFn,
     trigger: Mutex<Option<Trigger>>,
     hits: AtomicUsize,
@@ -129,6 +131,7 @@ impl Prefetcher {
     pub fn new(hold: HoldFn) -> Self {
         Self {
             slot: Mutex::new(None),
+            closed: std::sync::atomic::AtomicBool::new(false),
             hold,
             trigger: Mutex::new(None),
             hits: AtomicUsize::new(0),
@@ -169,6 +172,9 @@ impl Prefetcher {
     ) -> Option<Discarded> {
         let stamp = stamp(request.files())?;
         let mut slot = lock(&self.slot);
+        if self.closed.load(Ordering::SeqCst) {
+            return None;
+        }
         if slot
             .as_ref()
             .is_some_and(|e| e.request == request && e.stamp == stamp)
@@ -204,12 +210,14 @@ impl Prefetcher {
         None
     }
 
-    /// Removes the held prefetch, whatever it is.
+    /// Stops all prefetching for good and removes the held prefetch. A planner that is already past
+    /// its own checks cannot register anything afterwards: the flag is set under the slot lock that
+    /// `start` takes.
     #[must_use = "a removed prefetch must be discarded"]
-    pub fn take_all(&self) -> Option<Discarded> {
-        lock(&self.slot)
-            .take()
-            .map(|e| Discarded(e, self.hold.clone()))
+    pub fn close(&self) -> Option<Discarded> {
+        let mut slot = lock(&self.slot);
+        self.closed.store(true, Ordering::SeqCst);
+        slot.take().map(|e| Discarded(e, self.hold.clone()))
     }
 
     /// Removes a held prefetch that is not `request` but would write the same set file.

@@ -382,3 +382,20 @@ async fn a_changed_request_for_the_same_set_file_is_discarded_before_the_job_wri
         "the job's set survives"
     );
 }
+
+#[tokio::test]
+async fn a_closed_prefetcher_hands_back_what_it_held_and_starts_nothing_more() {
+    let e = env();
+    let (a, b) = (e.file("a.bin"), e.file("b.bin"));
+    let _ = e.store.start("m1", req(&a), Fake::new(&e.out, 0));
+    wait_finished(&e.store).await;
+    e.store.close().expect("the held prefetch").discard().await;
+    assert!(!e.out.join("a.bin.par2").exists());
+    // a planner that was already past its checks when the store closed
+    let late = Fake::new(&e.out, 0);
+    assert!(e.store.start("m2", req(&b), late.clone()).is_none());
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    assert!(e.store.owner().is_none());
+    assert_eq!(late.calls.load(Ordering::SeqCst), 0, "no task was spawned");
+    assert!(!e.out.join("b.bin.par2").exists());
+}

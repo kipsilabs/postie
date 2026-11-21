@@ -60,7 +60,8 @@ posting:
   # parity creation; PAR2 competes with the upload for CPU and disk while both run.
   # true: create PAR2 first, then upload. In both modes a PAR2 failure posts the file without PAR2.
   # With one upload slot and a PAR2 temp_dir, the next queued job's PAR2 is also created while the
-  # current job uploads, so in a queue only the first job waits for parity.
+  # current job uploads (when the temp dir's disk has room for the extra set), so in a queue only
+  # the first job waits for parity.
   wait_for_par2: false
   max_retries: 3
   retry_delay: 5s
