@@ -77,7 +77,12 @@ impl Reposter {
             .as_ref()
             .ok_or_else(|| PostError::Other("reposter has no upload pool".into()))?;
         let file = File::open(Path::new(&rec.source_path)).map_err(|e| {
-            PostError::Other(format!("repost: open source {:?}: {e}", rec.source_path))
+            let msg = format!("repost: open source {:?}: {e}", rec.source_path);
+            if e.kind() == std::io::ErrorKind::NotFound {
+                PostError::SourceMissing(msg)
+            } else {
+                PostError::Other(msg)
+            }
         })?;
         let (offset, size) = validate_read_range(&file, rec.offset, rec.body_size)
             .map_err(|e| PostError::Other(format!("repost: {:?}: {e}", rec.source_path)))?;

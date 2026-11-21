@@ -926,13 +926,12 @@ async fn the_reposter_reuses_the_message_id_and_body() {
 
     let mut missing = rec.clone();
     missing.source_path = t.0.join("gone.bin").to_string_lossy().into_owned();
-    assert!(
-        r.repost(&CancellationToken::new(), &missing)
-            .await
-            .unwrap_err()
-            .to_string()
-            .starts_with("repost: open source")
-    );
+    let err = r
+        .repost(&CancellationToken::new(), &missing)
+        .await
+        .unwrap_err();
+    assert!(matches!(&err, PostError::SourceMissing(_)), "{err:?}");
+    assert!(err.to_string().starts_with("repost: open source"));
     let none = Reposter::new(None, engine, 0);
     assert_eq!(
         none.repost(&CancellationToken::new(), &rec)
