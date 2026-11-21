@@ -363,3 +363,54 @@ fn more_than_32768_input_slices_is_an_error_not_a_panic() {
     );
     assert!(!dir.join("s.par2").exists());
 }
+
+#[test]
+fn tiling_and_kernel_choice_do_not_change_the_output() {
+    let dir = tmp();
+    // the slice spans several tiles with a ragged last one, and odd worker counts split it unevenly
+    let slice = 3 * 4096 + 68;
+    let inputs = write_inputs(
+        &dir,
+        &[("a.bin", 31, 5 * slice + 1000), ("b.bin", 32, slice / 2)],
+    );
+    let mut reference: Option<BTreeMap<String, Vec<u8>>> = None;
+    for (tile, batch_width, threads) in [
+        (usize::MAX, 16, 1),
+        (4096, 16, 3),
+        (4100, 1, 3),
+        (64, 16, 2),
+        (TILE_BYTES, 1, 4),
+        (TILE_BYTES, 16, 1),
+    ] {
+        let out_dir = tmp();
+        let o = Options {
+            num_threads: threads,
+            ..opts(slice, 5)
+        };
+        create_tuned(
+            &CancellationToken::new(),
+            &out_dir.join("set.par2"),
+            &inputs,
+            &o,
+            None,
+            Tuning { tile, batch_width },
+        )
+        .unwrap();
+        let got = set_files(&out_dir);
+        match &reference {
+            None => reference = Some(got),
+            Some(r) => assert!(
+                *r == got,
+                "tile={tile} batch_width={batch_width} threads={threads} changed the output"
+            ),
+        }
+    }
+}
+
+#[test]
+fn default_workers_leave_a_core_for_the_md5_and_reader_threads() {
+    assert_eq!(worker_threads(0, 10), 9);
+    assert_eq!(worker_threads(0, 2), 1);
+    assert_eq!(worker_threads(0, 1), 1);
+    assert_eq!(worker_threads(4, 10), 4, "an explicit count is kept");
+}

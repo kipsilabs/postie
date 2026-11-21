@@ -3,8 +3,10 @@
 //! One reader thread streams each input file (in file-ID order, the order PAR2 numbers source slices)
 //! in batches of zero-padded slices. Per batch, a worker pool hashes slices (MD5 + CRC32 for the IFSC
 //! packets) and encodes: every worker owns a column range of all recovery buffers, so there is no
-//! locking and no `unsafe`. The whole-file MD5, which must be sequential, runs on one thread per file
-//! beside the pool, so the single-stream MD5 rate is the only floor. When the recovery buffers would
+//! locking and no `unsafe`. Each worker walks its range in `TILE_BYTES` tiles so a tile's sources
+//! stay in cache while every recovery block is updated. The whole-file MD5, which must be sequential,
+//! runs on one thread beside the pool (which leaves it a core by default), so the single-stream MD5
+//! rate is the only floor. When the recovery buffers would
 //! exceed the memory limit the encode is split into passes that re-read the inputs.
 
 use std::fs::File;
@@ -15,7 +17,7 @@ use std::sync::mpsc::sync_channel;
 
 use md5::{Digest, Md5};
 use reedsolomon_rs::gf;
-use reedsolomon_rs::gf_simd::{FactorSrc, mul_acc_input_batch};
+use reedsolomon_rs::gf_simd::{FactorSrc, input_batch_width, mul_acc_input_batch, mul_acc_region};
 use tokio_util::sync::CancellationToken;
 
 use super::packets::{self, IfscEntry, Md5Sum};
@@ -27,6 +29,11 @@ const MAX_BATCH_SLICES: usize = 4096;
 const DEFAULT_MEMORY_LIMIT: i64 = 4 * 1024 * 1024 * 1024;
 /// Column ranges are multiples of a cache line so workers never share one.
 const COLUMN_ALIGN: usize = 64;
+/// Columns encoded per step. A worker updates every recovery block one tile at a time, so the batch's
+/// sources for the tile (`batch slices x TILE_BYTES`) stay cache-resident across all exponents. Over a
+/// worker's whole range they did not: on an M4, 768 KB slices at 10% went from 51 s to 31 s of CPU
+/// and 256 KiB slices from 91 s to 63 s, with no change at 10 MiB slices.
+const TILE_BYTES: usize = 8 * 1024;
 /// PAR2 2.0 has exactly 32768 distinct input-slice constants, so a set holds at most this many slices.
 pub const MAX_INPUT_SLICES: usize = 32768;
 /// Upper bound on concurrent quick-scan threads (a thread per file breaks large folders).
@@ -57,12 +64,40 @@ pub struct Options {
     /// Slice size in bytes; a positive multiple of 4.
     pub slice_size: usize,
     pub num_recovery: usize,
-    /// Worker threads (0 = all cores).
+    /// Encode worker threads (0 = all cores but one, which the reader and the sequential whole-file
+    /// MD5 need: a worker on every core starves them and the whole pipeline waits on the MD5).
     pub num_threads: usize,
     /// Cap on recovery buffer memory (<= 0: 4 GiB).
     pub memory_limit: i64,
     /// Creator string embedded in the set (empty: "Postie").
     pub creator: String,
+}
+
+/// Encode-loop shape; fixed in production, varied by tests to prove it never changes the output.
+#[derive(Debug, Clone, Copy)]
+struct Tuning {
+    /// Columns per encode step; a multiple of 4.
+    tile: usize,
+    /// Sources folded per kernel call: 1 means one source at a time, which the GF crate measures as
+    /// faster on x86 without GFNI; otherwise the whole batch goes to the grouped kernel.
+    batch_width: usize,
+}
+
+impl Tuning {
+    fn native() -> Self {
+        Self {
+            tile: TILE_BYTES,
+            batch_width: input_batch_width().max(1),
+        }
+    }
+}
+
+/// Encode workers for a requested count (0 = auto) on `available` cores.
+fn worker_threads(requested: usize, available: usize) -> usize {
+    if requested > 0 {
+        return requested;
+    }
+    available.saturating_sub(1).max(1)
 }
 
 /// Receives `("hashing" | "encoding" | "writing", 0.0..=1.0)`.
@@ -189,6 +224,7 @@ struct Plan<'a> {
     constants: &'a [u16],
     slice_size: usize,
     threads: usize,
+    tuning: Tuning,
 }
 
 fn check(cancel: &CancellationToken) -> Result<()> {
@@ -253,30 +289,46 @@ fn column_ranges(slice_size: usize, threads: usize) -> Vec<(usize, usize)> {
         .collect()
 }
 
-/// Encodes one batch into this worker's column range of every recovery buffer.
+/// GF factor of every (exponent, batch slice) pair, row-major by exponent; shared by all workers.
+fn batch_factors(batch: &Batch, plan: &Plan<'_>, exps: &[u32]) -> Vec<u16> {
+    let constants = &plan.constants[batch.global_first..batch.global_first + batch.count];
+    exps.iter()
+        .flat_map(|&e| constants.iter().map(move |&c| gf::pow(c, e)))
+        .collect()
+}
+
+/// Encodes one batch into this worker's column range of every recovery buffer, a tile at a time.
 fn encode_columns(
     batch: &Batch,
     plan: &Plan<'_>,
-    exps: &[u32],
+    factors: &[u16],
     range: (usize, usize),
     acc: &mut [Vec<u8>],
 ) {
     let (a, b) = range;
-    if a >= b {
-        return;
-    }
     let s = plan.slice_size;
-    let srcs: Vec<&[u8]> = (0..batch.count)
-        .map(|j| &batch.data[j * s + a..j * s + b])
-        .collect();
+    let Tuning { tile, batch_width } = plan.tuning;
     let mut fs: Vec<FactorSrc<'_>> = Vec::with_capacity(batch.count);
-    for (e, dst) in exps.iter().zip(acc.iter_mut()) {
-        fs.clear();
-        fs.extend(srcs.iter().enumerate().map(|(j, src)| FactorSrc {
-            factor: gf::pow(plan.constants[batch.global_first + j], *e),
-            src,
-        }));
-        mul_acc_input_batch(dst, &fs);
+    let mut t0 = a;
+    while t0 < b {
+        let t1 = t0.saturating_add(tile).min(b);
+        let src = |j: usize| &batch.data[j * s + t0..j * s + t1];
+        for (row, dst) in factors.chunks_exact(batch.count).zip(acc.iter_mut()) {
+            let dst = &mut dst[t0 - a..t1 - a];
+            if batch_width == 1 {
+                for (j, &factor) in row.iter().enumerate() {
+                    mul_acc_region(factor, src(j), dst);
+                }
+            } else {
+                fs.clear();
+                fs.extend(row.iter().enumerate().map(|(j, &factor)| FactorSrc {
+                    factor,
+                    src: src(j),
+                }));
+                mul_acc_input_batch(dst, &fs);
+            }
+        }
+        t0 = t1;
     }
 }
 
@@ -290,7 +342,7 @@ fn hash_slice(data: &[u8]) -> IfscEntry {
 }
 
 /// One pass over all inputs encoding `exps`; the first pass also computes the full-file MD5s and the
-/// per-slice checksums. Returns the recovery blocks (one per exponent).
+/// per-slice checksums. Returns the recovery blocks split by worker column range: `[worker][exp]`.
 fn run_pass(
     cancel: &CancellationToken,
     plan: &Plan<'_>,
@@ -298,7 +350,7 @@ fn run_pass(
     exps: &[u32],
     first_pass: bool,
     progress: &(dyn Fn(f64) + Sync),
-) -> Result<Vec<Vec<u8>>> {
+) -> Result<Vec<Vec<Vec<u8>>>> {
     let s = plan.slice_size;
     let ranges = column_ranges(s, plan.threads);
     let mut acc: Vec<Vec<Vec<u8>>> = ranges
@@ -350,13 +402,14 @@ fn run_pass(
                     compute_err = Some(e);
                     break;
                 }
+                let factors = batch_factors(&batch, plan, exps);
                 let entries: Vec<(usize, IfscEntry)> = std::thread::scope(|inner| {
                     let handles: Vec<_> = acc
                         .iter_mut()
                         .zip(&ranges)
                         .enumerate()
                         .map(|(w, (cols, range))| {
-                            let batch = &batch;
+                            let (batch, factors) = (&batch, &factors);
                             inner.spawn(move || {
                                 let mut out = Vec::new();
                                 if first_pass {
@@ -369,7 +422,7 @@ fn run_pass(
                                         j += plan.threads;
                                     }
                                 }
-                                encode_columns(batch, plan, exps, *range, cols);
+                                encode_columns(batch, plan, factors, *range, cols);
                                 out
                             })
                         })
@@ -414,14 +467,8 @@ fn run_pass(
     for (fi, h) in md5_results {
         files[fi].hash_full = h;
     }
-    // stitch the column ranges back into whole blocks
-    Ok((0..exps.len())
-        .map(|e| {
-            acc.iter()
-                .flat_map(|cols| cols[e].iter().copied())
-                .collect()
-        })
-        .collect())
+    // the column ranges are written out as packet parts; stitching them would double peak memory
+    Ok(acc)
 }
 
 fn write_main(
@@ -519,16 +566,21 @@ impl VolumeWriters {
         Ok(this)
     }
 
-    /// Appends the recovery blocks for exponents `first..first + blocks.len()`.
-    fn write_chunk(&mut self, first: usize, blocks: &[Vec<u8>]) -> Result<()> {
-        for (i, data) in blocks.iter().enumerate() {
+    /// Appends the recovery blocks for exponents `first..first + count`, each held as one piece per
+    /// worker column range (`cols[worker][i]`).
+    fn write_chunk(&mut self, first: usize, count: usize, cols: &[Vec<Vec<u8>>]) -> Result<()> {
+        for i in 0..count {
             let exp = first + i;
             let g = self.groups.partition_point(|&(offset, _)| offset <= exp) - 1;
-            packets::write_packet(
+            let exp_bytes = (exp as u32).to_le_bytes();
+            let mut parts: Vec<&[u8]> = Vec::with_capacity(cols.len() + 1);
+            parts.push(&exp_bytes);
+            parts.extend(cols.iter().map(|c| c[i].as_slice()));
+            packets::write_packet_parts(
                 &mut self.writers[g],
                 &self.set_id,
                 &packets::TYPE_RECOVERY,
-                &packets::recovery_body(exp as u32, data),
+                &parts,
             )
             .map_err(|e| {
                 Par2Error::Io(format!(
@@ -570,6 +622,17 @@ pub fn create_with_names(
     opts: &Options,
     progress: Progress<'_>,
 ) -> Result<()> {
+    create_tuned(cancel, output, inputs, opts, progress, Tuning::native())
+}
+
+fn create_tuned(
+    cancel: &CancellationToken,
+    output: &Path,
+    inputs: &[InputFile],
+    opts: &Options,
+    progress: Progress<'_>,
+    tuning: Tuning,
+) -> Result<()> {
     if opts.slice_size == 0 || !opts.slice_size.is_multiple_of(4) {
         return Err(Par2Error::Invalid(format!(
             "par2go: SliceSize must be a positive multiple of 4, got {}",
@@ -599,11 +662,10 @@ pub fn create_with_names(
             p(phase, pct);
         }
     };
-    let threads = if opts.num_threads == 0 {
-        std::thread::available_parallelism().map_or(1, usize::from)
-    } else {
-        opts.num_threads
-    };
+    let threads = worker_threads(
+        opts.num_threads,
+        std::thread::available_parallelism().map_or(1, usize::from),
+    );
     let memory_limit = if opts.memory_limit <= 0 {
         DEFAULT_MEMORY_LIMIT
     } else {
@@ -676,6 +738,7 @@ pub fn create_with_names(
         constants: &constants,
         slice_size: opts.slice_size,
         threads,
+        tuning,
     };
     let mut volumes = VolumeWriters::create(output, &set_id, opts.num_recovery)?;
     let mut first_exp = 0usize;
@@ -685,9 +748,9 @@ pub fn create_with_names(
             let base = ci as f64 / chunks.len() as f64;
             let scale = 1.0 / chunks.len() as f64;
             let on_progress = |p: f64| report("hashing", base + p * scale);
-            let blocks = run_pass(cancel, &plan, &mut files, chunk, ci == 0, &on_progress)?;
+            let cols = run_pass(cancel, &plan, &mut files, chunk, ci == 0, &on_progress)?;
             // this pass's recovery blocks go to disk now and are dropped before the next pass
-            volumes.write_chunk(first_exp, &blocks)
+            volumes.write_chunk(first_exp, chunk.len(), &cols)
         })();
         if let Err(e) = pass {
             volumes.discard();
