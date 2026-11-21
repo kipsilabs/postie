@@ -293,6 +293,37 @@ impl Store {
         self.files(&format!("SELECT {TRANSFER_FILE_COLS} FROM transfer_files WHERE transfer_id = ?1 ORDER BY file_id"), params![transfer_id])
     }
 
+    /// Whether `path` is still needed by something other than `transfer_id`: a pending or running
+    /// queue job (a `FOLDER:<dir>` job counts when `path` lies inside it) or another transfer whose
+    /// `transfer_files` rows are not cleaned up yet.
+    pub fn is_source_used_elsewhere(&self, transfer_id: &str, path: &str) -> Result<bool> {
+        let c = self.db.lock();
+        let direct: i64 = c.query_row(
+            "SELECT (SELECT COUNT(*) FROM transfer_files WHERE source_path = ?1 AND transfer_id <> ?2)
+                  + (SELECT COUNT(*) FROM goqite WHERE queue = 'file_jobs' AND job_path = ?1)
+                  + (SELECT COUNT(*) FROM in_progress_items WHERE path = ?1)",
+            params![path, transfer_id],
+            |r| r.get(0),
+        )?;
+        if direct > 0 {
+            return Ok(true);
+        }
+        let mut stmt = c.prepare(
+            "SELECT job_path FROM goqite WHERE queue = 'file_jobs' AND job_path LIKE 'FOLDER:%'
+             UNION ALL SELECT path FROM in_progress_items WHERE path LIKE 'FOLDER:%'",
+        )?;
+        let folders = stmt.query_map([], |r| r.get::<_, Option<String>>(0))?;
+        let target = std::path::Path::new(path);
+        for f in folders {
+            if let Some(dir) = f?.as_deref().and_then(|p| p.strip_prefix("FOLDER:"))
+                && target.starts_with(dir)
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     /// Every distinct source path still tracked by a transfer, whatever its state.
     pub fn list_source_paths(&self) -> Result<Vec<String>> {
         let c = self.db.lock();

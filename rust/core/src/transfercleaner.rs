@@ -34,6 +34,19 @@ impl TransferCleaner {
         }
     }
 
+    /// A re-added path may be queued or uploading again; on a lookup error keep the file.
+    fn original_needed_elsewhere(&self, transfer_id: &str, path: &str) -> bool {
+        if path.is_empty() {
+            return false;
+        }
+        self.store
+            .is_source_used_elsewhere(transfer_id, path)
+            .unwrap_or_else(|e| {
+                eprintln!("transfercleaner: could not check other uses of {path}: {e}");
+                true
+            })
+    }
+
     /// Cleans up a transfer if and only if every file is verified. Returns `true` only when cleanup ran
     /// to completion: a no-op while any file is pending/verifying, and everything is retained if any
     /// file failed verification.
@@ -68,7 +81,14 @@ impl TransferCleaner {
         for f in &files {
             match f.file_role.as_str() {
                 manifest::ROLE_ORIGINAL if f.cleanup_policy == ts::CLEANUP_DELETE_ORIGINAL => {
-                    remove(&f.source_path, "original")
+                    if self.original_needed_elsewhere(transfer_id, &f.source_path) {
+                        eprintln!(
+                            "transfercleaner: keeping original still used by another upload: transfer={transfer_id} path={}",
+                            f.source_path
+                        );
+                    } else {
+                        remove(&f.source_path, "original")
+                    }
                 }
                 manifest::ROLE_GENERATED_PAR2 if !self.maintain_par2 => {
                     remove(&f.source_path, "generated par2")
@@ -123,6 +143,7 @@ mod tests {
     use std::sync::Mutex;
 
     struct Env {
+        db: Db,
         store: Store,
         dir: std::path::PathBuf,
     }
@@ -140,7 +161,8 @@ mod tests {
         ));
         std::fs::create_dir_all(dir.join("t1")).unwrap();
         Env {
-            store: Store::new(db),
+            store: Store::new(db.clone()),
+            db,
             dir,
         }
     }
@@ -279,5 +301,89 @@ mod tests {
                 .await
                 .unwrap()
         );
+    }
+
+    fn other_transfer_row(e: &Env, src: &std::path::Path) {
+        e.store
+            .upsert_file(&TransferFile {
+                transfer_id: "t2".into(),
+                file_id: "o2".into(),
+                manifest_path: e.dir.join("t2.jsonl.zst").to_string_lossy().into_owned(),
+                source_path: src.to_string_lossy().into_owned(),
+                file_role: "original".into(),
+                ..Default::default()
+            })
+            .unwrap();
+    }
+
+    fn queue_job(e: &Env, path: &str) {
+        let body = serde_json::json!({ "path": path }).to_string();
+        e.db
+            .lock()
+            .execute(
+                "INSERT INTO goqite (queue, body, timeout) VALUES ('file_jobs', CAST(?1 AS BLOB), '2000-01-01T00:00:00.000Z')",
+                [body],
+            )
+            .unwrap();
+    }
+
+    async fn cleanup_keeps_original(e: &Env, orig: &std::path::Path, om: &std::path::Path) {
+        let c = TransferCleaner::new(e.store.clone(), false, None);
+        assert!(c.cleanup_transfer("t1").await.unwrap());
+        assert!(orig.exists(), "original still needed elsewhere");
+        assert!(!om.exists(), "own manifest still removed");
+        assert!(e.store.list_files_by_transfer("t1").unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn original_kept_when_another_transfer_uses_it() {
+        let e = env();
+        let (orig, om) = add(&e, "o", "original", ts::STATE_VERIFIED, "delete_original");
+        other_transfer_row(&e, &orig);
+        cleanup_keeps_original(&e, &orig, &om).await;
+    }
+
+    #[tokio::test]
+    async fn original_kept_when_a_queue_job_or_folder_job_uses_it() {
+        let e = env();
+        let (orig, om) = add(&e, "o", "original", ts::STATE_VERIFIED, "delete_original");
+        queue_job(&e, &orig.to_string_lossy());
+        cleanup_keeps_original(&e, &orig, &om).await;
+
+        let e = env();
+        let (orig, om) = add(&e, "o", "original", ts::STATE_VERIFIED, "delete_original");
+        queue_job(&e, &format!("FOLDER:{}", e.dir.to_string_lossy()));
+        cleanup_keeps_original(&e, &orig, &om).await;
+    }
+
+    #[tokio::test]
+    async fn original_kept_when_an_in_progress_job_uses_it() {
+        let e = env();
+        let (orig, om) = add(&e, "o", "original", ts::STATE_VERIFIED, "delete_original");
+        e.db
+            .lock()
+            .execute(
+                "INSERT INTO in_progress_items (id, path, size, priority, created_at, job_data) VALUES ('j', ?1, 1, 0, '2000-01-01T00:00:00Z', '{}')",
+                [orig.to_string_lossy().into_owned()],
+            )
+            .unwrap();
+        cleanup_keeps_original(&e, &orig, &om).await;
+    }
+
+    #[tokio::test]
+    async fn unrelated_folder_job_does_not_block_deletion() {
+        let e = env();
+        let (orig, _) = add(&e, "o", "original", ts::STATE_VERIFIED, "delete_original");
+        queue_job(
+            &e,
+            &format!("FOLDER:{}", e.dir.join("other").to_string_lossy()),
+        );
+        assert!(
+            TransferCleaner::new(e.store.clone(), false, None)
+                .cleanup_transfer("t1")
+                .await
+                .unwrap()
+        );
+        assert!(!orig.exists());
     }
 }
