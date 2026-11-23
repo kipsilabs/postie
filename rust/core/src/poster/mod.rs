@@ -378,9 +378,12 @@ pub(crate) async fn post_yenc(
     let mut outcome_unknown = false;
     for attempt in 0..POST_ATTEMPTS {
         if attempt > 0 {
-            eprintln!(
-                "Retrying article post: messageID={} attempt={attempt}",
-                art.message_id
+            crate::logx::info(
+                &format!(
+                    "Retrying article post: messageID={} attempt={attempt}",
+                    art.message_id
+                ),
+                &[],
             );
         }
         let wire = art.encode(body).map_err(PostError::Other)?;
@@ -392,9 +395,12 @@ pub(crate) async fn post_yenc(
             // no answer in time: the provider or connection is stuck, so try again (the client
             // rotates to another provider and routes around unreachable ones)
             Err(_) if attempt + 1 < POST_ATTEMPTS => {
-                eprintln!(
-                    "Article post timed out, retrying: messageID={} attempt={attempt}",
-                    art.message_id
+                crate::logx::warn(
+                    &format!(
+                        "Article post timed out, retrying: messageID={} attempt={attempt}",
+                        art.message_id
+                    ),
+                    &[],
                 );
                 last = Some(NntpError::Timeout);
                 outcome_unknown = true;
@@ -722,7 +728,7 @@ impl Poster {
             Ok::<_, PostError>((file, size))
         })?;
         if size == 0 {
-            eprintln!("Skipping empty file: {}", path.display());
+            crate::logx::info(&format!("Skipping empty file: {}", path.display()), &[]);
             return Ok(None);
         }
         let file = Arc::new(file);
@@ -730,9 +736,12 @@ impl Poster {
         // articles still missing on the server.
         if let Some(sink) = &self.0.manifest_sink {
             match sink.existing_articles(path).await {
-                Err(e) => eprintln!(
-                    "Failed to read existing manifest; regenerating: file={} error={e}",
-                    path.display()
+                Err(e) => crate::logx::warn(
+                    &format!(
+                        "Failed to read existing manifest; regenerating: file={} error={e}",
+                        path.display()
+                    ),
+                    &[],
                 ),
                 Ok(Some(recs)) => {
                     return Ok(Some(
@@ -809,11 +818,14 @@ impl Poster {
         {
             nzb.add_article(a.clone());
         }
-        eprintln!(
-            "Recovered manifest; re-posting only missing articles: file={} total={} missing={}",
-            path.display(),
-            all.len(),
-            missing.len()
+        crate::logx::info(
+            &format!(
+                "Recovered manifest; re-posting only missing articles: file={} total={} missing={}",
+                path.display(),
+                all.len(),
+                missing.len()
+            ),
+            &[],
         );
         Prepared {
             path: path.to_path_buf(),

@@ -241,3 +241,37 @@ async fn a_server_that_goes_silent_then_recovers_lets_the_next_upload_through() 
     assert_downloads_whole(&web, &fake, "second.bin", &data).await;
     web.stop().await;
 }
+
+#[tokio::test]
+async fn the_verification_panel_shows_a_check_in_progress_and_empties_once_verified() {
+    let fake = fake_nntp().await;
+    let web = start("st-panel", &fake).await;
+    fake.set_stat(StatMode::Hang);
+    let (_, data) = add_file(&web, "panel.bin", 3 * A);
+    let i = settle(&web, "panel.bin", 60).await;
+    assert_eq!(i["status"], "complete", "{i}");
+    let entry = wait("a check in progress", 60, || async {
+        let list = web.get("/api/verification/active").await;
+        let e = list.as_array()?.first()?.clone();
+        (e["phase"] == "checking").then_some(e)
+    })
+    .await;
+    assert!(
+        entry["path"].as_str().unwrap().ends_with("panel.bin"),
+        "{entry}"
+    );
+    assert_eq!(entry["totalArticles"], 3, "{entry}");
+    assert!(
+        entry["verifiedArticles"].as_i64().unwrap() < 3,
+        "nothing is confirmed while the server is silent: {entry}"
+    );
+    fake.set_stat(StatMode::Stored);
+    assert_downloads_whole(&web, &fake, "panel.bin", &data).await;
+    let list = web.get("/api/verification/active").await;
+    assert_eq!(
+        list,
+        serde_json::json!([]),
+        "verified items leave the panel"
+    );
+    web.stop().await;
+}

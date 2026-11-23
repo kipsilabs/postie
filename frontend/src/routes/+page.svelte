@@ -3,6 +3,7 @@ import { goto } from "$app/navigation";
 import apiClient from "$lib/api/client";
 import DashboardHeader from "$lib/components/dashboard/DashboardHeader.svelte";
 import ProgressSection from "$lib/components/dashboard/ProgressSection.svelte";
+import VerificationSection from "$lib/components/dashboard/VerificationSection.svelte";
 import ProviderStatus from "$lib/components/dashboard/ProviderStatus.svelte";
 import QueueSection from "$lib/components/dashboard/QueueSection.svelte";
 import QueueStats from "$lib/components/dashboard/QueueStats.svelte";
@@ -284,6 +285,7 @@ async function handleUpload() {
     >
       <QueueStats />
       <ProgressSection />
+      <VerificationSection />
       <QueueSection />
       <ProviderStatus />
       <WatcherStatus />

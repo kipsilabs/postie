@@ -939,7 +939,7 @@ pub fn load(path: &Path) -> Result<ConfigData, ConfigError> {
     if cfg.migrate_v1() {
         // persist so later loads do not migrate again; a failed save is only a warning in Go
         if let Err(e) = save_config(&cfg, path) {
-            eprintln!("Failed to save migrated config to disk: {e}");
+            crate::logx::warn(&format!("Failed to save migrated config to disk: {e}"), &[]);
         }
     }
     cfg.apply_load_defaults();

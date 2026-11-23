@@ -70,6 +70,20 @@ pub struct TransferFile {
     pub check_attempts: i64,
 }
 
+/// One file of a completed item awaiting verification (see `Store::pending_verification_files`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingFile {
+    pub completed_item_id: String,
+    pub path: String,
+    pub transfer_id: String,
+    pub file_id: String,
+    pub article_count: i64,
+    pub verification_state: String,
+    /// RFC 3339, as stored.
+    pub next_check_at: Option<String>,
+    pub open_failures: i64,
+}
+
 /// One row of `verification_failures`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerificationFailure {
@@ -502,6 +516,42 @@ impl Store {
             params![transfer_id],
         )?;
         Ok(())
+    }
+
+    /// Every file of every completed item still awaiting verification, with its count of articles
+    /// still missing (failures not yet resolved), oldest item first. Feeds the dashboard panel.
+    pub fn pending_verification_files(&self) -> Result<Vec<PendingFile>> {
+        let conn = self.db.lock();
+        let mut stmt = conn
+            .prepare(
+                "SELECT ci.id, ci.path, tf.transfer_id, tf.file_id, tf.article_count,
+                        tf.verification_state, tf.next_check_at, COALESCE(vf.open_count, 0)
+                 FROM completed_items ci
+                 JOIN transfer_files tf ON tf.completed_item_id = ci.id
+                 LEFT JOIN (
+                     SELECT transfer_id, file_id, COUNT(*) AS open_count
+                     FROM verification_failures
+                     WHERE state IN ('pending', 'failed')
+                     GROUP BY transfer_id, file_id
+                 ) vf ON vf.transfer_id = tf.transfer_id AND vf.file_id = tf.file_id
+                 WHERE ci.verification_status = 'pending_verification'
+                 ORDER BY ci.completed_at, ci.id, tf.file_id",
+            )
+            .map_err(wrap("prepare pending verification files"))?;
+        let rows = stmt.query_map([], |r| {
+            Ok(PendingFile {
+                completed_item_id: r.get(0)?,
+                path: r.get(1)?,
+                transfer_id: r.get(2)?,
+                file_id: r.get(3)?,
+                article_count: r.get(4)?,
+                verification_state: r.get(5)?,
+                next_check_at: r.get(6)?,
+                open_failures: r.get(7)?,
+            })
+        })?;
+        rows.collect::<rusqlite::Result<_>>()
+            .map_err(StoreError::from)
     }
 
     /// Files awaiting their first verification check, oldest first.

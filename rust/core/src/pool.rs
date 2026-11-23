@@ -93,16 +93,25 @@ fn diff_providers(client: &Client, old: &[&ServerConfig], new: &[&ServerConfig],
     for (key, o) in &old_map {
         if new_map.get(key).is_none_or(|n| server_config_changed(o, n)) {
             if client.remove_provider(key) {
-                eprintln!("pool: removed provider from pool: pool={pool} provider={key}");
+                crate::logx::info(
+                    &format!("Removed provider from pool: pool={pool} provider={key}"),
+                    &[("component", "pool".into())],
+                );
             } else {
-                eprintln!("pool: failed to remove provider from pool: pool={pool} provider={key}");
+                crate::logx::warn(
+                    &format!("Failed to remove provider from pool: pool={pool} provider={key}"),
+                    &[("component", "pool".into())],
+                );
             }
         }
     }
     for (key, n) in &new_map {
         if old_map.get(key).is_none_or(|o| server_config_changed(o, n)) {
             client.add_provider(provider_config(n));
-            eprintln!("pool: added provider to pool: pool={pool} provider={key}");
+            crate::logx::info(
+                &format!("Added provider to pool: pool={pool} provider={key}"),
+                &[("component", "pool".into())],
+            );
         }
     }
 }
@@ -118,11 +127,14 @@ impl Manager {
         let upload = Arc::new(build_client(&upload_servers));
         let verify_servers = cfg.verify_servers();
         let verify = (!verify_servers.is_empty()).then(|| Arc::new(build_client(&verify_servers)));
-        eprintln!(
-            "pool: NNTP connection pools configured: upload_servers={} verify_servers={} using_dedicated_verify_pool={}",
-            upload_servers.len(),
-            verify_servers.len(),
-            verify.is_some()
+        crate::logx::info(
+            &format!(
+                "NNTP connection pools configured: upload_servers={} verify_servers={} using_dedicated_verify_pool={}",
+                upload_servers.len(),
+                verify_servers.len(),
+                verify.is_some()
+            ),
+            &[("component", "pool".into())],
         );
         Ok(Self {
             state: RwLock::new(State {
@@ -155,7 +167,10 @@ impl Manager {
         if s.closed {
             return Err("connection pool manager has been closed".into());
         }
-        eprintln!("pool: updating NNTP connection pools with new configuration");
+        crate::logx::info(
+            "Updating NNTP connection pools with new configuration",
+            &[("component", "pool".into())],
+        );
         let new_upload = new.upload_servers();
         if s.upload.is_none() {
             if new_upload.is_empty() {
@@ -187,10 +202,13 @@ impl Manager {
             _ => s.verify = None,
         }
         s.config = new.clone();
-        eprintln!(
-            "pool: NNTP connection pools updated successfully: upload_servers={} verify_servers={}",
-            new_upload.len(),
-            new_v.len()
+        crate::logx::info(
+            &format!(
+                "NNTP connection pools updated successfully: upload_servers={} verify_servers={}",
+                new_upload.len(),
+                new_v.len()
+            ),
+            &[("component", "pool".into())],
         );
         Ok(())
     }
@@ -220,7 +238,10 @@ impl Manager {
             u.close();
         }
         s.closed = true;
-        eprintln!("pool: NNTP connection pool manager closed successfully");
+        crate::logx::info(
+            "NNTP connection pool manager closed successfully",
+            &[("component", "pool".into())],
+        );
     }
 
     pub fn is_closed(&self) -> bool {

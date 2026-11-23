@@ -217,9 +217,12 @@ pub async fn run_post_upload_script(
     if !cfg.enabled || cfg.command.is_empty() {
         return Ok(());
     }
-    eprintln!(
-        "postie: executing post upload script: command={} nzb_path={nzb_path} source_path={source_path} item_id={item_id}",
-        cfg.command
+    crate::logx::info(
+        &format!(
+            "Executing post upload script: command={} nzb_path={nzb_path} source_path={source_path} item_id={item_id}",
+            cfg.command
+        ),
+        &[("component", "postie".into())],
     );
     #[cfg(windows)]
     if [nzb_path, source_path, &source_dir(source_path)]
@@ -231,7 +234,10 @@ pub async fn run_post_upload_script(
             && let Err(e) =
                 q.update_script_status(item_id, "failed_permanent", 0, msg, None, Some(Utc::now()))
         {
-            eprintln!("postie: failed to track refused script: {e}");
+            crate::logx::warn(
+                &format!("Failed to track refused script: {e}"),
+                &[("component", "postie".into())],
+            );
         }
         return Err(msg.into());
     }
@@ -273,7 +279,10 @@ pub async fn run_post_upload_script(
     };
     if !ok {
         let error_msg = format!("script failed: {detail}");
-        eprintln!("postie: error executing post upload script: {detail} command={command}");
+        crate::logx::warn(
+            &format!("Error executing post upload script: {detail} command={command}"),
+            &[("component", "postie".into())],
+        );
         if let Some(q) = q {
             let now = Utc::now();
             let delay = chrono::Duration::nanoseconds(cfg.retry_delay.nanos().max(0));
@@ -285,7 +294,10 @@ pub async fn run_post_upload_script(
                 Some(now + delay),
                 Some(now),
             ) {
-                eprintln!("postie: failed to track script failure: {e}");
+                crate::logx::warn(
+                    &format!("Failed to track script failure: {e}"),
+                    &[("component", "postie".into())],
+                );
             }
         }
         return Err(format!(
@@ -296,7 +308,10 @@ pub async fn run_post_upload_script(
     if let Some(q) = q
         && let Err(e) = q.mark_script_completed(item_id)
     {
-        eprintln!("postie: failed to mark script as completed: {e}");
+        crate::logx::warn(
+            &format!("Failed to mark script as completed: {e}"),
+            &[("component", "postie".into())],
+        );
     }
     Ok(())
 }

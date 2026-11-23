@@ -231,6 +231,24 @@
 			"scan_triggered_description": "Le scan du répertoire a été lancé",
 			"watcher_number": "Surveillant #{n}",
 			"no_watchers": "Aucun répertoire de surveillance configuré"
+		},
+		"verification": {
+			"title": "Vérification",
+			"count": "{count} en attente",
+			"phase": {
+				"checking": "Contrôle des articles",
+				"repairing": "Réparation",
+				"waiting": "Attente de propagation",
+				"deferred": "Attente de connexions libres",
+				"queued": "En file"
+			},
+			"detail": {
+				"checking": "{verified} sur {total} articles confirmés sur le serveur",
+				"repairing": "{missing} articles manquants en cours de revérification et de republication",
+				"waiting": "Prochain contrôle dans {seconds} s",
+				"deferred": "Les envois utilisent toutes les connexions ; les contrôles reprennent dès qu'une se libère",
+				"queued": "Démarre au prochain cycle de vérification"
+			}
 		}
 	}
 }

@@ -210,6 +210,17 @@ export class UnifiedClient {
 		throw new Error("No client available");
 	}
 
+	async getVerificationActivity(): Promise<backend.VerificationActivity[]> {
+		await this.initialize();
+
+		if (this._environment === "web") {
+			const client = await getWebClient();
+			return client.getVerificationActivity();
+		}
+
+		throw new Error("No client available");
+	}
+
 	async getRunningJobDetails(): Promise<processor.RunningJobDetails[]> {
 		await this.initialize();
 

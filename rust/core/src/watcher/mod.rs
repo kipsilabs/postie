@@ -138,7 +138,10 @@ impl Watcher {
     fn scan_exclusive(&self, c: &CancellationToken) -> Option<Result<(), String>> {
         use std::sync::atomic::Ordering;
         if self.scanning.swap(true, Ordering::SeqCst) {
-            eprintln!("watcher: a scan is already running, skipping");
+            crate::logx::info(
+                "A scan is already running, skipping",
+                &[("component", "watcher".into())],
+            );
             return None;
         }
         struct Reset<'a>(&'a std::sync::atomic::AtomicBool);
@@ -160,10 +163,13 @@ impl Watcher {
 
     /// Scans on every interval until cancelled (skipping scans outside the schedule).
     pub async fn start(self: Arc<Self>, cancel: CancellationToken) {
-        eprintln!(
-            "watcher: starting directory watching {} with interval {:?}",
-            self.watch_folder,
-            self.interval()
+        crate::logx::info(
+            &format!(
+                "Starting directory watching {} with interval {:?}",
+                self.watch_folder,
+                self.interval()
+            ),
+            &[("component", "watcher".into())],
         );
         let mut scan = tokio::time::interval(self.interval());
         // a scan longer than the interval must not trigger back-to-back catch-up scans
@@ -181,10 +187,10 @@ impl Watcher {
                         let me = self.clone();
                         let c = cancel.clone();
                         if let Ok(Some(Err(e))) = tokio::task::spawn_blocking(move || me.scan_exclusive(&c)).await {
-                            eprintln!("watcher: error scanning directory: {e}");
+                            crate::logx::warn(&format!("Error scanning directory: {e}"), &[("component", "watcher".into())]);
                         }
                     } else {
-                        eprintln!("watcher: not within schedule, skipping scan");
+                        crate::logx::info("Not within schedule, skipping scan", &[("component", "watcher".into())]);
                     }
                 }
                 _ = cleanup.tick() => self.cleanup_old_cache_entries(),
@@ -262,12 +268,18 @@ impl Watcher {
         let (me, c) = (self.clone(), cancel.clone());
         tokio::task::spawn_blocking(move || {
             if me.is_within_schedule() {
-                eprintln!(
-                    "watcher: watch scanning started: watch_directory={}",
-                    me.watch_folder
+                crate::logx::info(
+                    &format!(
+                        "Watch scanning started: watch_directory={}",
+                        me.watch_folder
+                    ),
+                    &[("component", "watcher".into())],
                 );
                 if let Some(Err(e)) = me.scan_exclusive(&c) {
-                    eprintln!("watcher: error in triggered directory scan: {e}");
+                    crate::logx::warn(
+                        &format!("Error in triggered directory scan: {e}"),
+                        &[("component", "watcher".into())],
+                    );
                 }
             }
         });
@@ -324,9 +336,12 @@ impl Watcher {
         let mut entries: Vec<_> = match std::fs::read_dir(dir) {
             Ok(r) => r.flatten().collect(),
             Err(e) => {
-                return eprintln!(
-                    "watcher: skipping unreadable entry in watch folder: path={} error={e}",
-                    dir.display()
+                return crate::logx::warn(
+                    &format!(
+                        "Skipping unreadable entry in watch folder: path={} error={e}",
+                        dir.display()
+                    ),
+                    &[("component", "watcher".into())],
                 );
             }
         };
@@ -360,7 +375,10 @@ impl Watcher {
             match filepath_match(pattern, &base) {
                 Ok(true) => return false,
                 Ok(false) => {}
-                Err(_) => eprintln!("watcher: invalid pattern: {pattern}"),
+                Err(_) => crate::logx::warn(
+                    &format!("Invalid pattern: {pattern}"),
+                    &[("component", "watcher".into())],
+                ),
             }
         }
         true
@@ -465,9 +483,12 @@ impl Watcher {
         let total = self
             .calculate_directory_size(cancel)
             .map_err(|e| format!("failed to calculate directory size: {e}"))?;
-        eprintln!(
-            "watcher: directory size check: directory={} total_size={total} threshold={}",
-            self.watch_folder, self.cfg.size_threshold
+        crate::logx::debug(
+            &format!(
+                "Directory size check: directory={} total_size={total} threshold={}",
+                self.watch_folder, self.cfg.size_threshold
+            ),
+            &[("component", "watcher".into())],
         );
         if i64::try_from(total).unwrap_or(i64::MAX) < self.cfg.size_threshold {
             return Ok(());
@@ -497,8 +518,9 @@ impl Watcher {
             Ok(true) => return,
             Ok(false) => {}
             Err(e) => {
-                return eprintln!(
-                    "watcher: error checking if path is in queue: path={path} error={e}"
+                return crate::logx::warn(
+                    &format!("Error checking if path is in queue: path={path} error={e}"),
+                    &[("component", "watcher".into())],
                 );
             }
         }
@@ -511,14 +533,20 @@ impl Watcher {
             .queue
             .add_file_with_options(path, i64::try_from(size).unwrap_or(i64::MAX), opts)
         {
-            Ok(()) => eprintln!(
-                "watcher: added file to queue: path={} size={size}",
-                Path::new(path)
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy()
+            Ok(()) => crate::logx::debug(
+                &format!(
+                    "Added file to queue: path={} size={size}",
+                    Path::new(path)
+                        .file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                ),
+                &[("component", "watcher".into())],
             ),
-            Err(e) => eprintln!("watcher: error adding file to queue: path={path} error={e}"),
+            Err(e) => crate::logx::warn(
+                &format!("Error adding file to queue: path={path} error={e}"),
+                &[("component", "watcher".into())],
+            ),
         }
     }
 
@@ -564,16 +592,18 @@ impl Watcher {
             }
             let job = format!("{FOLDER_PREFIX}{folder}");
             if self.being_processed(&job) {
-                eprintln!(
-                    "watcher: folder is currently being processed, skipping: folder={folder}"
+                crate::logx::info(
+                    &format!("Folder is currently being processed, skipping: folder={folder}"),
+                    &[("component", "watcher".into())],
                 );
                 continue;
             }
             match self.queue.is_path_in_queue(&job) {
                 Ok(true) => continue,
                 Ok(false) => {}
-                Err(e) => eprintln!(
-                    "watcher: error checking if folder is in queue: folder={folder} error={e}"
+                Err(e) => crate::logx::warn(
+                    &format!("Error checking if folder is in queue: folder={folder} error={e}"),
+                    &[("component", "watcher".into())],
                 ),
             }
             let busy = files.iter().any(|f| {
@@ -582,13 +612,16 @@ impl Watcher {
             if busy {
                 continue;
             }
-            eprintln!(
-                "watcher: adding folder to queue: folder={} files={} size={size}",
-                Path::new(&folder)
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy(),
-                files.len()
+            crate::logx::info(
+                &format!(
+                    "Adding folder to queue: folder={} files={} size={size}",
+                    Path::new(&folder)
+                        .file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy(),
+                    files.len()
+                ),
+                &[("component", "watcher".into())],
             );
             let opts = AddOptions {
                 input_folder: self.watch_folder.clone(),
@@ -599,7 +632,10 @@ impl Watcher {
                 i64::try_from(size).unwrap_or(i64::MAX),
                 opts,
             ) {
-                eprintln!("watcher: error adding folder to queue: folder={folder} error={e}");
+                crate::logx::warn(
+                    &format!("Error adding folder to queue: folder={folder} error={e}"),
+                    &[("component", "watcher".into())],
+                );
             }
         }
         let mut sets = HashMap::new();

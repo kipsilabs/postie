@@ -227,11 +227,17 @@ impl Processor {
             .map(|d| d.join("transfer-manifests"))
             .unwrap_or_else(|| PathBuf::from("transfer-manifests"));
         match store.migrate_legacy_pending_checks() {
-            Ok(n) if n > 0 => eprintln!(
-                "processor: migrated legacy pending article checks to durable verification: count={n}"
+            Ok(n) if n > 0 => crate::logx::info(
+                &format!(
+                    "Migrated legacy pending article checks to durable verification: count={n}"
+                ),
+                &[("component", "processor".into())],
             ),
             Ok(_) => {}
-            Err(e) => eprintln!("processor: failed to migrate legacy pending article checks: {e}"),
+            Err(e) => crate::logx::warn(
+                &format!("Failed to migrate legacy pending article checks: {e}"),
+                &[("component", "processor".into())],
+            ),
         }
         let script_queue: Arc<dyn ScriptQueue> = Arc::new(opts.queue.clone());
         let runtime = Some(Runtime::new(
@@ -351,7 +357,10 @@ impl Processor {
                 if let Err(e) = me.process_next_item(&c).await
                     && !matches!(e, ProcessError::Canceled)
                 {
-                    eprintln!("processor: error processing item: {e}");
+                    crate::logx::error(
+                        &format!("Error processing item: {e}"),
+                        &[("component", "processor".into())],
+                    );
                 }
             }
         });
@@ -383,7 +392,10 @@ impl Processor {
             return Ok(());
         }
         if self.pool.is_none() {
-            eprintln!("processor: pool manager is not available, waiting for server configuration");
+            crate::logx::warn(
+                "Pool manager is not available, waiting for server configuration",
+                &[("component", "processor".into())],
+            );
             return Ok(());
         }
         // aggregate-size threshold: hold off until the pending bytes meet the floor (0 disables)
@@ -391,8 +403,9 @@ impl Processor {
             match self.queue.pending_total_size() {
                 Ok(pending) if pending < self.cfg.min_size_to_start => return Ok(()),
                 Ok(_) => {}
-                Err(e) => eprintln!(
-                    "processor: failed to read pending queue size, processing anyway: {e}"
+                Err(e) => crate::logx::warn(
+                    &format!("Failed to read pending queue size, processing anyway: {e}"),
+                    &[("component", "processor".into())],
                 ),
             }
         }
@@ -420,9 +433,12 @@ impl Processor {
             stale.discard().await;
         }
         drop(gate);
-        eprintln!(
-            "processor: processing file: msg={msg_id} path={} priority={}",
-            job.path, job.priority
+        crate::logx::info(
+            &format!(
+                "Processing file: msg={msg_id} path={} priority={}",
+                job.path, job.priority
+            ),
+            &[("component", "processor".into())],
         );
 
         let result = self.process_file(cancel, &msg_id, &job).await;
@@ -437,22 +453,31 @@ impl Processor {
             Err(e) => {
                 self.unreserve_path(&job.path);
                 if matches!(e, ProcessError::Canceled) {
-                    eprintln!("processor: job cancelled: msg={msg_id} path={}", job.path);
+                    crate::logx::info(
+                        &format!("Job cancelled: msg={msg_id} path={}", job.path),
+                        &[("component", "processor".into())],
+                    );
                     // only a user cancellation cleans up; on app shutdown keep in_progress for crash recovery.
                     // `close()` cancels the running jobs before the dispatcher's token fires, so the flag
                     // is what tells the two apart
                     if !cancel.is_cancelled() && !self.shutting_down.load(Ordering::SeqCst) {
                         if let Err(ce) = self.queue.cancel_file(&msg_id) {
-                            eprintln!(
-                                "processor: failed to clean up in-progress item after cancel: {ce} id={msg_id}"
+                            crate::logx::warn(
+                                &format!(
+                                    "Failed to clean up in-progress item after cancel: {ce} id={msg_id}"
+                                ),
+                                &[("component", "processor".into())],
                             );
                         }
                         if let Some(rt) = &self.runtime
                             && let Err(de) = rt.discard_transfer(&job.transfer_id)
                         {
-                            eprintln!(
-                                "processor: failed to discard transfer after cancel: {de} transfer={}",
-                                job.transfer_id
+                            crate::logx::warn(
+                                &format!(
+                                    "Failed to discard transfer after cancel: {de} transfer={}",
+                                    job.transfer_id
+                                ),
+                                &[("component", "processor".into())],
                             );
                         }
                     }
@@ -474,17 +499,20 @@ impl Processor {
         p: &Processed,
         de: &DeferredCheckError,
     ) -> Result<(), ProcessError> {
-        eprintln!(
-            "processor: some articles deferred for later verification: path={} deferred_articles={} total_articles={} nzb_path={}",
-            job.path,
-            de.failed_articles.len(),
-            de.total_articles,
-            p.nzb_path
+        crate::logx::info(
+            &format!(
+                "Some articles deferred for later verification: path={} deferred_articles={} total_articles={} nzb_path={}",
+                job.path,
+                de.failed_articles.len(),
+                de.total_articles,
+                p.nzb_path
+            ),
+            &[("component", "processor".into())],
         );
         if let Err(e) = self.queue.complete_file(msg_id, &p.nzb_path, job) {
-            eprintln!(
-                "processor: error marking file as completed: {e} path={}",
-                job.path
+            crate::logx::warn(
+                &format!("Error marking file as completed: {e} path={}", job.path),
+                &[("component", "processor".into())],
             );
             return Err(ProcessError::Msg(e.to_string()));
         }
@@ -514,10 +542,16 @@ impl Processor {
                     .queue
                     .update_completed_item_verification_status(msg_id, "pending_verification")
                 {
-                    eprintln!("processor: failed to update verification status: {e}");
+                    crate::logx::warn(
+                        &format!("Failed to update verification status: {e}"),
+                        &[("component", "processor".into())],
+                    );
                 }
             }
-            Err(e) => eprintln!("processor: failed to store deferred article checks: {e}"),
+            Err(e) => crate::logx::warn(
+                &format!("Failed to store deferred article checks: {e}"),
+                &[("component", "processor".into())],
+            ),
         }
         self.finish_script_and_notify(p, job, msg_id, true);
         Ok(())
@@ -543,7 +577,10 @@ impl Processor {
                     .execute_post_upload_script(&CancellationToken::new(), &nzb, &source, &id)
                     .await
                 {
-                    eprintln!("processor: post upload script execution failed: {e} nzbPath={nzb}");
+                    crate::logx::warn(
+                        &format!("Post upload script execution failed: {e} nzbPath={nzb}"),
+                        &[("component", "processor".into())],
+                    );
                 }
             });
         }
@@ -575,9 +612,9 @@ impl Processor {
             self.queue.complete_file(msg_id, &p.nzb_path, job)
         };
         if let Err(e) = done {
-            eprintln!(
-                "processor: error marking file as completed: {e} path={}",
-                job.path
+            crate::logx::warn(
+                &format!("Error marking file as completed: {e} path={}", job.path),
+                &[("component", "processor".into())],
             );
             return Err(ProcessError::Msg(e.to_string()));
         }
@@ -590,18 +627,24 @@ impl Processor {
             && let Some(store) = self.runtime.as_ref().and_then(|r| r.transfer_store())
         {
             match store.set_completed_item_for_transfer(&job.transfer_id, msg_id) {
-                Err(e) => eprintln!(
-                    "processor: failed to link completed item to transfer: {e} transfer={}",
-                    job.transfer_id
+                Err(e) => crate::logx::warn(
+                    &format!(
+                        "Failed to link completed item to transfer: {e} transfer={}",
+                        job.transfer_id
+                    ),
+                    &[("component", "processor".into())],
                 ),
                 Ok(()) => {
                     if let Err(e) = self
                         .queue
                         .update_completed_item_verification_status(msg_id, "pending_verification")
                     {
-                        eprintln!(
-                            "processor: failed to set pending_verification status: {e} path={}",
-                            job.path
+                        crate::logx::warn(
+                            &format!(
+                                "Failed to set pending_verification status: {e} path={}",
+                                job.path
+                            ),
+                            &[("component", "processor".into())],
                         );
                     }
                 }
@@ -611,7 +654,10 @@ impl Processor {
             && let Some(rt) = &self.runtime
             && let Err(e) = rt.discard_transfer(&job.transfer_id)
         {
-            eprintln!("processor: failed to discard superseded upload records: {e}");
+            crate::logx::warn(
+                &format!("Failed to discard superseded upload records: {e}"),
+                &[("component", "processor".into())],
+            );
         }
         // In durable mode the script waits for verification (run by the transfer cleaner).
         self.finish_script_and_notify(p, job, msg_id, !durable || reused);
@@ -620,33 +666,42 @@ impl Processor {
 
     /// Retries (re-adding the job under a new id) up to [`MAX_RETRIES`], then records it as errored.
     fn handle_processing_error(&self, msg_id: &str, job: &mut FileJob, err: &str) {
-        eprintln!(
-            "processor: error processing file: {err} path={} retryCount={} maxRetries={MAX_RETRIES} jobID={msg_id}",
-            job.path, job.retry_count
+        crate::logx::error(
+            &format!(
+                "Error processing file: {err} path={} retryCount={} maxRetries={MAX_RETRIES} jobID={msg_id}",
+                job.path, job.retry_count
+            ),
+            &[("component", "processor".into())],
         );
         job.retry_count += 1;
         if job.retry_count >= MAX_RETRIES {
             let name = file_name_of(&job.path);
-            eprintln!(
-                "processor: job failed permanently after reaching max retries: path={} retryCount={}",
-                job.path, job.retry_count
+            crate::logx::error(
+                &format!(
+                    "Job failed permanently after reaching max retries: path={} retryCount={}",
+                    job.path, job.retry_count
+                ),
+                &[("component", "processor".into())],
             );
             if let Some(f) = &self.on_job_error {
                 f(&name, err);
             }
             if let Err(e) = self.queue.mark_as_error(msg_id, job, err) {
-                eprintln!(
-                    "processor: failed to mark job as error: {e} path={}",
-                    job.path
+                crate::logx::warn(
+                    &format!("Failed to mark job as error: {e} path={}", job.path),
+                    &[("component", "processor".into())],
                 );
                 // fallback: back into the queue, after clearing the stale in-progress row
                 if let Err(ce) = self.queue.clear_in_progress(msg_id) {
-                    eprintln!("processor: failed to clear in-progress row before re-add: {ce}");
+                    crate::logx::warn(
+                        &format!("Failed to clear in-progress row before re-add: {ce}"),
+                        &[("component", "processor".into())],
+                    );
                 }
                 if let Err(re) = self.queue.readd_job(job) {
-                    eprintln!(
-                        "processor: failed to re-add job to queue: {re} path={}",
-                        job.path
+                    crate::logx::warn(
+                        &format!("Failed to re-add job to queue: {re} path={}", job.path),
+                        &[("component", "processor".into())],
                     );
                 }
             }
@@ -654,15 +709,21 @@ impl Processor {
         }
         // clear the old id's in-progress row first, or the path shows up twice (pending + stale running)
         if let Err(e) = self.queue.clear_in_progress(msg_id) {
-            eprintln!(
-                "processor: failed to clear in-progress row before retry: {e} path={}",
-                job.path
+            crate::logx::warn(
+                &format!(
+                    "Failed to clear in-progress row before retry: {e} path={}",
+                    job.path
+                ),
+                &[("component", "processor".into())],
             );
         }
         if let Err(e) = self.queue.readd_job(job) {
-            eprintln!(
-                "processor: failed to re-add job to queue for retry: {e} path={}",
-                job.path
+            crate::logx::warn(
+                &format!(
+                    "Failed to re-add job to queue for retry: {e} path={}",
+                    job.path
+                ),
+                &[("component", "processor".into())],
             );
         }
     }
@@ -681,10 +742,13 @@ impl Processor {
         let is_folder = folder_path.is_some();
         let file_name = match &folder_path {
             Some(fp) => {
-                eprintln!(
-                    "processor: processing folder as single NZB: folder={} files={}",
-                    file_name_of(fp),
-                    files.len()
+                crate::logx::info(
+                    &format!(
+                        "Processing folder as single NZB: folder={} files={}",
+                        file_name_of(fp),
+                        files.len()
+                    ),
+                    &[("component", "processor".into())],
                 );
                 file_name_of(fp)
             }
@@ -780,23 +844,29 @@ impl Processor {
         // In durable mode the upload is not yet verified: deleting the original would destroy the only
         // recovery source, so it is retained and deleted after verification by the transfer lifecycle.
         if delete_original && self.durable_mode() {
-            eprintln!(
-                "processor: durable mode: retaining original files until verification succeeds: path={}",
-                job.path
+            crate::logx::info(
+                &format!(
+                    "Durable mode: retaining original files until verification succeeds: path={}",
+                    job.path
+                ),
+                &[("component", "processor".into())],
             );
             delete_original = false;
         }
         if delete_original {
             if !self.delete_delay.is_zero() {
-                eprintln!(
-                    "processor: waiting before deleting original files: delay={:?}",
-                    self.delete_delay
+                crate::logx::info(
+                    &format!(
+                        "Waiting before deleting original files: delay={:?}",
+                        self.delete_delay
+                    ),
+                    &[("component", "processor".into())],
                 );
                 tokio::select! {
                     () = tokio::time::sleep(self.delete_delay) => {}
                     // job_cancel is a child of the dispatcher token: it also fires on a user cancel
                     () = job_cancel.cancelled() => {
-                        eprintln!("processor: cancelled while waiting to delete files; originals kept");
+                        crate::logx::info("Cancelled while waiting to delete files; originals kept", &[("component", "processor".into())]);
                         return Ok(Processed { nzb_path: outcome.nzb_path, postie: postie.clone(), deferred: None });
                     }
                 }
@@ -805,7 +875,10 @@ impl Processor {
                 if let Err(e) = std::fs::remove_file(&path)
                     && e.kind() != std::io::ErrorKind::NotFound
                 {
-                    eprintln!("processor: could not delete original file: path={path} error={e}");
+                    crate::logx::warn(
+                        &format!("Could not delete original file: path={path} error={e}"),
+                        &[("component", "processor".into())],
+                    );
                     continue;
                 }
                 crate::uploadtemp::prune_after_delete(Path::new(&path));
@@ -902,8 +975,9 @@ impl Processor {
             Ok(Some(next)) => next,
             Ok(None) => return,
             Err(e) => {
-                eprintln!(
-                    "processor: could not look at the next queued job for PAR2 prefetch: {e}"
+                crate::logx::warn(
+                    &format!("Could not look at the next queued job for PAR2 prefetch: {e}"),
+                    &[("component", "processor".into())],
                 );
                 return;
             }
@@ -932,17 +1006,23 @@ impl Processor {
         let estimate = prefetch_set_estimate(input_bytes, &self.config.par2.redundancy);
         let available = crate::diskspace::available_bytes(Path::new(rt.par2_work_dir()));
         if !prefetch_fits(available, estimate) {
-            eprintln!(
-                "processor: not creating the next job's PAR2 early: too little free space in the PAR2 work dir: needed={} available={available:?}",
-                estimate
-                    .saturating_mul(2)
-                    .saturating_add(PREFETCH_DISK_RESERVE)
+            crate::logx::info(
+                &format!(
+                    "Not creating the next job's PAR2 early: too little free space in the PAR2 work dir: needed={} available={available:?}",
+                    estimate
+                        .saturating_mul(2)
+                        .saturating_add(PREFETCH_DISK_RESERVE)
+                ),
+                &[("component", "processor".into())],
             );
             return;
         }
-        eprintln!(
-            "processor: creating PAR2 for the next queued job during this upload: path={}",
-            next.job.path
+        crate::logx::info(
+            &format!(
+                "Creating PAR2 for the next queued job during this upload: path={}",
+                next.job.path
+            ),
+            &[("component", "processor".into())],
         );
         let exec = ScheduledExecutor::wrap(
             new_executor(
@@ -1010,7 +1090,10 @@ impl Processor {
             return Err(format!("job {job_id} is not currently running"));
         };
         job.cancel.cancel();
-        eprintln!("processor: job cancelled: jobID={job_id}");
+        crate::logx::info(
+            &format!("Job cancelled: jobID={job_id}"),
+            &[("component", "processor".into())],
+        );
         Ok(())
     }
 
@@ -1074,9 +1157,15 @@ impl Processor {
         for (id, j) in lock(&self.running).iter() {
             j.gate.pause();
             j.progress.set_all_paused(true);
-            eprintln!("processor: paused running job: jobID={id}");
+            crate::logx::info(
+                &format!("Paused running job: jobID={id}"),
+                &[("component", "processor".into())],
+            );
         }
-        eprintln!("processor: paused - new jobs blocked, active jobs suspended");
+        crate::logx::info(
+            "Paused - new jobs blocked, active jobs suspended",
+            &[("component", "processor".into())],
+        );
     }
 
     pub fn resume_processing(&self) {
@@ -1086,9 +1175,15 @@ impl Processor {
         for (id, j) in lock(&self.running).iter() {
             j.gate.resume();
             j.progress.set_all_paused(false);
-            eprintln!("processor: resumed running job: jobID={id}");
+            crate::logx::info(
+                &format!("Resumed running job: jobID={id}"),
+                &[("component", "processor".into())],
+            );
         }
-        eprintln!("processor: resumed - new jobs allowed, active jobs resumed");
+        crate::logx::info(
+            "Resumed - new jobs allowed, active jobs resumed",
+            &[("component", "processor".into())],
+        );
     }
 
     pub fn is_paused(&self) -> bool {
@@ -1122,7 +1217,10 @@ impl Processor {
         let stats = match pool.provider_health() {
             Ok(s) => s,
             Err(e) => {
-                return eprintln!("processor: failed to get pool metrics for provider check: {e}");
+                return crate::logx::warn(
+                    &format!("Failed to get pool metrics for provider check: {e}"),
+                    &[("component", "processor".into())],
+                );
             }
         };
         let total = stats.len();
@@ -1130,8 +1228,9 @@ impl Processor {
         *lock(&self.provider_baseline) = next;
         let mut a = lock(&self.auto);
         if active == 0 && total > 0 && !a.paused {
-            eprintln!(
-                "processor: no providers available - blocking new jobs (running jobs continue unaffected)"
+            crate::logx::warn(
+                "No providers available - blocking new jobs (running jobs continue unaffected)",
+                &[("component", "processor".into())],
             );
             a.blocking_new = true;
             a.paused = true;
@@ -1139,8 +1238,11 @@ impl Processor {
         } else if active > 0 && a.paused {
             // also fires as a probe: with no jobs running no new errors accrue, so a dead provider looks
             // reachable until the next job tries it; never unblocking is the failure mode this replaced
-            eprintln!(
-                "processor: no new provider errors since last check - allowing new jobs: activeProviders={active}"
+            crate::logx::info(
+                &format!(
+                    "No new provider errors since last check - allowing new jobs: activeProviders={active}"
+                ),
+                &[("component", "processor".into())],
             );
             a.blocking_new = false;
             a.paused = false;
@@ -1165,7 +1267,7 @@ impl Processor {
     }
 
     pub async fn close(&self) {
-        eprintln!("processor: shutdown initiated");
+        crate::logx::info("Shutdown initiated", &[("component", "processor".into())]);
         self.shutting_down.store(true, Ordering::SeqCst);
         self.monitor_cancel.cancel();
         // closed first, so a prefetch being planned right now cannot land after this point
@@ -1180,16 +1282,22 @@ impl Processor {
             running.len()
         };
         if count > 0 {
-            eprintln!("processor: waiting for running jobs to be cancelled: count={count}");
+            crate::logx::info(
+                &format!("Waiting for running jobs to be cancelled: count={count}"),
+                &[("component", "processor".into())],
+            );
             let deadline = Instant::now() + CLOSE_TIMEOUT;
             while !lock(&self.running).is_empty() && Instant::now() < deadline {
                 let _ = tokio::time::timeout(Duration::from_millis(100), self.jobs_done.notified())
                     .await;
             }
             if !lock(&self.running).is_empty() {
-                eprintln!(
-                    "processor: timeout waiting for jobs to complete: remainingJobs={}",
-                    lock(&self.running).len()
+                crate::logx::warn(
+                    &format!(
+                        "Timeout waiting for jobs to complete: remainingJobs={}",
+                        lock(&self.running).len()
+                    ),
+                    &[("component", "processor".into())],
                 );
             }
         }
@@ -1198,7 +1306,7 @@ impl Processor {
             .write()
             .unwrap_or_else(|p| p.into_inner())
             .clear();
-        eprintln!("processor: shutdown completed");
+        crate::logx::info("Shutdown completed", &[("component", "processor".into())]);
     }
 }
 

@@ -233,7 +233,10 @@ impl App {
             && p.get_running_jobs().contains_key(id)
             && let Err(e) = p.cancel_job(id)
         {
-            eprintln!("backend: failed to cancel running job before removal: id={id} error={e}");
+            crate::logx::warn(
+                &format!("Failed to cancel running job before removal: id={id} error={e}"),
+                &[("component", "backend".into())],
+            );
         }
         q.remove_from_queue(id).map_err(|e| e.to_string())?;
         self.emit("queue-updated", None);
@@ -325,7 +328,10 @@ impl App {
         if paths.is_empty() {
             return Err("no files dropped".into());
         }
-        eprintln!("backend: files dropped onto window: count={}", paths.len());
+        crate::logx::info(
+            &format!("Files dropped onto window: count={}", paths.len()),
+            &[("component", "backend".into())],
+        );
         if self.get_app_status().needs_configuration {
             return Err("configuration required: Please configure at least one server in the Settings page before uploading files".into());
         }
@@ -333,32 +339,40 @@ impl App {
         let (mut added, mut active) = (0, 0);
         for p in paths {
             let Ok(meta) = std::fs::metadata(p) else {
-                eprintln!("backend: could not get file info for dropped file, skipping: {p}");
+                crate::logx::warn(
+                    &format!("Could not get file info for dropped file, skipping: {p}"),
+                    &[("component", "backend".into())],
+                );
                 continue;
             };
             if meta.is_dir() {
                 let (by_folder, sizes) = process_directory_recursively(Path::new(p));
                 let total_files: usize = by_folder.values().map(Vec::len).sum();
                 if total_files == 0 {
-                    eprintln!("backend: directory contains no files, skipping: {p}");
+                    crate::logx::info(
+                        &format!("Directory contains no files, skipping: {p}"),
+                        &[("component", "backend".into())],
+                    );
                     continue;
                 }
                 let total: i64 = sizes.values().sum();
                 match q.add_user_file(&format!("FOLDER:{p}"), total, options()) {
                     Ok(true) => added += 1,
                     Ok(false) => active += 1,
-                    Err(e) => {
-                        eprintln!("backend: could not add folder to queue, skipping: {p} ({e})")
-                    }
+                    Err(e) => crate::logx::warn(
+                        &format!("Could not add folder to queue, skipping: {p} ({e})"),
+                        &[("component", "backend".into())],
+                    ),
                 }
                 continue;
             }
             match q.add_user_file(p, i64::try_from(meta.len()).unwrap_or(i64::MAX), options()) {
                 Ok(true) => added += 1,
                 Ok(false) => active += 1,
-                Err(e) => {
-                    eprintln!("backend: could not add dropped file to queue, skipping: {p} ({e})")
-                }
+                Err(e) => crate::logx::warn(
+                    &format!("Could not add dropped file to queue, skipping: {p} ({e})"),
+                    &[("component", "backend".into())],
+                ),
             }
         }
         if added > 0 {

@@ -42,7 +42,10 @@ impl TransferCleaner {
         self.store
             .is_source_used_elsewhere(transfer_id, path)
             .unwrap_or_else(|e| {
-                eprintln!("transfercleaner: could not check other uses of {path}: {e}");
+                crate::logx::warn(
+                    &format!("Could not check other uses of {path}: {e}"),
+                    &[("component", "transfercleaner".into())],
+                );
                 true
             })
     }
@@ -62,9 +65,12 @@ impl TransferCleaner {
             match f.verification_state.as_str() {
                 ts::STATE_VERIFIED => {}
                 ts::STATE_VERIFICATION_FAILED => {
-                    eprintln!(
-                        "transfercleaner: transfer has a failed file; retaining all recovery data: transfer={transfer_id} file={}",
-                        f.file_id
+                    crate::logx::warn(
+                        &format!(
+                            "Transfer has a failed file; retaining all recovery data: transfer={transfer_id} file={}",
+                            f.file_id
+                        ),
+                        &[("component", "transfercleaner".into())],
                     );
                     return Ok(false);
                 }
@@ -74,17 +80,23 @@ impl TransferCleaner {
         if let Some(run) = &self.run_script
             && let Err(e) = run(transfer_id, &files).await
         {
-            eprintln!(
-                "transfercleaner: post-upload script failed during cleanup: transfer={transfer_id} error={e}"
+            crate::logx::warn(
+                &format!(
+                    "Post-upload script failed during cleanup: transfer={transfer_id} error={e}"
+                ),
+                &[("component", "transfercleaner".into())],
             );
         }
         for f in &files {
             match f.file_role.as_str() {
                 manifest::ROLE_ORIGINAL if f.cleanup_policy == ts::CLEANUP_DELETE_ORIGINAL => {
                     if self.original_needed_elsewhere(transfer_id, &f.source_path) {
-                        eprintln!(
-                            "transfercleaner: keeping original still used by another upload: transfer={transfer_id} path={}",
-                            f.source_path
+                        crate::logx::info(
+                            &format!(
+                                "Keeping original still used by another upload: transfer={transfer_id} path={}",
+                                f.source_path
+                            ),
+                            &[("component", "transfercleaner".into())],
                         );
                     } else {
                         remove(&f.source_path, "original")
@@ -97,18 +109,24 @@ impl TransferCleaner {
             }
             // manifests are Postie's own recovery files; always removed once verified
             if let Err(e) = manifest::remove(Path::new(&f.manifest_path), transfer_id) {
-                eprintln!(
-                    "transfercleaner: failed to remove manifest during cleanup: path={} error={e}",
-                    f.manifest_path
+                crate::logx::warn(
+                    &format!(
+                        "Failed to remove manifest during cleanup: path={} error={e}",
+                        f.manifest_path
+                    ),
+                    &[("component", "transfercleaner".into())],
                 );
             }
         }
         self.store
             .delete_files_by_transfer(transfer_id)
             .map_err(|e| e.to_string())?;
-        eprintln!(
-            "transfercleaner: transfer verified and cleaned up: transfer={transfer_id} files={}",
-            files.len()
+        crate::logx::info(
+            &format!(
+                "Transfer verified and cleaned up: transfer={transfer_id} files={}",
+                files.len()
+            ),
+            &[("component", "transfercleaner".into())],
         );
         Ok(true)
     }
@@ -121,8 +139,9 @@ fn remove(path: &str, kind: &str) {
     if let Err(e) = std::fs::remove_file(path)
         && e.kind() != std::io::ErrorKind::NotFound
     {
-        eprintln!(
-            "transfercleaner: failed to remove file during cleanup: kind={kind} path={path} error={e}"
+        crate::logx::warn(
+            &format!("Failed to remove file during cleanup: kind={kind} path={path} error={e}"),
+            &[("component", "transfercleaner".into())],
         );
         return;
     }

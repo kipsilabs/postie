@@ -143,6 +143,17 @@ export namespace backend {
 		}
 	}
 	
+	/** One completed item awaiting verification (GET /api/verification/active). */
+	export interface VerificationActivity {
+	    id: string;
+	    path: string;
+	    phase: "checking" | "repairing" | "waiting" | "deferred" | "queued";
+	    totalArticles: number;
+	    verifiedArticles: number;
+	    missingArticles: number;
+	    nextCheckAt?: string | null;
+	}
+
 	export class QueueItem {
 	    id: string;
 	    path: string;

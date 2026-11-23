@@ -230,6 +230,24 @@
             "scan_triggered_description": "Dizin taraması başlatıldı",
             "watcher_number": "İzleyici #{n}",
             "no_watchers": "İzleme dizini yapılandırılmadı"
+        },
+        "verification": {
+            "title": "Doğrulama",
+            "count": "{count} bekliyor",
+            "phase": {
+                "checking": "Makaleler kontrol ediliyor",
+                "repairing": "Onarılıyor",
+                "waiting": "Yayılma bekleniyor",
+                "deferred": "Boş bağlantı bekleniyor",
+                "queued": "Sırada"
+            },
+            "detail": {
+                "checking": "Sunucuda {total} makaleden {verified} tanesi doğrulandı",
+                "repairing": "{missing} eksik makale yeniden kontrol ediliyor ve gönderiliyor",
+                "waiting": "Sonraki kontrol {seconds} sn içinde",
+                "deferred": "Yüklemeler tüm bağlantıları kullanıyor; bir bağlantı boşalınca kontroller devam eder",
+                "queued": "Bir sonraki doğrulama döngüsünde başlar"
+            }
         }
     }
 }

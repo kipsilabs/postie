@@ -221,6 +221,24 @@
 			"scan_triggered_description": "Directory scan has been started",
 			"watcher_number": "Watcher #{n}",
 			"no_watchers": "No watch directories configured"
+		},
+		"verification": {
+			"title": "Verification",
+			"count": "{count} pending",
+			"phase": {
+				"checking": "Checking articles",
+				"repairing": "Repairing",
+				"waiting": "Waiting for propagation",
+				"deferred": "Waiting for free connections",
+				"queued": "Queued"
+			},
+			"detail": {
+				"checking": "{verified} of {total} articles confirmed on the server",
+				"repairing": "{missing} missing articles being rechecked and re-posted",
+				"waiting": "Next check in {seconds}s",
+				"deferred": "Uploads are using every connection; checks resume when one frees up",
+				"queued": "Starts on the next verification cycle"
+			}
 		}
 	}
 }

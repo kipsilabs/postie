@@ -400,6 +400,20 @@ impl Runtime {
             .then(|| Arc::new(Recorder::new(transfer_id, &self.manifest_dir, store)))
     }
 
+    /// Items awaiting verification and where each stands (empty without durable verification).
+    pub fn verification_activity(&self) -> Vec<verification::Activity> {
+        let Some(svc) = &self.verify_service else {
+            return Vec::new();
+        };
+        svc.activity().unwrap_or_else(|e| {
+            crate::logx::warn(
+                "Failed to read verification progress",
+                &[("error", e.to_string().into())],
+            );
+            Vec::new()
+        })
+    }
+
     pub fn metrics(&self) -> RuntimeMetrics {
         let mut m = RuntimeMetrics {
             par2_active_jobs: self.par2_scheduler.active(),
