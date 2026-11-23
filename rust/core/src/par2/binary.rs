@@ -240,7 +240,10 @@ impl BinaryExecutor {
             other => other,
         })?;
         if !Path::new(&format!("{out_base}.par2")).exists() {
-            eprintln!("par2: parpar finished but main PAR2 file is missing: path={out_base}.par2");
+            crate::logx::warn(
+                &format!("ParPar finished but main PAR2 file is missing: path={out_base}.par2"),
+                &[("component", "par2".into())],
+            );
             return Ok(Vec::new());
         }
         Ok(par2_set_on_disk(dir, &base))
@@ -324,8 +327,11 @@ impl BinaryExecutor {
             block = max_file / 4 * 4;
         }
         if block < 4 {
-            eprintln!(
-                "par2: block size too small for PAR2 set creation, skipping: setName={set_name} totalSize={total}"
+            crate::logx::info(
+                &format!(
+                    "Block size too small for PAR2 set creation, skipping: setName={set_name} totalSize={total}"
+                ),
+                &[("component", "par2".into())],
             );
             return Ok(Par2Result::default());
         }

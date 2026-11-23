@@ -217,6 +217,10 @@ export class WebClient {
 		return this.get<backend.PaginatedQueueResult>(`/queue?${queryParams}`);
 	}
 
+	async getVerificationActivity(): Promise<backend.VerificationActivity[]> {
+		return this.get<backend.VerificationActivity[]>("/verification/active");
+	}
+
 	async getQueueStats(): Promise<backend.QueueStats> {
 		return this.get<backend.QueueStats>("/queue/stats");
 	}

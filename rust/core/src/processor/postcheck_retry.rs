@@ -73,7 +73,10 @@ impl PostCheckRetryWorker {
     /// Starts the loop; `None` (nothing spawned) when post-check is disabled.
     pub fn start(&self) -> Option<tokio::task::JoinHandle<()>> {
         if !self.0.enabled {
-            eprintln!("processor: post check retry worker not started (post check disabled)");
+            crate::logx::info(
+                "Post check retry worker not started (post check disabled)",
+                &[("component", "processor".into())],
+            );
             return None;
         }
         let me = self.clone();
@@ -131,7 +134,10 @@ impl PostCheckRetryWorker {
             match tokio::task::spawn_blocking(move || q.get_articles_for_check(limit)).await {
                 Ok(Ok(a)) => a,
                 Ok(Err(e)) => {
-                    eprintln!("processor: failed to get articles for deferred check: {e}");
+                    crate::logx::warn(
+                        &format!("Failed to get articles for deferred check: {e}"),
+                        &[("component", "processor".into())],
+                    );
                     return false;
                 }
                 Err(_) => return false,
@@ -145,9 +151,15 @@ impl PostCheckRetryWorker {
         for a in &articles {
             completed.insert(a.completed_item_id.clone());
             if serde_json::from_str::<Vec<String>>(&a.groups).is_err() {
-                eprintln!("processor: failed to parse groups JSON: article={}", a.id);
+                crate::logx::warn(
+                    &format!("Failed to parse groups JSON: article={}", a.id),
+                    &[("component", "processor".into())],
+                );
                 if let Err(e) = self.0.queue.mark_article_check_failed(a.id) {
-                    eprintln!("processor: failed to mark article as failed: {e}");
+                    crate::logx::warn(
+                        &format!("Failed to mark article as failed: {e}"),
+                        &[("component", "processor".into())],
+                    );
                 }
                 continue;
             }
@@ -162,7 +174,10 @@ impl PostCheckRetryWorker {
             match self.0.stater.stat_batch(chunk).await {
                 Ok(m) => missing.extend(m),
                 Err(e) => {
-                    eprintln!("processor: deferred STAT sweep interrupted: {e}");
+                    crate::logx::warn(
+                        &format!("Deferred STAT sweep interrupted: {e}"),
+                        &[("component", "processor".into())],
+                    );
                     return false;
                 }
             }
@@ -193,9 +208,12 @@ impl PostCheckRetryWorker {
             }
             if !missing.contains(&a.message_id) {
                 if let Err(e) = q.mark_article_verified(a.id) {
-                    eprintln!(
-                        "processor: failed to mark article as verified: article={} error={e}",
-                        a.id
+                    crate::logx::warn(
+                        &format!(
+                            "Failed to mark article as verified: article={} error={e}",
+                            a.id
+                        ),
+                        &[("component", "processor".into())],
                     );
                 }
                 continue;
@@ -203,14 +221,20 @@ impl PostCheckRetryWorker {
             let new_count = a.retry_count + 1;
             if new_count >= self.0.max_retries {
                 if let Err(e) = q.mark_article_check_failed(a.id) {
-                    eprintln!(
-                        "processor: failed to mark article as failed: article={} error={e}",
-                        a.id
+                    crate::logx::warn(
+                        &format!(
+                            "Failed to mark article as failed: article={} error={e}",
+                            a.id
+                        ),
+                        &[("component", "processor".into())],
                     );
                 }
-                eprintln!(
-                    "processor: article verification permanently failed: messageID={} retries={new_count} maxRetries={}",
-                    a.message_id, self.0.max_retries
+                crate::logx::error(
+                    &format!(
+                        "Article verification permanently failed: messageID={} retries={new_count} maxRetries={}",
+                        a.message_id, self.0.max_retries
+                    ),
+                    &[("component", "processor".into())],
                 );
                 continue;
             }
@@ -218,9 +242,12 @@ impl PostCheckRetryWorker {
                 + chrono::Duration::from_std(self.calculate_backoff(new_count))
                     .unwrap_or_else(|_| chrono::Duration::minutes(5));
             if let Err(e) = q.update_article_check_retry(a.id, new_count, next) {
-                eprintln!(
-                    "processor: failed to update article check retry: article={} error={e}",
-                    a.id
+                crate::logx::warn(
+                    &format!(
+                        "Failed to update article check retry: article={} error={e}",
+                        a.id
+                    ),
+                    &[("component", "processor".into())],
                 );
             }
         }
@@ -235,8 +262,9 @@ impl PostCheckRetryWorker {
         let (total, pending, failed) = match q.get_pending_check_count_for_item(id) {
             Ok(c) => c,
             Err(e) => {
-                return eprintln!(
-                    "processor: failed to get pending check counts: item={id} error={e}"
+                return crate::logx::warn(
+                    &format!("Failed to get pending check counts: item={id} error={e}"),
+                    &[("component", "processor".into())],
                 );
             }
         };
@@ -244,8 +272,11 @@ impl PostCheckRetryWorker {
             return;
         }
         let status = if failed > 0 {
-            eprintln!(
-                "processor: completed item verification failed: item={id} total={total} failed={failed}"
+            crate::logx::warn(
+                &format!(
+                    "Completed item verification failed: item={id} total={total} failed={failed}"
+                ),
+                &[("component", "processor".into())],
             );
             "verification_failed"
         } else {
@@ -253,8 +284,11 @@ impl PostCheckRetryWorker {
         };
         match q.update_completed_item_verification_status(id, status) {
             Ok(()) => self.notify(),
-            Err(e) => eprintln!(
-                "processor: failed to update completed item verification status: item={id} error={e}"
+            Err(e) => crate::logx::warn(
+                &format!(
+                    "Failed to update completed item verification status: item={id} error={e}"
+                ),
+                &[("component", "processor".into())],
             ),
         }
     }

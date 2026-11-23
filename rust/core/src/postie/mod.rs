@@ -84,7 +84,7 @@ async fn safe_remove_file(cancel: &CancellationToken, path: &str) {
 /// PAR2 problems never fail the upload, so they must at least be visible: stderr is invisible in the
 /// desktop app, so they also go to postie.log.
 fn par2_failure(message: &str) {
-    eprintln!("{message}");
+    crate::logx::info(message, &[]);
     crate::logx::warn("PAR2 skipped for this upload", &[("error", message.into())]);
 }
 
@@ -351,7 +351,10 @@ impl Postie {
             now + delay,
             self.delete_original.load(Ordering::SeqCst),
         ) {
-            eprintln!("postie: failed to mark transfer uploaded for verification: {e}");
+            crate::logx::warn(
+                &format!("Failed to mark transfer uploaded for verification: {e}"),
+                &[("component", "postie".into())],
+            );
         }
     }
 
@@ -384,9 +387,12 @@ impl Postie {
             safe_remove_file(cancel, &main.to_string_lossy()).await;
         }
         let Ok(entries) = std::fs::read_dir(&dir) else {
-            return eprintln!(
-                "postie: failed to read directory for PAR2 cleanup: {}",
-                dir.display()
+            return crate::logx::warn(
+                &format!(
+                    "Failed to read directory for PAR2 cleanup: {}",
+                    dir.display()
+                ),
+                &[("component", "postie".into())],
             );
         };
         for e in entries.flatten() {
@@ -398,7 +404,10 @@ impl Postie {
                 safe_remove_file(cancel, &dir.join(&name).to_string_lossy()).await;
             }
         }
-        eprintln!("postie: PAR2 cleanup completed: sourceFile={}", source.path);
+        crate::logx::info(
+            &format!("PAR2 cleanup completed: sourceFile={}", source.path),
+            &[("component", "postie".into())],
+        );
     }
 
     fn new_generator(&self) -> Arc<Generator> {
@@ -461,7 +470,10 @@ impl Postie {
         let mut last_nzb = String::new();
         let mut last_deferred: Option<DeferredCheckError> = None;
         for f in files {
-            eprintln!("postie: posting file: {}", f.path);
+            crate::logx::info(
+                &format!("Posting file: {}", f.path),
+                &[("component", "postie".into())],
+            );
             if self.duplicate_cfg.enabled {
                 let timeout = std::time::Duration::from_nanos(
                     u64::try_from(self.duplicate_cfg.timeout.nanos()).unwrap_or(0),
@@ -509,13 +521,16 @@ impl Postie {
             });
         }
         let s = self.poster.stats();
-        eprintln!(
-            "postie: upload completed in {:?}; articles posted={} checked={} bytes={} errors={}",
-            start.elapsed(),
-            s.articles_posted,
-            s.articles_checked,
-            s.bytes_posted,
-            s.article_errors
+        crate::logx::info(
+            &format!(
+                "Upload completed in {:?}; articles posted={} checked={} bytes={} errors={}",
+                start.elapsed(),
+                s.articles_posted,
+                s.articles_checked,
+                s.bytes_posted,
+                s.article_errors
+            ),
+            &[("component", "postie".into())],
         );
         Ok(PostOutcome {
             nzb_path: last_nzb,
@@ -587,16 +602,22 @@ impl Postie {
         {
             match e {
                 PostError::Deferred(de) => {
-                    eprintln!(
-                        "postie: some articles deferred for later verification: file={} deferred={}",
-                        f.path,
-                        de.failed_articles.len()
+                    crate::logx::info(
+                        &format!(
+                            "Some articles deferred for later verification: file={} deferred={}",
+                            f.path,
+                            de.failed_articles.len()
+                        ),
+                        &[("component", "postie".into())],
                     );
                     deferred = Some(de);
                 }
                 other => {
                     if !is_canceled(&other) {
-                        eprintln!("postie: error during upload: {files_path:?}: {other}");
+                        crate::logx::error(
+                            &format!("Error during upload: {files_path:?}: {other}"),
+                            &[("component", "postie".into())],
+                        );
                     }
                     return Err(if is_canceled(&other) {
                         PostieError::Canceled
@@ -673,7 +694,10 @@ impl Postie {
                 Err(PostError::Deferred(de)) => Ok(Some(de)),
                 Err(e) => {
                     if !is_canceled(&e) {
-                        eprintln!("postie: error during upload: {}: {e}", f.path);
+                        crate::logx::error(
+                            &format!("Error during upload: {}: {e}", f.path),
+                            &[("component", "postie".into())],
+                        );
                     }
                     par2_cancel.cancel();
                     Err(if is_canceled(&e) {
@@ -712,9 +736,12 @@ impl Postie {
         let (folder, folder_dir, par2_out) =
             folder_set_args(&self.par2_cfg, files, root_dir, output_dir);
         let folder_out = Path::new(output_dir).join(&folder);
-        eprintln!(
-            "postie: posting folder as single NZB: folder={folder} files={}",
-            files.len()
+        crate::logx::info(
+            &format!(
+                "Posting folder as single NZB: folder={folder} files={}",
+                files.len()
+            ),
+            &[("component", "postie".into())],
         );
         let nzb = self.new_generator();
         let mut all_paths: Vec<String> = files.iter().map(|f| f.path.clone()).collect();
@@ -725,8 +752,11 @@ impl Postie {
             .collect();
         let skip_par2 = folder_skips_par2(&self.par2_cfg, files);
         if self.par2_enabled() && skip_par2 {
-            eprintln!(
-                "postie: skipping PAR2 generation: existing PAR2 files detected in source folder: folder={folder}"
+            crate::logx::info(
+                &format!(
+                    "Skipping PAR2 generation: existing PAR2 files detected in source folder: folder={folder}"
+                ),
+                &[("component", "postie".into())],
             );
         }
         let nzb_path = folder_out.join(format!("{folder}.nzb"));
@@ -766,15 +796,21 @@ impl Postie {
             {
                 Ok(()) => None,
                 Err(PostError::Deferred(de)) => {
-                    eprintln!(
-                        "postie: some articles deferred for later verification: folder={folder} deferred={}",
-                        de.failed_articles.len()
+                    crate::logx::info(
+                        &format!(
+                            "Some articles deferred for later verification: folder={folder} deferred={}",
+                            de.failed_articles.len()
+                        ),
+                        &[("component", "postie".into())],
                     );
                     Some(de)
                 }
                 Err(e) => {
                     if !is_canceled(&e) {
-                        eprintln!("postie: error during folder upload: folder={folder}: {e}");
+                        crate::logx::error(
+                            &format!("Error during folder upload: folder={folder}: {e}"),
+                            &[("component", "postie".into())],
+                        );
                     }
                     return Err(if is_canceled(&e) {
                         PostieError::Canceled
@@ -855,7 +891,10 @@ impl Postie {
                 Err(PostError::Deferred(de)) => Ok(Some(de)),
                 Err(e) => {
                     if !is_canceled(&e) {
-                        eprintln!("postie: error during folder upload: folder={folder}: {e}");
+                        crate::logx::error(
+                            &format!("Error during folder upload: folder={folder}: {e}"),
+                            &[("component", "postie".into())],
+                        );
                     }
                     par2_cancel.cancel();
                     Err(if is_canceled(&e) {
@@ -876,13 +915,16 @@ impl Postie {
             .map_err(|e| PostieError::Msg(format!("error generating NZB file for folder: {e}")))?;
         self.cleanup_created(cancel, &res).await;
         let s = self.poster.stats();
-        eprintln!(
-            "postie: folder upload completed: folder={folder} elapsed={:?} posted={} checked={} bytes={} errors={}",
-            start.elapsed(),
-            s.articles_posted,
-            s.articles_checked,
-            s.bytes_posted,
-            s.article_errors
+        crate::logx::info(
+            &format!(
+                "Folder upload completed: folder={folder} elapsed={:?} posted={} checked={} bytes={} errors={}",
+                start.elapsed(),
+                s.articles_posted,
+                s.articles_checked,
+                s.bytes_posted,
+                s.article_errors
+            ),
+            &[("component", "postie".into())],
         );
         Ok(PostOutcome {
             nzb_path: final_path.to_string_lossy().into_owned(),

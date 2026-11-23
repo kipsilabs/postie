@@ -604,3 +604,64 @@ fn backoff_doubles_up_to_the_cap() {
     assert_eq!((secs(0), secs(1), secs(2), secs(3)), (30, 60, 120, 240));
     assert_eq!((secs(4), secs(40)), (300, 300), "capped at max_backoff");
 }
+
+fn pending(file: &str, state: &str, articles: i64, open: i64, next: Option<&str>) -> PendingFile {
+    PendingFile {
+        completed_item_id: "item".into(),
+        path: "/up/show.mkv".into(),
+        transfer_id: "t".into(),
+        file_id: file.into(),
+        article_count: articles,
+        verification_state: state.into(),
+        next_check_at: next.map(String::from),
+        open_failures: open,
+    }
+}
+
+#[test]
+fn activity_reports_live_sweeps_repairs_waits_and_deferrals() {
+    const NOW: &str = "2026-01-01T00:00:10Z";
+    let none = HashMap::new();
+    // a live sweep counts its confirmed articles and wins over every other phase
+    let files = [
+        pending("a", ts::STATE_VERIFIED, 10, 0, None),
+        pending("b", ts::STATE_UPLOADED, 90, 0, None),
+    ];
+    let live = HashMap::from([(("t".to_string(), "b".to_string()), (40, 5))]);
+    let a = item_activity(&files, &live, false, NOW);
+    assert_eq!(
+        (
+            a.phase,
+            a.total_articles,
+            a.verified_articles,
+            a.missing_articles
+        ),
+        ("checking", 100, 45, 5)
+    );
+    // recorded misses: repairing
+    let files = [pending("a", ts::STATE_VERIFYING, 10, 3, None)];
+    let a = item_activity(&files, &none, false, NOW);
+    assert_eq!(
+        (a.phase, a.verified_articles, a.missing_articles),
+        ("repairing", 7, 3)
+    );
+    // first check scheduled later: waiting, with the earliest time
+    let files = [
+        pending("a", ts::STATE_UPLOADED, 5, 0, Some("2026-01-01T00:00:30Z")),
+        pending("b", ts::STATE_UPLOADED, 5, 0, Some("2026-01-01T00:00:20Z")),
+    ];
+    let a = item_activity(&files, &none, false, NOW);
+    assert_eq!(a.phase, "waiting");
+    assert_eq!(a.next_check_at.as_deref(), Some("2026-01-01T00:00:20Z"));
+    // due but held back by the busy gate, or simply due
+    let files = [pending(
+        "a",
+        ts::STATE_UPLOADED,
+        5,
+        0,
+        Some("2026-01-01T00:00:01Z"),
+    )];
+    assert_eq!(item_activity(&files, &none, true, NOW).phase, "deferred");
+    let a = item_activity(&files, &none, false, NOW);
+    assert_eq!((a.phase, a.next_check_at), ("queued", None));
+}

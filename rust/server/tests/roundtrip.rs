@@ -165,13 +165,14 @@ async fn round_trip(obfuscation: &str) {
     let fake = fake_nntp().await;
     let dir = temp_dir(&format!("rt-{obfuscation}"));
     let web = Web::start_with(&dir, config(&dir, &fake, obfuscation, true)).await;
-    // sizes around the article boundary, where off-by-ones live
+    // sizes around the article boundary, where off-by-ones live; every stem has a space so the
+    // leak check below cannot match random obfuscated text (a bare "two" did, now and then)
     let files = sized(&[
         ("one byte.bin", 1),
-        ("below.bin", A - 1),
-        ("exact.bin", A),
-        ("above.bin", A + 1),
-        ("two.bin", 2 * A),
+        ("just below.bin", A - 1),
+        ("exactly one.bin", A),
+        ("just above.bin", A + 1),
+        ("two articles.bin", 2 * A),
         ("ñandú [日本].mkv", 1_234_567),
     ]);
     add(&web, &write_sources(&dir, &files));

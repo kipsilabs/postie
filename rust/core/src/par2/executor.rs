@@ -146,7 +146,10 @@ pub fn parse_redundancy_percentage(redundancy: &str) -> f64 {
         return multiplier * factor * 100.0;
     }
     r.trim_end_matches('%').parse::<f64>().unwrap_or_else(|_| {
-        eprintln!("par2: could not parse redundancy, defaulting to 10%: redundancy={redundancy}");
+        crate::logx::warn(
+            &format!("Could not parse redundancy, defaulting to 10%: redundancy={redundancy}"),
+            &[("component", "par2".into())],
+        );
         10.0
     })
 }
@@ -312,9 +315,12 @@ impl NativeExecutor {
     ) -> Result<Vec<String>, ExecError> {
         let block = compute_file_block_size(file.size, self.article_size, self.cfg.slice_size);
         if block == 0 {
-            eprintln!(
-                "par2: block size too small for SIMD-safe PAR2 creation, skipping: path={} size={}",
-                file.path, file.size
+            crate::logx::info(
+                &format!(
+                    "Block size too small for SIMD-safe PAR2 creation, skipping: path={} size={}",
+                    file.path, file.size
+                ),
+                &[("component", "par2".into())],
             );
             return Ok(Vec::new());
         }
@@ -339,7 +345,10 @@ impl NativeExecutor {
         {
             Ok(()) => {}
             Err(ExecError::Cancelled) => {
-                eprintln!("par2: creation cancelled: path={}", file.path);
+                crate::logx::info(
+                    &format!("Creation cancelled: path={}", file.path),
+                    &[("component", "par2".into())],
+                );
                 return Err(ExecError::Cancelled);
             }
             Err(ExecError::Msg(m)) => {
@@ -353,7 +362,10 @@ impl NativeExecutor {
         match std::fs::create_dir_all(path) {
             Ok(()) => PathBuf::from(path),
             Err(e) => {
-                eprintln!("par2: failed to create {what}: path={path} error={e}");
+                crate::logx::warn(
+                    &format!("Failed to create {what}: path={path} error={e}"),
+                    &[("component", "par2".into())],
+                );
                 parent(fallback)
             }
         }
@@ -495,8 +507,11 @@ impl NativeExecutor {
         let max_file = inputs.iter().map(|f| f.size).max().unwrap_or(0);
         let block = self.compute_set_block_size(total, max_file);
         if block < SIMD_SAFE_ALIGNMENT {
-            eprintln!(
-                "par2: block size too small for SIMD-safe PAR2 set creation, skipping: setName={set_name} totalSize={total} blockSize={block}"
+            crate::logx::info(
+                &format!(
+                    "Block size too small for SIMD-safe PAR2 set creation, skipping: setName={set_name} totalSize={total} blockSize={block}"
+                ),
+                &[("component", "par2".into())],
             );
             return Ok(Par2Result::default());
         }
@@ -510,9 +525,12 @@ impl NativeExecutor {
         let total_slices: u64 = inputs.iter().map(|f| slice_count(f.size, block)).sum();
         let pct = parse_redundancy_percentage(&self.cfg.redundancy);
         let num_recovery = recovery_count(total_slices, pct);
-        eprintln!(
-            "par2: creating PAR2 set: setName={set_name} files={} blockSize={block} inputSlices={total_slices} recoveryBlocks={num_recovery} redundancy={pct}",
-            named.len()
+        crate::logx::info(
+            &format!(
+                "Creating PAR2 set: setName={set_name} files={} blockSize={block} inputSlices={total_slices} recoveryBlocks={num_recovery} redundancy={pct}",
+                named.len()
+            ),
+            &[("component", "par2".into())],
         );
         let output = dir.join(format!("{set_name}.par2"));
         match self
@@ -527,7 +545,10 @@ impl NativeExecutor {
         {
             Ok(()) => {}
             Err(ExecError::Cancelled) => {
-                eprintln!("par2: set creation cancelled: setName={set_name}");
+                crate::logx::info(
+                    &format!("Set creation cancelled: setName={set_name}"),
+                    &[("component", "par2".into())],
+                );
                 return Err(ExecError::Cancelled);
             }
             Err(ExecError::Msg(m)) => {

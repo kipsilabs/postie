@@ -223,6 +223,24 @@
 			"scan_triggered_description": "Se ha iniciado el escaneo del directorio",
 			"watcher_number": "Monitor #{n}",
 			"no_watchers": "No hay directorios de vigilancia configurados"
+		},
+		"verification": {
+			"title": "Verificación",
+			"count": "{count} pendientes",
+			"phase": {
+				"checking": "Comprobando artículos",
+				"repairing": "Reparando",
+				"waiting": "Esperando propagación",
+				"deferred": "Esperando conexiones libres",
+				"queued": "En cola"
+			},
+			"detail": {
+				"checking": "{verified} de {total} artículos confirmados en el servidor",
+				"repairing": "{missing} artículos que faltan se están recomprobando y republicando",
+				"waiting": "Próxima comprobación en {seconds}s",
+				"deferred": "Las subidas usan todas las conexiones; las comprobaciones siguen cuando quede una libre",
+				"queued": "Empieza en el próximo ciclo de verificación"
+			}
 		}
 	}
 }

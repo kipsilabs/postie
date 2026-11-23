@@ -208,9 +208,12 @@ fn discard_copy_in(job_path: &str, roots: &[PathBuf]) {
         return;
     };
     if !no_symlinks_below(&root, &path) {
-        eprintln!(
-            "uploadtemp: refusing to delete copy behind a symlink: {}",
-            path.display()
+        crate::logx::warn(
+            &format!(
+                "Refusing to delete copy behind a symlink: {}",
+                path.display()
+            ),
+            &[("component", "uploadtemp".into())],
         );
         return;
     }
@@ -228,9 +231,12 @@ fn discard_copy_in(job_path: &str, roots: &[PathBuf]) {
         std::fs::remove_file(&path)
     };
     if let Err(e) = res {
-        eprintln!(
-            "uploadtemp: could not delete removed upload copy: path={} error={e}",
-            path.display()
+        crate::logx::warn(
+            &format!(
+                "Could not delete removed upload copy: path={} error={e}",
+                path.display()
+            ),
+            &[("component", "uploadtemp".into())],
         );
         return;
     }

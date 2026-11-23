@@ -44,8 +44,9 @@ impl ScriptRetryWorker {
     /// Starts the loop (no-op, returning `None`, when script execution is disabled).
     pub fn start(self: Arc<Self>) -> Option<tokio::task::JoinHandle<()>> {
         if !self.cfg.enabled {
-            eprintln!(
-                "processor: post-upload script retry worker not started (script execution disabled)"
+            crate::logx::info(
+                "Post-upload script retry worker not started (script execution disabled)",
+                &[("component", "processor".into())],
             );
             return None;
         }
@@ -68,18 +69,25 @@ impl ScriptRetryWorker {
     /// One pass over the due items.
     pub async fn process_retries(&self) {
         let q = self.queue.clone();
-        let items = match tokio::task::spawn_blocking(move || q.get_items_for_script_retry(BATCH))
-            .await
-        {
-            Ok(Ok(items)) => items,
-            Ok(Err(e)) => return eprintln!("processor: failed to get items for script retry: {e}"),
-            Err(_) => return,
-        };
+        let items =
+            match tokio::task::spawn_blocking(move || q.get_items_for_script_retry(BATCH)).await {
+                Ok(Ok(items)) => items,
+                Ok(Err(e)) => {
+                    return crate::logx::warn(
+                        &format!("Failed to get items for script retry: {e}"),
+                        &[("component", "processor".into())],
+                    );
+                }
+                Err(_) => return,
+            };
         for item in items {
             if let Err(e) = self.execute_script(&item).await {
-                eprintln!(
-                    "processor: script retry failed: item={} nzb={} error={e}",
-                    item.id, item.nzb_path
+                crate::logx::warn(
+                    &format!(
+                        "Script retry failed: item={} nzb={} error={e}",
+                        item.id, item.nzb_path
+                    ),
+                    &[("component", "processor".into())],
                 );
             }
         }
@@ -133,9 +141,12 @@ impl ScriptRetryWorker {
 
     /// Runs the script for one item and records the outcome.
     pub async fn execute_script(&self, item: &CompletedItem) -> Result<(), String> {
-        eprintln!(
-            "processor: retrying post-upload script: item={} nzb={}",
-            item.id, item.nzb_path
+        crate::logx::info(
+            &format!(
+                "Retrying post-upload script: item={} nzb={}",
+                item.id, item.nzb_path
+            ),
+            &[("component", "processor".into())],
         );
         let (ok, detail) = self.run_command(&item.nzb_path).await;
         let q = self.queue.clone();
@@ -157,9 +168,12 @@ impl ScriptRetryWorker {
             if let Ok(Err(e)) =
                 tokio::task::spawn_blocking(move || q2.mark_script_failed(&id2, &msg)).await
             {
-                eprintln!(
-                    "processor: failed to mark script as permanently failed: item={} error={e}",
-                    item.id
+                crate::logx::error(
+                    &format!(
+                        "Failed to mark script as permanently failed: item={} error={e}",
+                        item.id
+                    ),
+                    &[("component", "processor".into())],
                 );
             }
             return Err(format!("script failed permanently ({reason}): {detail}"));
@@ -179,9 +193,12 @@ impl ScriptRetryWorker {
         })
         .await
         {
-            eprintln!(
-                "processor: failed to update script status for retry: item={} error={e}",
-                item.id
+            crate::logx::warn(
+                &format!(
+                    "Failed to update script status for retry: item={} error={e}",
+                    item.id
+                ),
+                &[("component", "processor".into())],
             );
         }
         Err(format!(

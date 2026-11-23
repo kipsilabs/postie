@@ -95,7 +95,7 @@ impl Hub {
         }) {
             Ok(p) => p.into(),
             Err(e) => {
-                eprintln!("Error marshaling WebSocket message: {e}");
+                crate::logx::warn(&format!("Error marshaling WebSocket message: {e}"), &[]);
                 return;
             }
         };
@@ -104,7 +104,7 @@ impl Hub {
             .retain(|id, c| match c.tx.try_send(payload.clone()) {
                 Ok(()) => true,
                 Err(_) => {
-                    eprintln!("WebSocket client too slow, dropping id={id}");
+                    crate::logx::warn(&format!("WebSocket client too slow, dropping id={id}"), &[]);
                     c.closed.cancel();
                     false
                 }

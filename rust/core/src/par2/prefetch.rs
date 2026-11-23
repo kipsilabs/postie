@@ -261,7 +261,10 @@ fn remove_files(paths: &[String]) {
         if let Err(e) = std::fs::remove_file(p)
             && e.kind() != std::io::ErrorKind::NotFound
         {
-            eprintln!("par2: could not remove unused prefetched PAR2 file: path={p} error={e}");
+            crate::logx::warn(
+                &format!("Could not remove unused prefetched PAR2 file: path={p} error={e}"),
+                &[("component", "par2".into())],
+            );
         }
     }
 }
@@ -350,10 +353,13 @@ impl PrefetchingExecutor {
                 // the job's own tracking reserves the files again right after this returns
                 hold(&res.created, false);
                 self.store.hits.fetch_add(1, Ordering::SeqCst);
-                eprintln!(
-                    "par2: using prefetched PAR2 set: set={} files={}",
-                    request.label(),
-                    res.all().len()
+                crate::logx::info(
+                    &format!(
+                        "Using prefetched PAR2 set: set={} files={}",
+                        request.label(),
+                        res.all().len()
+                    ),
+                    &[("component", "par2".into())],
                 );
                 Some(Ok(res))
             }

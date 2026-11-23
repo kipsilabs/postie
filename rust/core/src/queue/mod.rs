@@ -150,6 +150,13 @@ pub struct Queue {
     add_mu: Arc<Mutex<()>>,
 }
 
+fn log_queued(path: &str, size: i64) {
+    crate::logx::info(
+        "Added to the upload queue",
+        &[("path", path.into()), ("size", size.into())],
+    );
+}
+
 impl Queue {
     /// Opens the queue and re-queues jobs that were in progress when the app last crashed.
     pub fn new(db: Db) -> Self {
@@ -188,7 +195,10 @@ impl Queue {
         let mut recovered = 0;
         for (id, path, priority, body) in rows {
             if self.q.send(&body, Duration::zero(), priority).is_err() {
-                eprintln!("queue: failed to re-queue in-progress item: id={id} path={path}");
+                crate::logx::warn(
+                    &format!("Failed to re-queue in-progress item: id={id} path={path}"),
+                    &[("component", "queue".into())],
+                );
                 continue;
             }
             let _ = self
@@ -198,7 +208,10 @@ impl Queue {
             recovered += 1;
         }
         if recovered > 0 {
-            eprintln!("queue: recovered items from previous crash: count={recovered}");
+            crate::logx::info(
+                &format!("Recovered items from previous crash: count={recovered}"),
+                &[("component", "queue".into())],
+            );
         }
     }
 
@@ -230,7 +243,9 @@ impl Queue {
         {
             return Ok(());
         }
-        self.send_job(&Self::new_job(path, size, opts))
+        self.send_job(&Self::new_job(path, size, opts))?;
+        log_queued(path, size);
+        Ok(())
     }
 
     /// A file the user chose (picker, drop, import): queued unless the same path is still pending or
@@ -245,6 +260,7 @@ impl Queue {
             return Ok(false);
         }
         self.send_job(&Self::new_job(path, size, &opts))?;
+        log_queued(path, size);
         Ok(true)
     }
 
@@ -365,7 +381,7 @@ impl Queue {
             "INSERT OR REPLACE INTO in_progress_items (id, path, size, priority, created_at, job_data) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![m.id, job.path, job.size, job.priority, ms(job.created_at), m.body],
         ) {
-            eprintln!("queue: failed to track in-progress item: id={} error={e}", m.id);
+            crate::logx::warn(&format!("Failed to track in-progress item: id={} error={e}", m.id), &[("component", "queue".into())]);
         }
         if let Err(e) = self.q.delete(&m.id) {
             let _ = self
@@ -704,8 +720,11 @@ impl Queue {
                 continue;
             }
             if let Err(e) = manifest::remove(std::path::Path::new(path), transfer) {
-                eprintln!(
-                    "queue: failed to remove manifest of detached transfer: path={path} error={e}"
+                crate::logx::warn(
+                    &format!(
+                        "Failed to remove manifest of detached transfer: path={path} error={e}"
+                    ),
+                    &[("component", "queue".into())],
                 );
             }
         }
@@ -921,7 +940,10 @@ fn remove_nzb(path: &str) {
     if let Err(e) = std::fs::remove_file(path)
         && e.kind() != std::io::ErrorKind::NotFound
     {
-        eprintln!("queue: failed to delete NZB file: path={path} error={e}");
+        crate::logx::warn(
+            &format!("Failed to delete NZB file: path={path} error={e}"),
+            &[("component", "queue".into())],
+        );
     }
 }
 

@@ -78,9 +78,12 @@ pub fn par2_set_on_disk(dir: &Path, base: &str) -> Vec<String> {
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
         Err(e) => {
-            eprintln!(
-                "par2: failed to read directory for par2 volumes: dir={} error={e}",
-                dir.display()
+            crate::logx::warn(
+                &format!(
+                    "Failed to read directory for par2 volumes: dir={} error={e}",
+                    dir.display()
+                ),
+                &[("component", "par2".into())],
             );
             return out;
         }
@@ -186,19 +189,25 @@ pub fn par2_describes(main_path: &Path, inputs: &[InputFile]) -> bool {
     let descs = match read_file_descs(main_path) {
         Ok(d) => d,
         Err(e) => {
-            eprintln!(
-                "par2: ignoring unreadable PAR2 file: path={} error={e}",
-                main_path.display()
+            crate::logx::warn(
+                &format!(
+                    "Ignoring unreadable PAR2 file: path={} error={e}",
+                    main_path.display()
+                ),
+                &[("component", "par2".into())],
             );
             return false;
         }
     };
     if descs.len() != inputs.len() {
-        eprintln!(
-            "par2: ignoring PAR2 set that describes a different number of files: path={} par2Files={} inputFiles={}",
-            main_path.display(),
-            descs.len(),
-            inputs.len()
+        crate::logx::info(
+            &format!(
+                "Ignoring PAR2 set that describes a different number of files: path={} par2Files={} inputFiles={}",
+                main_path.display(),
+                descs.len(),
+                inputs.len()
+            ),
+            &[("component", "par2".into())],
         );
         return false;
     }
@@ -208,9 +217,12 @@ pub fn par2_describes(main_path: &Path, inputs: &[InputFile]) -> bool {
         let want = match describe_source(&input.path, &input.name) {
             Ok(w) => w,
             Err(e) => {
-                eprintln!(
-                    "par2: cannot fingerprint source file for PAR2 reuse: path={} error={e}",
-                    input.path.display()
+                crate::logx::warn(
+                    &format!(
+                        "Cannot fingerprint source file for PAR2 reuse: path={} error={e}",
+                        input.path.display()
+                    ),
+                    &[("component", "par2".into())],
                 );
                 return false;
             }
@@ -219,10 +231,13 @@ pub fn par2_describes(main_path: &Path, inputs: &[InputFile]) -> bool {
             .get(input.name.as_str())
             .is_none_or(|got| **got != want)
         {
-            eprintln!(
-                "par2: ignoring PAR2 set that does not describe the source file: path={} sourceFile={}",
-                main_path.display(),
-                input.path.display()
+            crate::logx::info(
+                &format!(
+                    "Ignoring PAR2 set that does not describe the source file: path={} sourceFile={}",
+                    main_path.display(),
+                    input.path.display()
+                ),
+                &[("component", "par2".into())],
             );
             return false;
         }
@@ -254,10 +269,13 @@ pub fn check_existing_par2_files_in_path(source: &FileInfo, dir: &Path) -> Optio
         return None;
     }
     let set = par2_set_on_disk(dir, &base);
-    eprintln!(
-        "par2: found existing PAR2 files, skipping generation: sourceFile={} par2Files={}",
-        source.path,
-        set.len()
+    crate::logx::info(
+        &format!(
+            "Found existing PAR2 files, skipping generation: sourceFile={} par2Files={}",
+            source.path,
+            set.len()
+        ),
+        &[("component", "par2".into())],
     );
     Some(set)
 }
@@ -273,9 +291,12 @@ pub fn check_existing_par2_set_in_path(
         return None;
     }
     let set = par2_set_on_disk(dir, set_name);
-    eprintln!(
-        "par2: found existing PAR2 set, skipping generation: setName={set_name} par2Files={}",
-        set.len()
+    crate::logx::info(
+        &format!(
+            "Found existing PAR2 set, skipping generation: setName={set_name} par2Files={}",
+            set.len()
+        ),
+        &[("component", "par2".into())],
     );
     Some(set)
 }

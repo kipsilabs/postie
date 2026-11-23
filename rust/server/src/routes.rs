@@ -81,6 +81,7 @@ pub fn router(srv: Arc<Srv>) -> Router {
         .route("/api/processor/auto-pause-reason", get(auto_pause_reason))
         .route("/api/running-jobs", get(running_jobs))
         .route("/api/running-job-details", get(running_job_details))
+        .route("/api/verification/active", get(verification_active))
         .route("/api/validate-server", post(validate_server))
         .route("/api/setup/complete", post(setup_complete))
         .route("/api/metrics/nntp-pool", get(nntp_pool_metrics))
@@ -809,6 +810,10 @@ async fn running_jobs(State(srv): S) -> Response {
 
 async fn running_job_details(State(srv): S) -> Response {
     ok_json(&srv.app.get_running_jobs_details())
+}
+
+async fn verification_active(State(srv): S) -> Response {
+    ok_json(&srv.app.get_verification_activity())
 }
 
 // ---- servers, setup, metrics ----

@@ -8,15 +8,18 @@
 
 use std::collections::{HashMap, HashSet};
 use std::io;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 use chrono::{DateTime, Duration, Utc};
+use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 
 use crate::manifest::{ArticleRecord, ManifestError, Reader};
 use crate::poster::BoxFut;
-use crate::transferstore::{self as ts, Store, StoreError, TransferFile, VerificationFailure};
+use crate::transferstore::{
+    self as ts, PendingFile, Store, StoreError, TransferFile, VerificationFailure,
+};
 
 /// Reports whether articles exist. `Ok(true)` means *missing* and is only returned when the server
 /// positively confirmed it (a `430`); an error means the check itself failed, so presence is UNKNOWN
@@ -161,7 +164,107 @@ const RECONCILE_EVERY_TICKS: u64 = 20;
 const MAX_BUSY_SKIPS: usize = 20;
 
 fn log(msg: &str) {
-    eprintln!("verification: {msg}");
+    crate::logx::warn(&format!("verification: {msg}"), &[]);
+}
+
+/// Where one completed item stands in verification, for the dashboard's verification panel.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Activity {
+    pub id: String,
+    pub path: String,
+    /// `checking` (STAT sweep running), `repairing` (missing articles being re-posted or
+    /// rechecked), `waiting` (propagation delay before the next check), `deferred` (held back while
+    /// uploads use every connection) or `queued` (due, picked up on the next cycle).
+    pub phase: &'static str,
+    pub total_articles: i64,
+    pub verified_articles: i64,
+    pub missing_articles: i64,
+    /// RFC 3339; set while `waiting`.
+    pub next_check_at: Option<String>,
+}
+
+/// Live STAT-sweep progress of one file: (articles checked, misses so far).
+type LiveKey = (String, String);
+
+/// Drops a file's live progress entry however its sweep ends.
+struct LiveGuard<'a> {
+    live: &'a Mutex<HashMap<LiveKey, (i64, i64)>>,
+    key: LiveKey,
+}
+
+impl LiveGuard<'_> {
+    fn set(&self, checked: i64, missing: i64) {
+        lock(self.live).insert(self.key.clone(), (checked, missing));
+    }
+}
+
+impl Drop for LiveGuard<'_> {
+    fn drop(&mut self) {
+        lock(self.live).remove(&self.key);
+    }
+}
+
+fn file_name(path: &str) -> String {
+    std::path::Path::new(path)
+        .file_name()
+        .map_or_else(|| path.to_string(), |n| n.to_string_lossy().into_owned())
+}
+
+fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+/// Folds one item's files (and the live sweeps among them) into an [`Activity`].
+fn item_activity(
+    files: &[PendingFile],
+    live: &HashMap<LiveKey, (i64, i64)>,
+    deferred: bool,
+    now: &str,
+) -> Activity {
+    let (mut total, mut verified, mut missing) = (0, 0, 0);
+    let (mut checking, mut next): (bool, Option<&str>) = (false, None);
+    for f in files {
+        total += f.article_count;
+        let sweep = live.get(&(f.transfer_id.clone(), f.file_id.clone()));
+        match (f.verification_state.as_str(), sweep) {
+            (_, Some(&(checked, misses))) => {
+                checking = true;
+                verified += (checked - misses).max(0);
+                missing += misses;
+            }
+            (ts::STATE_VERIFIED, None) => verified += f.article_count,
+            (ts::STATE_VERIFYING | ts::STATE_VERIFICATION_FAILED, None) => {
+                verified += (f.article_count - f.open_failures).max(0);
+                missing += f.open_failures;
+            }
+            _ => {
+                if let Some(at) = f.next_check_at.as_deref().filter(|at| *at > now) {
+                    next = Some(next.map_or(at, |n| n.min(at)));
+                }
+            }
+        }
+    }
+    let phase = if checking {
+        "checking"
+    } else if missing > 0 {
+        "repairing"
+    } else if next.is_some() {
+        "waiting"
+    } else if deferred {
+        "deferred"
+    } else {
+        "queued"
+    };
+    Activity {
+        id: files[0].completed_item_id.clone(),
+        path: files[0].path.clone(),
+        phase,
+        total_articles: total,
+        verified_articles: verified.min(total),
+        missing_articles: missing,
+        next_check_at: (phase == "waiting").then(|| next.unwrap_or_default().to_string()),
+    }
 }
 
 type Clock = Arc<dyn Fn() -> DateTime<Utc> + Send + Sync>;
@@ -176,6 +279,9 @@ pub struct Service {
     cleaner: Option<Arc<dyn Cleaner>>,
     busy: Option<Arc<dyn Fn() -> bool + Send + Sync>>,
     busy_skips: AtomicUsize,
+    /// Set while the busy gate holds cycles back.
+    deferred: AtomicBool,
+    live: Mutex<HashMap<LiveKey, (i64, i64)>>,
 }
 
 #[derive(PartialEq, Eq, Hash, Clone)]
@@ -200,6 +306,8 @@ impl Service {
             cleaner: None,
             busy: None,
             busy_skips: AtomicUsize::new(0),
+            deferred: AtomicBool::new(false),
+            live: Mutex::new(HashMap::new()),
         }
     }
 
@@ -221,6 +329,18 @@ impl Service {
 
     fn now(&self) -> DateTime<Utc> {
         (self.now)()
+    }
+
+    /// Every completed item awaiting verification and where it stands, oldest first.
+    pub fn activity(&self) -> Result<Vec<Activity>> {
+        let files = self.store.pending_verification_files()?;
+        let live = lock(&self.live).clone();
+        let deferred = self.deferred.load(Ordering::Relaxed);
+        let now = ts::fmt_time(self.now());
+        Ok(files
+            .chunk_by(|a, b| a.completed_item_id == b.completed_item_id)
+            .map(|item| item_activity(item, &live, deferred, &now))
+            .collect())
     }
 
     /// `base << min(n, 16)` capped at `max_backoff`.
@@ -282,9 +402,22 @@ impl Service {
                 "update completed item status failed: transfer={transfer_id} error={e}"
             ));
         }
+        let name = files
+            .iter()
+            .find(|f| f.file_role == crate::manifest::ROLE_ORIGINAL)
+            .map_or_else(
+                || file_name(&files[0].source_path),
+                |f| file_name(&f.source_path),
+            );
+        let attrs = [("file", name.into()), ("files", files.len().into())];
         if any_failed {
+            crate::logx::error(
+                "Verification failed: some articles could not be recovered",
+                &attrs,
+            );
             return;
         }
+        crate::logx::info("Upload verified", &attrs);
         if let Some(c) = &self.cleaner
             && let Err(e) = c.cleanup_transfer(transfer_id).await
         {
@@ -330,11 +463,13 @@ impl Service {
         {
             if self.busy_skips.load(Ordering::Relaxed) < MAX_BUSY_SKIPS {
                 self.busy_skips.fetch_add(1, Ordering::Relaxed);
+                self.deferred.store(true, Ordering::Relaxed);
                 return;
             }
             log("upload pool busy but verification deferred too long; running cycle anyway");
         }
         self.busy_skips.store(0, Ordering::Relaxed);
+        self.deferred.store(false, Ordering::Relaxed);
         if let Err(e) = self
             .verify_due_files(cancel, now, self.cfg.batch_size)
             .await
@@ -385,6 +520,19 @@ impl Service {
             }
             Err(e) => return self.defer_file_check(tf, &e.to_string()).await,
         };
+        let live = LiveGuard {
+            live: &self.live,
+            key: (tf.transfer_id.clone(), tf.file_id.clone()),
+        };
+        live.set(0, 0);
+        crate::logx::info(
+            "Verifying upload: checking every article is on the server",
+            &[
+                ("file", file_name(&tf.source_path).into()),
+                ("articles", tf.article_count.into()),
+            ],
+        );
+        let mut checked = 0i64;
         let mut missing: Vec<ArticleRecord> = Vec::new();
         let mut chunk: Vec<ArticleRecord> = Vec::with_capacity(self.cfg.stat_batch_size);
         loop {
@@ -398,14 +546,17 @@ impl Service {
                 return Err(VerifyError::Canceled);
             }
             chunk.push(rec);
-            if chunk.len() >= self.cfg.stat_batch_size
-                && let Err(e) = self.flush(&mut chunk, &mut missing).await
-            {
-                return if cancel.is_cancelled() {
-                    Err(VerifyError::Canceled)
-                } else {
-                    self.defer_file_check(tf, &e).await
-                };
+            if chunk.len() >= self.cfg.stat_batch_size {
+                let n = chunk.len() as i64;
+                if let Err(e) = self.flush(&mut chunk, &mut missing).await {
+                    return if cancel.is_cancelled() {
+                        Err(VerifyError::Canceled)
+                    } else {
+                        self.defer_file_check(tf, &e).await
+                    };
+                }
+                checked += n;
+                live.set(checked, missing.len() as i64);
             }
         }
         if let Err(e) = self.flush(&mut chunk, &mut missing).await {
@@ -418,6 +569,7 @@ impl Service {
         if cancel.is_cancelled() {
             return Err(VerifyError::Canceled);
         }
+        drop(live);
         if missing.is_empty() {
             self.store.set_verification_state(
                 &tf.transfer_id,
@@ -426,6 +578,13 @@ impl Service {
                 None,
                 "",
             )?;
+            crate::logx::info(
+                "File verified: every article is on the server",
+                &[
+                    ("file", file_name(&tf.source_path).into()),
+                    ("articles", tf.article_count.into()),
+                ],
+            );
             self.finalize_transfer(&tf.transfer_id).await;
             return Ok(());
         }
@@ -446,6 +605,14 @@ impl Service {
             .collect();
         // one transaction instead of a commit per missing article, off the async worker thread
         crate::blocking::in_place(|| self.store.add_failures(&failures))?;
+        crate::logx::warn(
+            "Articles missing after upload; they will be rechecked and re-posted",
+            &[
+                ("file", file_name(&tf.source_path).into()),
+                ("missing", missing.len().into()),
+                ("articles", tf.article_count.into()),
+            ],
+        );
         self.store.set_verification_state(
             &tf.transfer_id,
             &tf.file_id,
@@ -542,6 +709,13 @@ impl Service {
             }
             unresolved.push(f);
         }
+        crate::logx::info(
+            "Rechecked missing articles",
+            &[
+                ("found", (claimed.len() - unresolved.len()).into()),
+                ("stillMissing", unresolved.len().into()),
+            ],
+        );
         let records = self.resolve_records(&unresolved);
         for f in unresolved {
             if cancel.is_cancelled() {
@@ -616,6 +790,13 @@ impl Service {
             match self.reposter.repost(rec).await {
                 Ok(()) => {
                     f.repost_count += 1;
+                    crate::logx::info(
+                        "Re-posted a missing article",
+                        &[
+                            ("messageID", f.message_id.clone().into()),
+                            ("attempt", f.repost_count.into()),
+                        ],
+                    );
                     f.state = ts::FAILURE_PENDING.into();
                     // propagation starts when this re-post finishes, not at cycle start
                     f.next_attempt_at = self.now() + self.cfg.propagation_delay;

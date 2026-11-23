@@ -570,7 +570,10 @@ impl Queue {
                     }
                 }
             }
-            Err(e) => eprintln!("queue: failed to query verification progress: {e}"),
+            Err(e) => crate::logx::warn(
+                &format!("Failed to query verification progress: {e}"),
+                &[("component", "queue".into())],
+            ),
         }
         covered
     }

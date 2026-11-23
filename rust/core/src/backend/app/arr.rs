@@ -45,8 +45,9 @@ impl App {
             .ok_or_else(|| format!("arr instance {id:?} not found"))?;
         let instance = list.remove(idx);
         if let Err(e) = arr::remove_webhook(&client(), &instance).await {
-            eprintln!(
-                "backend: could not remove arr webhook from remote app: instanceID={id} error={e}"
+            crate::logx::warn(
+                &format!("Could not remove arr webhook from remote app: instanceID={id} error={e}"),
+                &[("component", "backend".into())],
             );
         }
         self.save_config(cfg).await

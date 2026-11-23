@@ -81,9 +81,12 @@ impl ServerTester for NntpTester {
             ep.password.clone_from(&s.password);
             match postie_nntp::test_provider(&ep).await {
                 Ok(rtt) => {
-                    eprintln!(
-                        "backend: provider connectivity test successful: host={} port={} rtt={rtt:?}",
-                        s.host, s.port
+                    crate::logx::info(
+                        &format!(
+                            "Provider connectivity test successful: host={} port={} rtt={rtt:?}",
+                            s.host, s.port
+                        ),
+                        &[("component", "backend".into())],
                     );
                     ValidationResult {
                         valid: true,
@@ -91,9 +94,12 @@ impl ServerTester for NntpTester {
                     }
                 }
                 Err(e) => {
-                    eprintln!(
-                        "backend: provider connectivity test failed: host={} port={} error={e}",
-                        s.host, s.port
+                    crate::logx::warn(
+                        &format!(
+                            "Provider connectivity test failed: host={} port={} error={e}",
+                            s.host, s.port
+                        ),
+                        &[("component", "backend".into())],
                     );
                     ValidationResult {
                         valid: false,
@@ -179,7 +185,10 @@ impl App {
         let (config_path, loc_err) = match resolve_config_path(&paths.config) {
             Ok(p) => (p, None),
             Err(e) => {
-                eprintln!("backend: could not resolve saved configuration location: {e}");
+                crate::logx::warn(
+                    &format!("Could not resolve saved configuration location: {e}"),
+                    &[("component", "backend".into())],
+                );
                 (paths.config.clone(), Some(e))
             }
         };
@@ -357,7 +366,10 @@ impl App {
             (s.config_location_err.clone(), s.config_path.clone())
         };
         if let Some(e) = loc_err {
-            eprintln!("backend: cannot load saved configuration location: {e}");
+            crate::logx::warn(
+                &format!("Cannot load saved configuration location: {e}"),
+                &[("component", "backend".into())],
+            );
         } else if let Err(e) = self.load_config() {
             if path == self.paths.config {
                 crate::logx::info(
@@ -391,7 +403,7 @@ impl App {
                 }
             } else {
                 let msg = format!("Cannot load configuration at {}: {e}", path.display());
-                eprintln!("backend: {msg}");
+                crate::logx::warn(&msg, &[("component", "backend".into())]);
                 lock(&self.state).config_load_error = msg;
             }
         }
@@ -414,15 +426,24 @@ impl App {
             return;
         }
         if let Err(e) = self.initialize_queue() {
-            eprintln!("backend: failed to initialize queue: {e}");
+            crate::logx::warn(
+                &format!("Failed to initialize queue: {e}"),
+                &[("component", "backend".into())],
+            );
         }
         if let Err(e) = self.initialize_processor() {
             lock(&self.state).critical_error.clone_from(&e);
-            eprintln!("backend: failed to initialize processor: {e}");
+            crate::logx::warn(
+                &format!("Failed to initialize processor: {e}"),
+                &[("component", "backend".into())],
+            );
         }
         self.initialize_post_check_worker();
         if let Err(e) = self.initialize_watchers() {
-            eprintln!("backend: failed to initialize watchers: {e}");
+            crate::logx::warn(
+                &format!("Failed to initialize watchers: {e}"),
+                &[("component", "backend".into())],
+            );
         }
     }
 
@@ -433,7 +454,10 @@ impl App {
             loop {
                 match tokio::task::spawn_blocking(crate::uploadtemp::sweep).await {
                     Ok(n) if n > 0 => {
-                        eprintln!("backend: removed empty upload temp dirs: count={n}");
+                        crate::logx::info(
+                            &format!("Removed empty upload temp dirs: count={n}"),
+                            &[("component", "backend".into())],
+                        );
                     }
                     _ => {}
                 }
@@ -482,7 +506,10 @@ impl App {
 
     /// Stops everything in dependency order.
     pub async fn shutdown(&self) {
-        eprintln!("backend: application shutdown initiated");
+        crate::logx::info(
+            "Application shutdown initiated",
+            &[("component", "backend".into())],
+        );
         let (post_check, watch_cancel, processor, pool, proc_cancel) = {
             let mut s = lock(&self.state);
             (
@@ -510,7 +537,10 @@ impl App {
             p.close();
         }
         self.root.cancel();
-        eprintln!("backend: application shutdown completed");
+        crate::logx::info(
+            "Application shutdown completed",
+            &[("component", "backend".into())],
+        );
     }
 
     fn initialize_queue(&self) -> Result<(), String> {
@@ -534,13 +564,19 @@ impl App {
         if cfg.api.enabled
             && let Err(e) = apikey::ensure_key(&SqlStore::new(db.clone()))
         {
-            eprintln!("backend: failed to ensure API key: {e}");
+            crate::logx::warn(
+                &format!("Failed to ensure API key: {e}"),
+                &[("component", "backend".into())],
+            );
         }
         let mut s = lock(&self.state);
         s.db = Some(db);
         s.queue = Some(queue);
         s.proc_cancel = Some(cancel);
-        eprintln!("backend: queue initialized successfully");
+        crate::logx::info(
+            "Queue initialized successfully",
+            &[("component", "backend".into())],
+        );
         Ok(())
     }
 
@@ -563,11 +599,17 @@ impl App {
         // taken synchronously, before the old processor's close runs concurrently with the new one
         let mut inherited = InheritedPrefetch(old.as_ref().and_then(|p| p.stop_par2_prefetch()));
         if let Some(p) = old {
-            eprintln!("backend: closing existing processor before reinitialization");
+            crate::logx::info(
+                "Closing existing processor before reinitialization",
+                &[("component", "backend".into())],
+            );
             drop(tokio::spawn(async move { p.close().await }));
         }
         if valid_server_count(&cfg) == 0 {
-            eprintln!("backend: no valid servers configured, skipping processor initialization");
+            crate::logx::info(
+                "No valid servers configured, skipping processor initialization",
+                &[("component", "backend".into())],
+            );
             return Ok(());
         }
         let (pool, queue, cancel) = {
@@ -575,8 +617,9 @@ impl App {
             (s.pool.clone(), s.queue.clone(), s.proc_cancel.clone())
         };
         let (Some(pool), Some(queue), Some(cancel)) = (pool, queue, cancel) else {
-            eprintln!(
-                "backend: pool manager or queue not available, skipping processor initialization"
+            crate::logx::warn(
+                "Pool manager or queue not available, skipping processor initialization",
+                &[("component", "backend".into())],
             );
             return Ok(());
         };
@@ -620,9 +663,12 @@ impl App {
         let token = cancel.clone();
         tokio::spawn(async move { p2.start(&token).await });
         lock(&self.state).processor = Some(processor);
-        eprintln!(
-            "backend: processor initialized successfully: outputDir={}",
-            out.display()
+        crate::logx::info(
+            &format!(
+                "Processor initialized successfully: outputDir={}",
+                out.display()
+            ),
+            &[("component", "backend".into())],
         );
         Ok(())
     }
@@ -650,8 +696,9 @@ impl App {
             return;
         }
         if processor.is_some_and(|p| p.durable_mode_enabled()) {
-            eprintln!(
-                "backend: durable verification active, skipping legacy post check retry worker"
+            crate::logx::info(
+                "Durable verification active, skipping legacy post check retry worker",
+                &[("component", "backend".into())],
             );
             return;
         }
@@ -685,7 +732,10 @@ impl App {
         }
         lock(&self.state).watchers.clear();
         let Some(queue) = self.queue() else {
-            eprintln!("backend: queue not available, skipping watcher initialization");
+            crate::logx::warn(
+                "Queue not available, skipping watcher initialization",
+                &[("component", "backend".into())],
+            );
             return Ok(());
         };
         let cancel = self.root.child_token();
@@ -701,9 +751,9 @@ impl App {
                 PathBuf::from(&wc.watch_directory)
             };
             if let Err(e) = std::fs::create_dir_all(&dir) {
-                eprintln!(
-                    "backend: failed to create watch directory: {} ({e})",
-                    dir.display()
+                crate::logx::warn(
+                    &format!("Failed to create watch directory: {} ({e})", dir.display()),
+                    &[("component", "backend".into())],
                 );
                 continue;
             }
@@ -864,7 +914,10 @@ impl App {
         if self.queue().is_none()
             && let Err(e) = self.initialize_queue()
         {
-            eprintln!("backend: failed to initialize queue after config change: {e}");
+            crate::logx::warn(
+                &format!("Failed to initialize queue after config change: {e}"),
+                &[("component", "backend".into())],
+            );
         }
         let applied = self.applied_config().ok_or("config not loaded")?;
         let mut pool_created = false;
@@ -872,8 +925,9 @@ impl App {
         match pool {
             Some(p) if pool_changed => {
                 if let Err(e) = p.update_config(&applied) {
-                    eprintln!(
-                        "backend: failed to update connection pool manager with new config: {e}"
+                    crate::logx::warn(
+                        &format!("Failed to update connection pool manager with new config: {e}"),
+                        &[("component", "backend".into())],
                     );
                 }
             }
@@ -884,22 +938,34 @@ impl App {
                         lock(&self.state).pool = Some(Arc::new(m));
                         pool_created = true;
                     }
-                    Err(e) => eprintln!("backend: failed to create connection pool manager: {e}"),
+                    Err(e) => crate::logx::warn(
+                        &format!("Failed to create connection pool manager: {e}"),
+                        &[("component", "backend".into())],
+                    ),
                 }
             }
             None => {}
         }
         if proc_restart || pool_created {
             if let Err(e) = self.initialize_processor() {
-                eprintln!("backend: failed to re-initialize processor after config change: {e}");
+                crate::logx::warn(
+                    &format!("Failed to re-initialize processor after config change: {e}"),
+                    &[("component", "backend".into())],
+                );
             }
             self.initialize_post_check_worker();
         }
         if watch_restart && let Err(e) = self.initialize_watchers() {
-            eprintln!("backend: failed to re-initialize watchers after config change: {e}");
+            crate::logx::warn(
+                &format!("Failed to re-initialize watchers after config change: {e}"),
+                &[("component", "backend".into())],
+            );
         }
         self.emit("config-updated", serde_json::to_value(cfg).ok());
-        eprintln!("backend: config applied successfully");
+        crate::logx::info(
+            "Config applied successfully",
+            &[("component", "backend".into())],
+        );
         Ok(())
     }
 
@@ -960,13 +1026,17 @@ impl App {
                 )
                 .is_ok()
         {
-            eprintln!(
-                "backend: no active work detected, attempting to apply pending configuration"
+            crate::logx::info(
+                "No active work detected, attempting to apply pending configuration",
+                &[("component", "backend".into())],
             );
             let me = self.clone();
             tokio::task::spawn_blocking(move || {
                 if let Err(e) = me.apply_pending_config() {
-                    eprintln!("backend: failed to auto-apply pending configuration: {e}");
+                    crate::logx::warn(
+                        &format!("Failed to auto-apply pending configuration: {e}"),
+                        &[("component", "backend".into())],
+                    );
                 }
                 me.applying
                     .store(false, std::sync::atomic::Ordering::SeqCst);
@@ -1043,6 +1113,13 @@ impl App {
     pub fn get_transfer_runtime_metrics(&self) -> RuntimeMetrics {
         self.processor()
             .map(|p| p.transfer_runtime_metrics())
+            .unwrap_or_default()
+    }
+
+    /// Items awaiting verification, with live progress for the dashboard's verification panel.
+    pub fn get_verification_activity(&self) -> Vec<crate::verification::Activity> {
+        self.processor()
+            .and_then(|p| p.runtime().map(|r| r.verification_activity()))
             .unwrap_or_default()
     }
 
@@ -1152,7 +1229,10 @@ impl App {
             (s.watchers.clone(), s.watch_cancel.clone())
         };
         if ws.is_empty() {
-            eprintln!("backend: TriggerScan called but no watchers are initialized");
+            crate::logx::info(
+                "TriggerScan called but no watchers are initialized",
+                &[("component", "backend".into())],
+            );
             return;
         }
         let cancel = cancel.unwrap_or_else(|| self.root.clone());
