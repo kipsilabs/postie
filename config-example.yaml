@@ -43,6 +43,11 @@ post_check:
   # Max concurrent STAT verification checks across the whole process.
   # 0 = auto (dedicated verify pool capped at 16, shared upload pool capped at 2).
   max_concurrent_checks: 0
+  # STAT each article shortly after it is posted, while the rest of the upload runs.
+  check_during_upload: true
+  # Without a verify-role server, upload connections set aside for those checks
+  # (uploads keep at least one). 0 = auto: 1, or 2 from 10 connections.
+  check_connections: 0
 
 par2:
   enabled: true

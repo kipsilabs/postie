@@ -57,7 +57,9 @@
     "deferred_check_interval": "2m",
     "deferred_batch_size": 10000,
     "stat_batch_size": 100,
-    "max_concurrent_checks": 0
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -258,7 +260,9 @@
     "deferred_check_interval": "2m",
     "deferred_batch_size": 10000,
     "stat_batch_size": 100,
-    "max_concurrent_checks": 0
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -438,7 +442,9 @@
     "deferred_check_interval": "2m",
     "deferred_batch_size": 10000,
     "stat_batch_size": 100,
-    "max_concurrent_checks": 0
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -613,7 +619,9 @@
     "deferred_check_interval": "2m",
     "deferred_batch_size": 10000,
     "stat_batch_size": 100,
-    "max_concurrent_checks": 0
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -768,7 +776,9 @@
     "deferred_check_interval": "2m",
     "deferred_batch_size": 10000,
     "stat_batch_size": 100,
-    "max_concurrent_checks": 0
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -928,7 +938,9 @@
     "deferred_check_interval": "2m",
     "deferred_batch_size": 10000,
     "stat_batch_size": 100,
-    "max_concurrent_checks": 0
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -1093,7 +1105,9 @@
     "deferred_check_interval": "2m",
     "deferred_batch_size": 10000,
     "stat_batch_size": 100,
-    "max_concurrent_checks": 0
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -1248,7 +1262,9 @@
     "deferred_check_interval": "2m",
     "deferred_batch_size": 10000,
     "stat_batch_size": 100,
-    "max_concurrent_checks": 0
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -1408,7 +1424,9 @@
     "deferred_check_interval": "2m",
     "deferred_batch_size": 10000,
     "stat_batch_size": 100,
-    "max_concurrent_checks": 0
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -1608,7 +1626,9 @@
     "deferred_check_interval": "2m",
     "deferred_batch_size": 10000,
     "stat_batch_size": 100,
-    "max_concurrent_checks": 0
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -1763,7 +1783,9 @@
     "deferred_check_interval": "2m",
     "deferred_batch_size": 10000,
     "stat_batch_size": 100,
-    "max_concurrent_checks": 0
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -1920,7 +1942,9 @@
     "deferred_check_interval": "2m",
     "deferred_batch_size": 10000,
     "stat_batch_size": 100,
-    "max_concurrent_checks": 0
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -2075,7 +2099,9 @@
     "deferred_check_interval": "2m",
     "deferred_batch_size": 10000,
     "stat_batch_size": 100,
-    "max_concurrent_checks": 0
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -2230,7 +2256,9 @@
     "deferred_check_interval": "2m",
     "deferred_batch_size": 10000,
     "stat_batch_size": 100,
-    "max_concurrent_checks": 0
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -2385,7 +2413,9 @@
     "deferred_check_interval": "2m",
     "deferred_batch_size": 10000,
     "stat_batch_size": 100,
-    "max_concurrent_checks": 0
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -2554,7 +2584,9 @@
     "deferred_check_interval": "2m",
     "deferred_batch_size": 10000,
     "stat_batch_size": 100,
-    "max_concurrent_checks": 0
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -2709,7 +2741,9 @@
     "deferred_check_interval": "2m",
     "deferred_batch_size": 10000,
     "stat_batch_size": 100,
-    "max_concurrent_checks": 0
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -2869,7 +2903,9 @@
     "deferred_check_interval": "2m",
     "deferred_batch_size": 10000,
     "stat_batch_size": 100,
-    "max_concurrent_checks": 0
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -3020,7 +3056,9 @@
     "deferred_check_interval": "2m",
     "deferred_batch_size": 10000,
     "stat_batch_size": 100,
-    "max_concurrent_checks": 0
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -3189,7 +3227,9 @@
     "deferred_check_interval": "2m",
     "deferred_batch_size": 10000,
     "stat_batch_size": 100,
-    "max_concurrent_checks": 0
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -3359,7 +3399,9 @@
     "deferred_check_interval": "2m",
     "deferred_batch_size": 10000,
     "stat_batch_size": 100,
-    "max_concurrent_checks": 0
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -3534,7 +3576,9 @@
     "deferred_check_interval": "2m",
     "deferred_batch_size": 10000,
     "stat_batch_size": 100,
-    "max_concurrent_checks": 0
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,

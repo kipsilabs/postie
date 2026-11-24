@@ -699,6 +699,8 @@ export namespace config {
 	    deferred_batch_size: number;
 	    stat_batch_size: number;
 	    max_concurrent_checks: number;
+	    check_during_upload?: boolean;
+	    check_connections: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new PostCheck(source);
@@ -716,6 +718,8 @@ export namespace config {
 	        this.deferred_batch_size = source["deferred_batch_size"];
 	        this.stat_batch_size = source["stat_batch_size"];
 	        this.max_concurrent_checks = source["max_concurrent_checks"];
+	        this.check_during_upload = source["check_during_upload"];
+	        this.check_connections = source["check_connections"];
 	    }
 	}
 	export class CustomHeader {
