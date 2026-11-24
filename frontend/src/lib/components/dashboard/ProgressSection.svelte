@@ -12,9 +12,21 @@ import {
 import { t } from "$lib/i18n";
 import { isUploading, runningJobs } from "$lib/stores/app";
 import { toastStore } from "$lib/stores/toast";
+import {
+  refreshVerificationActivity,
+  verificationActivity,
+  verificationHandoffs,
+} from "$lib/stores/verification";
+import { phaseDetail, phaseDot } from "$lib/verification-display";
+import {
+  startHandoffs,
+  track,
+  type Tracked,
+  updateHandoffs,
+} from "$lib/verification-handoff";
 import { formatSpeed, formatTime, formatFileSize } from "$lib/utils";
 import { fade, fly, listFlip } from "$lib/motion";
-import { CheckCircle, Play, X, Upload, Package, Check } from "lucide-svelte";
+import { CheckCircle, Play, X, Upload, Package, Check, ShieldCheck } from "lucide-svelte";
 import { onMount, onDestroy } from "svelte";
 
 let isPaused = $state(false);
@@ -22,6 +34,30 @@ let destroyed = false;
 let jobsRevision = 0;
 let pauseRevision = 0;
 let stopFallback: (() => void) | undefined;
+// What each running job would hand off if it ended now (not reactive: bookkeeping only).
+let tracked = new Map<string, Tracked>();
+let now = $state(Date.now());
+let clock: ReturnType<typeof setInterval> | undefined;
+
+// A job that leaves the running list keeps its card: its verifying row carries on from the
+// verification activity until the item is verified.
+$effect(() => {
+  const jobs = $runningJobs ?? [];
+  const ids = new Set(jobs.map((j) => j.id));
+  const before = tracked;
+  if ([...before.keys()].some((id) => !ids.has(id))) refreshVerificationActivity();
+  verificationHandoffs.update((h) => startHandoffs(h, before, ids, Date.now()));
+  tracked = new Map(jobs.map((j) => [j.id, track(j)]));
+});
+
+$effect(() => {
+  const activity = $verificationActivity;
+  verificationHandoffs.update((h) => updateHandoffs(h, activity, Date.now()));
+});
+
+let handoffs = $derived(
+  [...$verificationHandoffs.values()].sort((a, b) => (a.fileName ?? "").localeCompare(b.fileName ?? "")),
+);
 
 function applyRunningJobs(data: unknown) {
   if (destroyed) return;
@@ -56,6 +92,7 @@ async function fetchInitialState() {
 }
 
 onMount(async () => {
+  clock = setInterval(() => (now = Date.now()), 1000);
   await apiClient.initialize();
   if (destroyed) return;
   // Subscribe before fetching: completion may be the last event emitted for
@@ -80,6 +117,7 @@ onMount(async () => {
 
 onDestroy(() => {
   destroyed = true;
+  clearInterval(clock);
   stopFallback?.();
   apiClient.off(EVENT_RUNNING_JOBS_UPDATED, applyRunningJobs);
   apiClient.off(EVENT_PROCESSING_PAUSED, applyPauseEvent);
@@ -124,6 +162,8 @@ function ratio(progressState: any): number {
 }
 
 async function cancelJob(jobID: string) {
+  // a cancelled upload has nothing left to verify: no hand-off card
+  tracked.delete(jobID);
   try {
     await apiClient.cancelJob(jobID);
 
@@ -180,7 +220,7 @@ function cancelUpload(jobID: string) {
     </div>
   </div>
 
-  {#if $isUploading}
+  {#if $isUploading || handoffs.length > 0}
     <div class="space-y-3">
       {#each [...$runningJobs].sort((a, b) => (a.fileName ?? '').localeCompare(b.fileName ?? '')) as job (job.id)}
         <div class="settings-group" in:fly out:fade animate:listFlip>
@@ -253,6 +293,52 @@ function cancelUpload(jobID: string) {
               </div>
             </div>
           {/each}
+        </div>
+      {/each}
+      {#each handoffs as h (h.id)}
+        {@const pct = h.held}
+        {@const phase = h.doneAt !== undefined ? null : h.item?.phase}
+        <div class="settings-group" in:fly out:fade animate:listFlip>
+          <div class="settings-row">
+            <div class="min-w-0">
+              <div class="settings-row-title truncate" title={h.path}>{h.fileName}</div>
+              <div class="settings-row-desc tabular-nums truncate">
+                {$t('dashboard.progress.file_size')}: {formatFileSize(h.size)}
+                <span aria-hidden="true">·</span>
+                {$t('dashboard.progress.path')}: <span title={h.path}>{h.path.split('/').pop()}</span>
+              </div>
+            </div>
+          </div>
+          <div class="settings-row !block">
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-2 min-w-0">
+                <ShieldCheck class="w-4 h-4 shrink-0 text-base-content/60" />
+                <span class="text-sm font-medium truncate">{h.label}</span>
+                <span class="inline-flex items-center gap-1.5 text-xs text-base-content/60 shrink-0">
+                  <span class="size-1.5 rounded-full {phase ? phaseDot(phase) : 'bg-success'}"></span>
+                  {phase ? $t(`dashboard.verification.phase.${phase}`) : $t('dashboard.progress.verified')}
+                </span>
+              </div>
+              <span class="text-sm tabular-nums shrink-0">{Math.round(pct * 100)}%</span>
+            </div>
+            <div
+              class="progress-track mt-2"
+              style="height: 0.25rem"
+              role="progressbar"
+              aria-valuenow={Math.round(pct * 100)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={h.label}
+            >
+              <div
+                class="progress-fill"
+                style="transform: scaleX({pct}); {phase === 'repairing' ? 'background-color: var(--color-warning)' : ''}"
+              ></div>
+            </div>
+            {#if h.item && phase}
+              <div class="mt-1.5 text-xs tabular-nums text-base-content/60">{phaseDetail(h.item, $t, now)}</div>
+            {/if}
+          </div>
         </div>
       {/each}
     </div>
