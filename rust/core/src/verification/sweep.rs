@@ -136,17 +136,23 @@ impl Service {
                 }
                 match reader.next_record() {
                     Ok(Some(rec)) => {
-                        if self
-                            .early
-                            .as_ref()
-                            .is_some_and(|e| e.take_confirmed(&rec.message_id))
-                        {
+                        let early = self.early.as_deref();
+                        let pending = early.is_some_and(|e| e.is_pending(&rec.message_id));
+                        if !pending && early.is_some_and(|e| e.take_confirmed(&rec.message_id)) {
                             checked += 1;
                             answered += 1;
                             continue;
                         }
                         let stater = &self.stater;
                         inflight.push(async move {
+                            // posted moments ago: its own check is due soon, wait for it rather
+                            // than STAT before the propagation delay has passed
+                            if pending
+                                && let Some(e) = early
+                                && e.settle(&rec.message_id).await
+                            {
+                                return (rec, Ok(false));
+                            }
                             let r = stater.stat(&rec.message_id).await;
                             (rec, r)
                         });

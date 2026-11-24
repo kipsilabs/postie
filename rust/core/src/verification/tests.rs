@@ -699,6 +699,36 @@ async fn articles_confirmed_during_upload_are_not_stated_again() {
 }
 
 #[tokio::test]
+async fn a_sweep_right_after_the_upload_waits_for_articles_still_being_checked() {
+    let mut e = env(&["m3"]);
+    let delay = std::time::Duration::from_millis(200);
+    let ec = Arc::new(EarlyChecker::new(e.stater.clone(), delay));
+    e.svc.set_early_checker(ec.clone());
+    let started = std::time::Instant::now();
+    for i in 0..5 {
+        crate::poster::PostObserver::posted(ec.as_ref(), &format!("<m{i}>"), 0, None);
+    }
+    let tf = e.file("t", "f", 10, "");
+    let (cancel, sweep_cancel) = (CancellationToken::new(), Env::cancel());
+    tokio::select! {
+        () = ec.run(&cancel) => unreachable!("the checker runs until cancelled"),
+        r = e.svc.verify_file(&sweep_cancel, &tf) => r.unwrap(),
+    }
+    assert!(
+        started.elapsed() >= delay,
+        "m0..m4 were awaited, not STATed early"
+    );
+    // 5 early checks, then the sweep STATs m5..m9 and re-checks m3, which the checker found missing
+    assert_eq!(e.stater.calls.load(Ordering::SeqCst), 11);
+    assert_eq!(
+        e.store
+            .count_failures("t", "f", ts::FAILURE_PENDING)
+            .unwrap(),
+        1
+    );
+}
+
+#[tokio::test]
 async fn a_sweep_where_every_stat_errors_is_retried_without_budget_or_failures() {
     let e = env(&[]);
     e.stater
