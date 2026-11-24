@@ -18,6 +18,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::Stater;
 use crate::poster::PostObserver;
+use crate::progress::Progress;
 
 /// Posted articles waiting for their check. Past this, notifications are dropped (never block the
 /// upload) and those articles are left for the sweep.
@@ -31,6 +32,8 @@ const PRUNE_EVERY: Duration = Duration::from_secs(60);
 struct Posted {
     id: String,
     due: Instant,
+    /// The job's "verifying" row and the article's bytes, credited on confirmation.
+    row: Option<(Arc<Progress>, i64)>,
 }
 
 fn normalize(id: &str) -> &str {
@@ -96,9 +99,13 @@ impl EarlyChecker {
             let due = head.as_ref().map(|p| p.due);
             tokio::select! {
                 () = cancel.cancelled() => return,
-                Some((id, present)) = inflight.next(), if !inflight.is_empty() => {
+                Some((p, present)) = inflight.next(), if !inflight.is_empty() => {
+                    let (p, present): (Posted, bool) = (p, present);
                     if present {
-                        self.confirm(id);
+                        if let Some((row, size)) = &p.row {
+                            row.update_progress(*size);
+                        }
+                        self.confirm(p.id);
                     }
                 }
                 () = tokio::time::sleep_until(due.unwrap_or_else(Instant::now)),
@@ -108,7 +115,7 @@ impl EarlyChecker {
                         let stater = &self.stater;
                         inflight.push(async move {
                             let present = matches!(stater.stat(&p.id).await, Ok(false));
-                            (p.id, present)
+                            (p, present)
                         });
                     }
                 }
@@ -126,12 +133,13 @@ impl EarlyChecker {
 }
 
 impl PostObserver for EarlyChecker {
-    fn posted(&self, message_id: &str) {
+    fn posted(&self, message_id: &str, size: i64, row: Option<&Arc<Progress>>) {
         let due = Instant::now() + self.delay;
         // full queue: drop it, the sweep checks this article as usual
         let _ = self.tx.try_send(Posted {
             id: normalize(message_id).to_string(),
             due,
+            row: row.map(|r| (r.clone(), size)),
         });
     }
 }
@@ -173,8 +181,8 @@ mod tests {
     async fn posted_articles_are_confirmed_only_after_the_delay() {
         let fake = Arc::new(Fake::default());
         let ec = EarlyChecker::new(fake.clone(), Duration::from_secs(5));
-        ec.posted("<a@x>");
-        ec.posted("x-missing@x");
+        ec.posted("<a@x>", 0, None);
+        ec.posted("x-missing@x", 0, None);
         let cancel = CancellationToken::new();
         let run = ec.run(&cancel);
         tokio::pin!(run);
@@ -200,13 +208,30 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
+    async fn confirmed_articles_advance_the_verifying_row() {
+        let progress = crate::progress::JobProgress::new("j");
+        let row = progress.add_progress(
+            uuid::Uuid::new_v4(),
+            "a.bin (verifying)",
+            crate::progress::ProgressType::Checking,
+            1000,
+        );
+        let ec = EarlyChecker::new(Arc::new(Fake::default()), Duration::from_secs(1));
+        ec.posted("<a@x>", 300, Some(&row));
+        ec.posted("<x-missing@x>", 500, Some(&row));
+        ec.posted("<b@x>", 200, None);
+        settle(&ec, &CancellationToken::new(), Duration::from_secs(2)).await;
+        assert_eq!(row.state().current_num, 300, "only confirmed bytes count");
+    }
+
+    #[tokio::test(start_paused = true)]
     async fn run_stops_on_cancel_and_only_runs_once() {
         let ec = EarlyChecker::new(Arc::new(Fake::default()), Duration::from_secs(1));
         let cancel = CancellationToken::new();
         cancel.cancel();
         ec.run(&cancel).await;
         settle(&ec, &CancellationToken::new(), Duration::from_secs(1)).await;
-        ec.posted("<late@x>");
+        ec.posted("<late@x>", 0, None);
         settle(&ec, &CancellationToken::new(), Duration::from_secs(5)).await;
         assert!(!ec.take_confirmed("late@x"), "a second run must not start");
     }

@@ -72,7 +72,9 @@ impl ArticleClient for postie_nntp::pool::Client {
 /// Told about every article the poster has just posted successfully (the early checker STATs it
 /// after the propagation delay, while the rest of the upload is still running). Must not block.
 pub trait PostObserver: Send + Sync {
-    fn posted(&self, message_id: &str);
+    /// `row` is the job's "verifying" progress row: credit it with `size` bytes once a STAT confirms
+    /// the article.
+    fn posted(&self, message_id: &str, size: i64, row: Option<&Arc<Progress>>);
 }
 
 /// Records a durable manifest before a file's articles are posted and returns an earlier one for crash
@@ -505,6 +507,8 @@ struct Run {
     first_check_done: AtomicBool,
     /// One overall row for a multi-file post (bytes across all files).
     aggregate: Option<Arc<Progress>>,
+    /// Bytes confirmed on the server while uploading; only with a post observer.
+    verify: Option<Arc<Progress>>,
 }
 
 impl Run {
@@ -518,6 +522,17 @@ impl Run {
             .unwrap_or_else(|p| p.into_inner())
             .is_some()
     }
+}
+
+/// Total bytes of `files`. One stat per file: blocking I/O, kept off the async workers.
+fn total_size(files: &[PathBuf]) -> i64 {
+    crate::blocking::in_place(|| {
+        files
+            .iter()
+            .filter_map(|f| std::fs::metadata(f).ok())
+            .map(|m| i64::try_from(m.len()).unwrap_or(i64::MAX))
+            .sum()
+    })
 }
 
 fn base_name(p: &Path) -> String {
@@ -600,26 +615,32 @@ impl Poster {
             .await
     }
 
-    /// Posts `files`; `relative_paths` maps a file to the display name used in its subject.
     /// The overall row for a multi-file post, sized to the files' total bytes; `None` for one file.
-    fn aggregate_progress(&self, files: &[PathBuf]) -> Option<Arc<Progress>> {
+    fn aggregate_progress(&self, files: &[PathBuf], total: i64) -> Option<Arc<Progress>> {
         if files.len() < 2 {
             return None;
         }
-        // one stat per file: blocking I/O, kept off the async workers
-        let total: i64 = crate::blocking::in_place(|| {
-            files
-                .iter()
-                .filter_map(|f| std::fs::metadata(f).ok())
-                .map(|m| i64::try_from(m.len()).unwrap_or(i64::MAX))
-                .sum()
-        });
         Some(self.0.progress.add_progress(
             Uuid::new_v4(),
             &format!("Uploading {} files", files.len()),
             ProgressType::Uploading,
             total,
         ))
+    }
+
+    /// The row the post observer advances as articles are confirmed during the upload; `None`
+    /// without an observer (nothing is checked until the upload ends).
+    fn verify_progress(&self, files: &[PathBuf], total: i64) -> Option<Arc<Progress>> {
+        self.0.observer.as_ref()?;
+        let label = match files {
+            [one] => format!("{} (verifying)", base_name(one)),
+            _ => format!("Verifying {} files", files.len()),
+        };
+        Some(
+            self.0
+                .progress
+                .add_progress(Uuid::new_v4(), &label, ProgressType::Checking, total),
+        )
     }
 
     pub async fn post_with_relative_paths(
@@ -643,13 +664,21 @@ impl Poster {
                 }
             })
         };
-        let aggregate = self.aggregate_progress(files);
+        let total = total_size(files);
+        let aggregate = self.aggregate_progress(files, total);
+        let verify = self.verify_progress(files, total);
+        // the overall rows go away however the post ends (checks still due afterwards are reported
+        // by the verification activity instead)
+        let _rows: Vec<AggregateRow> = [&aggregate, &verify]
+            .into_iter()
+            .flatten()
+            .map(|p| AggregateRow(self.0.progress.clone(), p.id()))
+            .collect();
         let run = Arc::new(Run {
-            aggregate: aggregate.clone(),
+            aggregate,
+            verify,
             ..Run::default()
         });
-        // the overall row goes away however the post ends
-        let _aggregate_row = aggregate.map(|a| AggregateRow(self.0.progress.clone(), a.id()));
         let capacity = pipeline_capacity(self.0.upload.max_connections());
         let depth = Arc::new(Semaphore::new(capacity));
         let mut tasks: JoinSet<()> = JoinSet::new();
@@ -947,6 +976,7 @@ impl Poster {
                     &todo,
                     &progress,
                     run.aggregate.as_ref(),
+                    run.verify.as_ref(),
                     pause,
                 )
                 .await;
@@ -1058,6 +1088,7 @@ impl Poster {
         articles: &[Article],
         progress: &Arc<Progress>,
         aggregate: Option<&Arc<Progress>>,
+        verify: Option<&Arc<Progress>>,
         pause: Option<&PauseGate>,
     ) -> (Vec<Article>, Option<PostError>) {
         let reserve = self.0.engine.as_ref().map_or(0, |e| e.per_article_bytes());
@@ -1118,6 +1149,7 @@ impl Poster {
             // the read happens inside the task, so up to READ_AHEAD reads are in flight at once
             // instead of one at a time (network mounts)
             let (me, ctx2, art2, pause2) = (self.clone(), ctx.clone(), art.clone(), pause.cloned());
+            let verify2 = verify.cloned();
             let (file2, slots2, path2) = (file.clone(), file_slots.clone(), path.to_path_buf());
             set.spawn(async move {
                 let _held = (win, buffer);
@@ -1140,7 +1172,8 @@ impl Poster {
                         )));
                     }
                 };
-                me.upload_one(&ctx2, art2, &body, pause2.as_ref()).await
+                me.upload_one(&ctx2, art2, &body, verify2.as_ref(), pause2.as_ref())
+                    .await
             });
         }
         while let Some(r) = set.join_next().await {
@@ -1155,6 +1188,7 @@ impl Poster {
         ctx: &CancellationToken,
         art: Article,
         body: &[u8],
+        verify: Option<&Arc<Progress>>,
         pause: Option<&PauseGate>,
     ) -> Result<Article, PostError> {
         if ctx.is_cancelled() {
@@ -1190,7 +1224,7 @@ impl Poster {
         )
         .await?;
         if let Some(o) = &self.0.observer {
-            o.posted(&art.message_id);
+            o.posted(&art.message_id, art.size as i64, verify);
         }
         Ok(art)
     }

@@ -677,7 +677,7 @@ async fn articles_confirmed_during_upload_are_not_stated_again() {
     ));
     e.svc.set_early_checker(ec.clone());
     for i in 0..5 {
-        crate::poster::PostObserver::posted(ec.as_ref(), &format!("<m{i}>"));
+        crate::poster::PostObserver::posted(ec.as_ref(), &format!("<m{i}>"), 0, None);
     }
     let cancel = CancellationToken::new();
     tokio::select! {

@@ -471,11 +471,16 @@ async fn pause_blocks_posting_until_resumed() {
     assert_eq!(mock.posts.lock().unwrap().len(), 1);
 }
 
+/// The verifying row an article came with: (type, description).
+type SeenRow = Option<(ProgressType, String)>;
+
+/// Records each posted id with its verifying row.
 #[derive(Default)]
-struct Observed(Mutex<Vec<String>>);
+struct Observed(Mutex<Vec<(String, SeenRow)>>);
 impl PostObserver for Observed {
-    fn posted(&self, message_id: &str) {
-        self.0.lock().unwrap().push(message_id.to_string());
+    fn posted(&self, message_id: &str, _size: i64, row: Option<&Arc<Progress>>) {
+        let row = row.map(|r| (r.progress_type(), r.name().to_string()));
+        self.0.lock().unwrap().push((message_id.to_string(), row));
     }
 }
 
@@ -485,12 +490,13 @@ async fn the_post_observer_hears_every_posted_article() {
     let mock = Mock::new(2);
     let sink: Arc<dyn ManifestSink> = Arc::new(Sink::new(Arc::new(Mutex::new(vec![]))));
     let seen = Arc::new(Observed::default());
+    let progress = Arc::new(JobProgress::new("j"));
     let p = Poster::new(
         posting(),
         PostCheck::default(),
         mock.clone(),
         mock.clone(),
-        Arc::new(JobProgress::new("j")),
+        progress.clone(),
         None,
         Some(sink),
     )
@@ -503,12 +509,22 @@ async fn the_post_observer_hears_every_posted_article() {
     )
     .await
     .unwrap();
-    let mut heard = seen.0.lock().unwrap().clone();
+    let heard = seen.0.lock().unwrap().clone();
+    let mut ids: Vec<String> = heard.iter().map(|(id, _)| id.clone()).collect();
     let mut posted = mock.posted_ids();
-    heard.sort();
+    ids.sort();
     posted.sort();
     assert_eq!(posted.len(), 4);
-    assert_eq!(heard, posted);
+    assert_eq!(ids, posted);
+    assert!(
+        heard.iter().all(|(_, row)| row
+            == &Some((ProgressType::Checking, "a.bin (verifying)".to_string()))),
+        "every article carries the job's verifying row: {heard:?}"
+    );
+    assert!(
+        progress.get_all_progress().is_empty(),
+        "the verifying row is removed when the post ends"
+    );
 }
 
 #[tokio::test]
