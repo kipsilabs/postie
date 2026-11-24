@@ -79,6 +79,7 @@
 			"processing_time": "Temps de traitement"
 		},
 		"progress": {
+			"verified": "Vérifié",
 			"title": "Progression de Téléchargement",
 			"file_size": "Taille du fichier",
 			"path": "Chemin",

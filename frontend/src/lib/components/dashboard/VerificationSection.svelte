@@ -1,91 +1,30 @@
 <script lang="ts">
-import apiClient from "$lib/api/client";
 import type { backend } from "$lib/api/models";
 import { t } from "$lib/i18n";
 import { fade, fly, listFlip } from "$lib/motion";
+import { verificationActivity, verificationHandoffs } from "$lib/stores/verification";
+import { phaseDetail, phaseDot } from "$lib/verification-display";
+import { activityRatio as ratio } from "$lib/verification-handoff";
 import { ShieldCheck } from "lucide-svelte";
 import { onDestroy, onMount } from "svelte";
 
-// Verification has no push events: poll while the dashboard is open.
-const POLL_MS = 3000;
-
-let items = $state<backend.VerificationActivity[]>([]);
+// items still shown on their upload's progress card are not listed twice
+let items = $derived($verificationActivity.filter((a) => !$verificationHandoffs.has(a.id)));
 let now = $state(Date.now());
-let destroyed = false;
-let timer: ReturnType<typeof setInterval> | undefined;
 let clock: ReturnType<typeof setInterval> | undefined;
-let inFlight = false;
-
-async function refresh() {
-	if (inFlight || destroyed) return;
-	inFlight = true;
-	try {
-		const next = await apiClient.getVerificationActivity();
-		if (!destroyed) items = next ?? [];
-	} catch (error) {
-		console.error("Failed to fetch verification progress:", error);
-	} finally {
-		inFlight = false;
-	}
-}
 
 onMount(() => {
-	refresh();
-	timer = setInterval(refresh, POLL_MS);
 	clock = setInterval(() => (now = Date.now()), 1000);
 });
 
-onDestroy(() => {
-	destroyed = true;
-	clearInterval(timer);
-	clearInterval(clock);
-});
+onDestroy(() => clearInterval(clock));
 
 function fileName(path: string): string {
 	return path.split(/[\\/]/).pop() || path;
 }
 
-function ratio(item: backend.VerificationActivity): number {
-	return item.totalArticles > 0 ? Math.min(1, item.verifiedArticles / item.totalArticles) : 0;
-}
-
-function secondsUntil(at: string | null | undefined): number {
-	if (!at) return 0;
-	return Math.max(0, Math.ceil((Date.parse(at) - now) / 1000));
-}
-
-function phaseDot(phase: backend.VerificationActivity["phase"]): string {
-	switch (phase) {
-		case "checking":
-			return "bg-primary animate-pulse-soft";
-		case "repairing":
-			return "bg-warning animate-pulse-soft";
-		case "deferred":
-			return "bg-warning";
-		default:
-			return "bg-info";
-	}
-}
-
 function detail(item: backend.VerificationActivity): string {
-	switch (item.phase) {
-		case "checking":
-			return $t("dashboard.verification.detail.checking", {
-				values: { verified: item.verifiedArticles, total: item.totalArticles },
-			});
-		case "repairing":
-			return $t("dashboard.verification.detail.repairing", {
-				values: { missing: item.missingArticles },
-			});
-		case "waiting":
-			return $t("dashboard.verification.detail.waiting", {
-				values: { seconds: secondsUntil(item.nextCheckAt) },
-			});
-		case "deferred":
-			return $t("dashboard.verification.detail.deferred");
-		default:
-			return $t("dashboard.verification.detail.queued");
-	}
+	return phaseDetail(item, $t, now);
 }
 </script>
 

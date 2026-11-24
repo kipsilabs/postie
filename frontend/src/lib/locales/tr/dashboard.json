@@ -77,6 +77,7 @@
             "processing_time": "İşlem süresi"
         },
         "progress": {
+            "verified": "Doğrulandı",
             "title": "Yükleme İlerlemesi",
             "file_size": "Dosya Boyutu",
             "path": "Yol",

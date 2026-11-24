@@ -79,6 +79,7 @@
 			"nzb": "NZB"
 		},
 		"progress": {
+			"verified": "Verificado",
 			"title": "Progreso de Carga",
 			"file_size": "Tamaño de archivo",
 			"path": "Ruta",
