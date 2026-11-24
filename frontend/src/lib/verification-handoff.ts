@@ -33,9 +33,16 @@ export function activityRatio(item: backend.VerificationActivity): number {
 	return item.totalArticles > 0 ? clamp(item.verifiedArticles / item.totalArticles) : 0;
 }
 
+/** The row the early checker advances: "<file> (verifying)" or "Verifying N files" (not the
+ * resume check or the legacy check, which are "checking" rows too). */
+function isVerifyingRow(p: processor.RunningJobDetails["progress"][number]): boolean {
+	const d = p.Description ?? "";
+	return p.Type === "checking" && (d.endsWith("(verifying)") || d.startsWith("Verifying "));
+}
+
 /** What a running job hands off if it ends now. */
 export function track(job: processor.RunningJobDetails): Tracked {
-	const row = job.progress?.find((p) => p.Type === "checking");
+	const row = job.progress?.find(isVerifyingRow);
 	return {
 		id: job.id,
 		path: job.path,
@@ -44,6 +51,27 @@ export function track(job: processor.RunningJobDetails): Tracked {
 		label: row?.Description || `${job.fileName} (verifying)`,
 		held: row ? clamp(row.CurrentPercent) : 0,
 	};
+}
+
+/** Re-snapshots the running jobs, keeping what each already showed: the verifying row goes away
+ * when posting returns, while the job is still finishing (NZB, transfer completion), and a
+ * snapshot from then must not hand off 0%. */
+export function retrack(
+	prev: Map<string, Tracked>,
+	jobs: processor.RunningJobDetails[],
+): Map<string, Tracked> {
+	return new Map(
+		jobs.map((job) => {
+			const now = track(job);
+			const old = prev.get(job.id);
+			if (!old) return [job.id, now];
+			const hasRow = job.progress?.some(isVerifyingRow) ?? false;
+			return [
+				job.id,
+				{ ...now, label: hasRow ? now.label : old.label, held: Math.max(old.held, now.held) },
+			];
+		}),
+	);
 }
 
 /** Starts a hand-off for every tracked job that is no longer running. */

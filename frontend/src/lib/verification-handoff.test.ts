@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import type { backend, processor } from "$lib/api/models";
 import {
 	HANDOFF_GRACE_MS,
+	retrack,
 	VERIFIED_LINGER_MS,
 	type Handoff,
 	startHandoffs,
@@ -40,6 +41,22 @@ describe("verification hand-off", () => {
 		expect(h.label).toBe("a (verifying)");
 		expect(h.held).toBe(0.6);
 		expect(startHandoffs(handed(0.6), new Map(), new Set(["a"]), 0).has("a")).toBe(false);
+	});
+
+	it("keeps the label and progress when the verifying row goes away before the job ends", () => {
+		let t = retrack(new Map(), [job("a", 0.7)]);
+		t = retrack(t, [job("a")]); // posting returned, job still finishing
+		const h = startHandoffs(new Map(), t, new Set(), 0).get("a") as Handoff;
+		expect(h.label).toBe("a (verifying)");
+		expect(h.held).toBe(0.7);
+	});
+
+	it("ignores checking rows that are not the verifying row", () => {
+		const resumed = {
+			...job("a"),
+			progress: [{ Type: "checking", Description: "a (resume check)", CurrentPercent: 0.9 }],
+		} as unknown as processor.RunningJobDetails;
+		expect(track(resumed).held).toBe(0);
 	});
 
 	it("never moves backwards while the sweep catches up", () => {

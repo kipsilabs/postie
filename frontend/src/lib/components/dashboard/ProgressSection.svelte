@@ -19,8 +19,8 @@ import {
 } from "$lib/stores/verification";
 import { phaseDetail, phaseDot } from "$lib/verification-display";
 import {
+  retrack,
   startHandoffs,
-  track,
   type Tracked,
   updateHandoffs,
 } from "$lib/verification-handoff";
@@ -47,7 +47,7 @@ $effect(() => {
   const before = tracked;
   if ([...before.keys()].some((id) => !ids.has(id))) refreshVerificationActivity();
   verificationHandoffs.update((h) => startHandoffs(h, before, ids, Date.now()));
-  tracked = new Map(jobs.map((j) => [j.id, track(j)]));
+  tracked = retrack(before, jobs);
 });
 
 $effect(() => {
@@ -58,6 +58,8 @@ $effect(() => {
 let handoffs = $derived(
   [...$verificationHandoffs.values()].sort((a, b) => (a.fileName ?? "").localeCompare(b.fileName ?? "")),
 );
+// still active while finished uploads are verifying on their cards
+let busy = $derived($isUploading || handoffs.length > 0);
 
 function applyRunningJobs(data: unknown) {
   if (destroyed) return;
@@ -210,9 +212,9 @@ function cancelUpload(jobID: string) {
     <div class="section-label !m-0">{$t("dashboard.progress.title")}</div>
     <div class="flex items-center gap-1.5 text-xs text-base-content/60">
       <span
-        class="size-1.5 rounded-full {$isUploading ? (isPaused ? 'bg-warning' : 'bg-primary animate-pulse-soft') : 'bg-base-content/30'}"
+        class="size-1.5 rounded-full {busy ? (isPaused ? 'bg-warning' : 'bg-primary animate-pulse-soft') : 'bg-base-content/30'}"
       ></span>
-      {$isUploading
+      {busy
         ? isPaused
           ? $t("dashboard.progress.status.paused")
           : $t("dashboard.progress.status.active")
@@ -220,7 +222,7 @@ function cancelUpload(jobID: string) {
     </div>
   </div>
 
-  {#if $isUploading || handoffs.length > 0}
+  {#if busy}
     <div class="space-y-3">
       {#each [...$runningJobs].sort((a, b) => (a.fileName ?? '').localeCompare(b.fileName ?? '')) as job (job.id)}
         <div class="settings-group" in:fly out:fade animate:listFlip>
