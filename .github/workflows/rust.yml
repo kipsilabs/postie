@@ -3,9 +3,9 @@ name: Rust
 on:
   push:
     branches: [main, "release/**"]
-    paths: ["rust/**", "frontend/**", "docker/**", ".github/workflows/rust.yml"]
+    paths: ["rust/**", "frontend/**", "docker/**", "scripts/*set_version.py", ".github/workflows/rust.yml"]
   pull_request:
-    paths: ["rust/**", "frontend/**", "docker/**", ".github/workflows/rust.yml"]
+    paths: ["rust/**", "frontend/**", "docker/**", "scripts/*set_version.py", ".github/workflows/rust.yml"]
 
 concurrency:
   group: rust-${{ github.ref }}
@@ -29,6 +29,9 @@ jobs:
           workspaces: rust
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
+      # rust-release.yml stamps the release tag's version with this script
+      - run: python3 -m unittest discover -s scripts -p 'test_set_version.py'
+        working-directory: .
 
   frontend:
     name: frontend (check + test + build)
