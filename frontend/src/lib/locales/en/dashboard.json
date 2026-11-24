@@ -77,6 +77,7 @@
 			"processing_time": "Processing time"
 		},
 		"progress": {
+			"verified": "Verified",
 			"title": "Upload Progress",
 			"file_size": "File Size",
 			"path": "Path",
@@ -108,7 +109,7 @@
 			"details": "Details",
 			"last_update": "Last Update",
 			"no_upload_title": "No upload in progress",
-			"no_upload_description": "Click \"Start Upload\" to begin processing the queue",
+			"no_upload_description": "Use \"Add Files\" or \"Add Folder\" to queue uploads; they start automatically",
 			"active_tasks": "Active Tasks",
 			"elapsed": "Elapsed",
 			"remaining": "Remaining",
@@ -184,25 +185,17 @@
 			"error": "Error loading provider status",
 			"anonymous": "Anonymous",
 			"connections": "Connections",
-			"avg_speed": "Avg Speed",
 			"missing": "Missing",
 			"errors": "Errors",
-			"elapsed": "Uptime",
 			"pool_summary": "Pool Summary",
 			"active_connections": "active connections",
 			"total_errors": "Total Errors",
 			"no_providers": "No providers configured",
 			"inflight": "Pipeline depth",
-			"current_speed": "Current Speed",
-			"ttfb": "TTFB",
-			"downloaded": "Downloaded",
 			"uploaded": "Uploaded",
 			"upload_speed": "Upload Speed",
 			"avg_upload_speed": "Avg Upload Speed",
 			"free_slots": "free",
-			"quota": "Quota",
-			"quota_exceeded": "Exceeded",
-			"quota_resets": "Resets",
 			"status": {
 				"connected": "Connected",
 				"idle": "Idle",
@@ -229,6 +222,24 @@
 			"scan_triggered_description": "Directory scan has been started",
 			"watcher_number": "Watcher #{n}",
 			"no_watchers": "No watch directories configured"
+		},
+		"verification": {
+			"title": "Verification",
+			"count": "{count} pending",
+			"phase": {
+				"checking": "Checking articles",
+				"repairing": "Repairing",
+				"waiting": "Waiting for propagation",
+				"deferred": "Waiting for free connections",
+				"queued": "Queued"
+			},
+			"detail": {
+				"checking": "{verified} of {total} articles confirmed on the server",
+				"repairing": "{missing} missing articles being rechecked and re-posted",
+				"waiting": "Next check in {seconds}s",
+				"deferred": "Uploads are using every connection; checks resume when one frees up",
+				"queued": "Starts on the next verification cycle"
+			}
 		}
 	}
 }

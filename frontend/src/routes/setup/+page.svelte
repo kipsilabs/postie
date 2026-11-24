@@ -4,7 +4,7 @@ import apiClient from "$lib/api/client";
 import SetupWizard from "$lib/components/setup/SetupWizard.svelte";
 import { t } from "$lib/i18n";
 import { toastStore } from "$lib/stores/toast";
-import type { backend } from "$lib/wailsjs/go/models";
+import type { backend } from "$lib/api/models";
 
 let appStatus = $state<backend.AppStatus | null>(null);
 let isLoading = $state(true);

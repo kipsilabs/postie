@@ -1,7 +1,7 @@
 <script lang="ts">
 import NntpServerManager from "$lib/components/NntpServerManager.svelte";
 import { t } from "$lib/i18n";
-import { backend } from "$lib/wailsjs/go/models";
+import { backend } from "$lib/api/models";
 import { Upload, ShieldCheck } from "lucide-svelte";
 
 interface Props {

@@ -1,0 +1,13 @@
+[package]
+name = "rapidyenc-sys"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Safe wrapper over the vendored C rapidyenc yEnc encoder (ADR-010): the only unsafe boundary"
+build = "build.rs"
+
+[build-dependencies]
+cmake = "0.1"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }

@@ -1,0 +1,10 @@
+[request]
+method = "GET"
+path = "/api/auth/%C4%B1l%C4%B1k%20%C4%B1rmak"
+
+[response]
+status = 404
+
+[response.headers]
+content-type = "text/plain; charset=utf-8"
+x-content-type-options = "nosniff"

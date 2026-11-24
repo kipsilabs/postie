@@ -77,6 +77,7 @@
             "processing_time": "İşlem süresi"
         },
         "progress": {
+            "verified": "Doğrulandı",
             "title": "Yükleme İlerlemesi",
             "file_size": "Dosya Boyutu",
             "path": "Yol",
@@ -108,7 +109,7 @@
             "details": "Detaylar",
             "last_update": "Son Güncelleme",
             "no_upload_title": "Yükleme devam etmiyor",
-            "no_upload_description": "Kuyruğu işlemeye başlamak için \"Yüklemeyi Başlat\"a tıklayın",
+            "no_upload_description": "Yükleme eklemek için \"Dosya Ekle\" veya \"Klasör Ekle\"yi kullanın; yüklemeler otomatik başlar",
             "active_tasks": "Aktif Görevler",
             "elapsed": "Geçen",
             "remaining": "Kalan",
@@ -192,22 +193,14 @@
             "active_connections": "aktif bağlantı",
             "total_uploaded": "Toplam Yüklenen",
             "no_providers": "Yapılandırılmış sağlayıcı yok",
-            "avg_speed": "Ortalama Hız",
             "missing": "Eksik",
             "errors": "Hatalar",
-            "elapsed": "Çalışma Süresi",
             "total_errors": "Toplam Hata",
             "inflight": "Pipeline derinliği",
-            "current_speed": "Anlık Hız",
-            "ttfb": "TTFB",
-            "downloaded": "İndirilen",
             "uploaded": "Yüklenen",
             "upload_speed": "Yükleme Hızı",
             "avg_upload_speed": "Ort. Yükleme Hızı",
             "free_slots": "boş",
-            "quota": "Kota",
-            "quota_exceeded": "Aşıldı",
-            "quota_resets": "Sıfırlanma",
             "status": {
                 "connected": "Bağlandı",
                 "idle": "Boşta",
@@ -238,6 +231,24 @@
             "scan_triggered_description": "Dizin taraması başlatıldı",
             "watcher_number": "İzleyici #{n}",
             "no_watchers": "İzleme dizini yapılandırılmadı"
+        },
+        "verification": {
+            "title": "Doğrulama",
+            "count": "{count} bekliyor",
+            "phase": {
+                "checking": "Makaleler kontrol ediliyor",
+                "repairing": "Onarılıyor",
+                "waiting": "Yayılma bekleniyor",
+                "deferred": "Boş bağlantı bekleniyor",
+                "queued": "Sırada"
+            },
+            "detail": {
+                "checking": "Sunucuda {total} makaleden {verified} tanesi doğrulandı",
+                "repairing": "{missing} eksik makale yeniden kontrol ediliyor ve gönderiliyor",
+                "waiting": "Sonraki kontrol {seconds} sn içinde",
+                "deferred": "Yüklemeler tüm bağlantıları kullanıyor; bir bağlantı boşalınca kontroller devam eder",
+                "queued": "Bir sonraki doğrulama döngüsünde başlar"
+            }
         }
     }
 }

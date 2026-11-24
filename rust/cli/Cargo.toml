@@ -1,0 +1,18 @@
+[package]
+name = "postie-cli"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Postie command line (port of cmd/postie): one-shot upload and directory watch"
+
+[[bin]]
+name = "postie"
+path = "src/main.rs"
+
+[dependencies]
+postie-core = { path = "../core" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time", "sync"] }
+tokio-util = "0.7"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }

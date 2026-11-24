@@ -53,7 +53,9 @@ async function fetchInitialPauseStatus() {
 
 onMount(async () => {
   await apiClient.initialize();
-  isWebMode = apiClient.environment === "web";
+  // The desktop page also runs in "web" environment over loopback HTTP; Import (server-side
+  // file browser) only makes sense when the browser is not on the same machine as the files.
+  isWebMode = apiClient.environment === "web" && !apiClient.isDesktop;
 
   await fetchInitialPauseStatus();
 
@@ -135,11 +137,11 @@ function closeFileExplorer() {
   showFileExplorer = false;
 }
 
-// Handle folder upload - works in both desktop (Wails) and web modes
+// Handle folder upload: native multi-folder picker on desktop (Tauri), file input on web
 async function handleFolderUpload() {
   try {
-    if (apiClient.environment === "wails") {
-      // Desktop mode: use native multi-folder picker
+    if (apiClient.isDesktop) {
+      // Desktop (Tauri): native multi-folder picker
       const folderPaths = await apiClient.selectFolders();
       if (folderPaths.length === 0) return;
 

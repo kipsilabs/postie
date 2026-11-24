@@ -2,7 +2,7 @@
 import NntpServerManager from "$lib/components/NntpServerManager.svelte";
 import { t } from "$lib/i18n";
 import { advancedMode } from "$lib/stores/app";
-import { config as configType } from "$lib/wailsjs/go/models";
+import { config as configType } from "$lib/api/models";
 import { AlertTriangle } from "lucide-svelte";
 import { collapse } from "./collapse";
 

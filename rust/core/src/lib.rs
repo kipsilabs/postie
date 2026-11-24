@@ -1,0 +1,42 @@
+//! Postie core: units ported from the Go `internal/` packages (ADR-017).
+
+pub mod apikey;
+pub mod arr;
+pub mod article;
+pub mod backend;
+pub mod blocking;
+pub mod config;
+pub mod database;
+pub mod db;
+pub mod diskspace;
+pub mod duplicatelookup;
+pub mod engine;
+pub mod fileinfo;
+pub mod gofloat;
+pub mod goqite;
+pub mod logx;
+pub mod manifest;
+pub mod nxg;
+pub mod nzb;
+pub mod par2;
+pub mod pausable;
+pub mod pool;
+pub mod poster;
+pub mod postie;
+pub mod processor;
+pub mod progress;
+pub mod queue;
+pub mod throttle;
+pub mod timeouts;
+pub mod transfercleaner;
+pub mod transferstore;
+pub mod transferwriter;
+pub mod uploadmeter;
+pub mod uploadtemp;
+pub mod verification;
+pub mod watcher;
+pub mod webauth;
+pub mod wshub;
+
+#[cfg(test)]
+pub(crate) mod testutil;

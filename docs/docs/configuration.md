@@ -2,438 +2,537 @@
 sidebar_position: 4
 ---
 
-# Configuration Guide
+# Configuration
 
-This guide explains all the configuration options available in Postie. **We strongly recommend using the web UI to configure Postie**, as it provides a user-friendly interface with validation, real-time feedback, and organized sections for all configuration options.
+Every setting can be changed in the web UI under **Settings**, which validates input and saves
+automatically. This page shows each settings section next to its YAML keys, so you can use either.
 
-## Using the Web UI (Recommended)
+Settings has four tabs: **Core Configuration**, **Upload Settings**, **File Processing** and
+**Automation**. Some fields only appear with **Advanced Mode** (top right of the Settings page) switched
+on; the screenshots below show advanced mode.
 
-The easiest way to configure Postie is through the web interface:
+## Where the config lives
 
-1. Start Postie (using Docker or the binary)
-2. Open your browser and navigate to `http://localhost:8080` (or your configured port)
-3. Click on the "Settings" tab
-4. Configure all options through the intuitive interface with organized tabs:
-   - **Core Configuration**: General settings and server configuration
-   - **Upload Settings**: Posting configuration, connection pool, and post-check settings
-   - **File Processing**: PAR2 and NZB compression settings
-   - **Automation**: File watcher and post-upload script configuration
+| How you run Postie | Config file |
+|--------------------|-------------|
+| Desktop app, `postie-web` on Linux | `~/.config/postie/config.yaml` |
+| Desktop app, `postie-web` on macOS | `~/Library/Application Support/Postie/config.yaml` |
+| Desktop app, `postie-web` on Windows | `%APPDATA%\Postie\config.yaml` |
+| Docker | `/config/config.yaml` |
+| `postie` command line | the file passed with `-c` (default `./config.yaml`) |
 
-The web UI automatically validates your configuration, provides helpful descriptions for each option, and saves changes instantly. It also shows your current configuration status and any errors that need to be resolved.
+The database (`postie.db`) sits next to the config file. If you edit the file by hand while the server
+runs, restart it to pick up the changes.
 
-## Manual YAML Configuration
+### Defaults
 
-If you prefer to manually edit the YAML configuration file, this section explains all available options.
+Keys you leave out of the file get their default when the config loads, so a config only needs the keys
+you want to change. **Watchers are the exception:** inside a `watchers` entry, an omitted key means zero
+or empty (no size threshold, no ignore patterns), not the default listed here. See
+[File Watcher](./watcher.md#defaults).
 
-## Complete Configuration Example
+Durations are written like `30s`, `5m` or `1h`. Sizes are in bytes.
 
-Below is a complete example of a configuration file with all available options:
+## Core Configuration
+
+### General
+
+![General settings](/img/settings/general.png)
 
 ```yaml
-# Global output directory for processed files and NZB files
-output_dir: "./output"
+output_dir: ./output # where NZB files are written
+maintain_original_extension: true # see File naming below
+```
 
-# Whether to maintain the original file extension in the NZB filename (default: true)
-maintain_original_extension: true
+`output_dir` applies to uploads from the UI, the API and the watchers. The `postie` command line uses `-o`
+instead.
 
+### Servers
+
+![Upload pool](/img/settings/servers-upload.png)
+
+```yaml
 servers:
-  - host: news.example.com
-    port: 119
+  - name: Primary provider # optional label shown in the UI
+    host: news.example.com
+    port: 563 # usually 119 plain, 563 TLS
     username: user
     password: pass
     ssl: true
-    max_connections: 10
-    max_connection_idle_time_in_seconds: 300
-    max_connection_ttl_in_seconds: 3600
-    insecure_ssl: false
+    insecure_ssl: false # skip certificate validation
+    max_connections: 20
+    inflight: 10 # requests in flight per connection (0 = 10)
+    max_connection_idle_time_in_seconds: 300 # 0 = 300
+    max_connection_ttl_in_seconds: 3600 # 0 = 3600
+    proxy_url: "" # socks5://user:pass@host:1080
     enabled: true
-    role: upload # "upload" (default) or "verify" — see Server Roles below
-    inflight: 10 # Concurrent requests per connection (default: 10)
-    # proxy_url: socks5://user:pass@host:1080 # Optional SOCKS5 proxy
+    role: upload # upload or verify
+```
 
-connection_pool:
-  min_connections: 5
-  health_check_interval: 1m
+| Key | Default | Notes |
+|-----|---------|-------|
+| `host`, `port`, `max_connections` | | Required. `max_connections` must be positive. |
+| `role` | `upload` | `upload` servers post articles. `verify` servers only check that articles arrived. |
+| `enabled` | `true` | Disabled servers are ignored. |
+| `inflight` | `10` | Pipelined requests per connection. |
+| `proxy_url` | | Optional SOCKS5 proxy. |
 
+You need at least one enabled upload server. Each server must have a different host and username
+combination. Articles are spread round-robin across all enabled upload servers, so mixing providers on
+different backbones means a post is split across them.
+
+#### Verify servers
+
+![Verify pool](/img/settings/servers-verify.png)
+
+Add servers from other providers with `role: verify` to check that articles reached their backbone.
+Without a verify server, checks run on the upload servers. Configs from v1 that used `check_only: true` are
+migrated to `role: verify` automatically.
+
+## Upload Settings
+
+### Posting
+
+![Posting configuration](/img/settings/posting.png)
+
+```yaml
 posting:
-  # Wait for par2 generation before uploading the file.
-  # Setting this to false could improve the posting speed but you risk into posting
-  # a something without par2 if this fails, also it will increase the resource usage
-  wait_for_par2: true
   max_retries: 3
   retry_delay: 5s
-  article_size_in_bytes: 750000
+  article_size_in_bytes: 768000
+  throttle_rate: 0 # bytes per second, 0 = unlimited
+  upload_buffer_memory_limit: 0 # 0 = auto
+  obfuscation_policy: full # full, partial, none
+  par2_obfuscation_policy: full # full, partial, none
+  message_id_format: random # random or nxg
+  group_policy: each_file # each_file or all
+  wait_for_par2: false
+```
+
+| Key | Default | Notes |
+|-----|---------|-------|
+| `max_retries`, `retry_delay` | `3`, `5s` | Retries for a failed article post. |
+| `article_size_in_bytes` | `768000` | New configs get 768000; a config without the key uses 750000. |
+| `throttle_rate` | `0` | Aggregate upload limit across all connections, in bytes per second. The UI shows it in MB/s. |
+| `upload_buffer_memory_limit` | `0` | Memory for in-flight article buffers. `0` sizes it automatically between 64 MiB and 512 MiB. |
+| `obfuscation_policy` | `full` | See [Obfuscation](./obfuscation.md). |
+| `par2_obfuscation_policy` | `full` | The same, for PAR2 files. |
+| `message_id_format` | `random` | `random` or [`nxg`](https://github.com/javi11/nxg) (deterministic IDs). |
+| `group_policy` | `each_file` | `each_file` posts each file to one randomly chosen group; `all` cross-posts to every group. |
+| `wait_for_par2` | `false` | `false` creates PAR2 while the file uploads. `true` creates PAR2 first. With PAR2 off it is always `true`. |
+
+With `wait_for_par2: false`, one upload slot and room on the temp disk, Postie also creates the *next*
+queued job's PAR2 while the current one uploads, so only the first job in a queue waits for parity. If
+PAR2 creation fails, the file is posted without PAR2.
+
+#### Headers
+
+![Post headers](/img/settings/post-headers.png)
+
+```yaml
+posting:
+  post_headers:
+    add_nxg_header: false # adds X-NXG (not with full obfuscation or nxg message IDs)
+    default_from: "" # poster address used for every article, e.g. poster@example.com
+    custom_headers:
+      - name: X-Custom-Header
+        value: custom-value
+```
+
+`default_from` must be a valid email address. When set, it replaces the random poster under every
+obfuscation policy.
+
+#### Newsgroups
+
+![Newsgroups](/img/settings/newsgroups.png)
+
+```yaml
+posting:
   groups:
     - name: alt.binaries.test
       enabled: true
-  throttle_rate: 0 # unlimited (bytes per second)
-  message_id_format: random # Options: random, nxg
-  obfuscation_policy: full # Options: full, partial, none
-  par2_obfuscation_policy: full # Options: full, partial, none
-  group_policy: each_file # Options: all, each_file (default: each_file)
+```
+
+At least one group is required. Disabled groups are skipped.
+
+### Post check
+
+![Post check configuration](/img/settings/post-check.png)
+
+After posting, Postie asks the servers (`STAT`) whether each article exists and reposts the missing ones.
+
+```yaml
+post_check:
+  enabled: true
+  delay: 10s # wait before checking an article
+  max_reposts: 1
+  check_during_upload: true
+  check_connections: 0 # 0 = auto
+  max_concurrent_checks: 0 # 0 = auto
+  stat_batch_size: 100
+```
+
+| Key | Default | Notes |
+|-----|---------|-------|
+| `enabled` | `true` | |
+| `delay` | `10s` | Time between posting an article and checking it. |
+| `max_reposts` | `1` | Reposts per missing article. |
+| `check_during_upload` | `true` | Check articles shortly after they are posted, while the rest of the upload runs. |
+| `check_connections` | `0` | Upload connections set aside for those checks when there is no verify server. `0` picks a number automatically. |
+| `max_concurrent_checks` | `0` | Parallel checks. `0` sizes it automatically. |
+| `stat_batch_size` | `100` | Articles per batch of pipelined checks. |
+
+#### Deferred verification
+
+![Deferred verification](/img/settings/post-check-deferred.png)
+
+Articles that are not visible yet are checked again later, with exponential backoff:
+
+```yaml
+post_check:
+  deferred_check_delay: 30s # first re-check
+  deferred_max_retries: 5
+  deferred_max_backoff: 5m
+  deferred_check_interval: 2m # how often the deferred worker runs
+  deferred_batch_size: 10000 # articles per run
+```
+
+### Queue
+
+![Queue configuration](/img/settings/queue.png)
+
+```yaml
+queue:
+  max_concurrent_uploads: 1
+  min_size_to_start: 0 # bytes; 0 = start immediately
+```
+
+`max_concurrent_uploads` is how many queued jobs upload at once. `min_size_to_start` holds the queue back
+until the pending jobs add up to at least that many bytes.
+
+### Connection pool
+
+![Connection pool configuration](/img/settings/connection-pool.png)
+
+```yaml
+connection_pool:
+  min_connections: 0
+  health_check_interval: 1m
+```
+
+These keys are accepted for compatibility but have **no effect in 0.1.0**: connections open on demand and
+close after `max_connection_idle_time_in_seconds`.
+
+## File Processing
+
+### File naming
+
+![File naming](/img/settings/file-naming.png)
+
+```yaml
+maintain_original_extension: true
+```
+
+`true` names the NZB after the full file name (`movie.mkv.nzb`); `false` drops the extension
+(`movie.nzb`).
+
+### PAR2
+
+![PAR2 recovery files](/img/settings/par2.png)
+
+Postie creates PAR2 recovery files itself; no external tool is needed. The files work with any PAR2 client
+(par2cmdline, MultiPar, QuickPar).
+
+```yaml
+par2:
+  enabled: true
+  redundancy: "5%"
+  temp_dir: /tmp # new configs use the system temp folder; empty = next to the source files
+  maintain_par2_files: false
+  skip_if_par2_exists: true
+  max_concurrent_jobs: 1
+  memory_limit: 4294967296 # 4 GiB
+  slice_size: 10485760 # 10 MiB
+  gf16_method: auto
+  parpar_binary_path: "" # use an external ParPar instead of the built-in creator
+  parpar_extra_args: []
+```
+
+| Key | Default | Notes |
+|-----|---------|-------|
+| `redundancy` | `5%` | A percentage (`10%` or `10`) or a ParPar expression such as `1n*1.2`. |
+| `temp_dir` | system temp | Sets are created in `<temp_dir>/postie-par2/`; orphaned sets older than 24 hours are swept every hour. Empty writes PAR2 files next to the source files. |
+| `maintain_par2_files` | `false` | `true` writes the PAR2 files next to the NZB and keeps them. |
+| `skip_if_par2_exists` | `true` | Folder uploads that already contain PAR2 files get no new set. |
+| `max_concurrent_jobs` | `1` | PAR2 jobs running at once. |
+| `memory_limit` | 4 GiB | Above this, encoding runs in several passes over the input. |
+| `slice_size` | 10 MiB | PAR2 slice (block) size. |
+| `num_goroutines` | `0` | Worker threads for the built-in creator. `0` picks a number from the CPU count. |
+| `gf16_method` | `auto` | Pins the SIMD kernel. Leave on `auto`: a kernel the CPU lacks makes PAR2 creation fail. |
+| `parpar_binary_path` | | Path to a ParPar binary to shell out to, with `parpar_extra_args` appended. |
+
+`gf16_method` accepts `auto`, `lookup`, `lookup3`, `shuffle-avx2`, `shuffle-avx512`, `shuffle-vbmi`,
+`xor-jit-avx2`, `affine-avx2`, `affine-avx512`, `shuffle-neon` and `clmul-neon`.
+
+### Duplicate lookup
+
+![Duplicate lookup](/img/settings/duplicate-lookup.png)
+
+```yaml
+duplicate_lookup:
+  enabled: false
+  url: https://lookup.example/api/duplicate-lookup
+  api_key: ""
+  timeout: 60s # at most 5m
+```
+
+Before uploading a file, Postie can ask an HTTP service whether an NZB for it already exists and reuse
+that NZB instead. See [Duplicate lookup](./duplicate-lookup.md) for the behaviour and the protocol.
+
+### NZB compression
+
+![NZB compression](/img/settings/nzb-compression.png)
+
+```yaml
+nzb_compression:
+  enabled: false
+  type: zstd # none, zstd, brotli or zip
+  level: 3 # zstd 1-22 (default 3), brotli 0-11 (default 4), zip 0-9 (default 6)
+```
+
+Compressed NZBs get `.nzb.zst`, `.nzb.br` or `.nzb.zip`. A level of `0` (or no level) uses the type's
+default.
+
+## Automation
+
+### File watcher
+
+![File watcher](/img/settings/watcher.png)
+
+```yaml
+watchers:
+  - name: downloads
+    enabled: true
+    watch_directory: /data/watch
+    check_interval: 5m
+    min_file_age: 60s
+    min_file_age_to_delete: 0s
+    size_threshold: 104857600 # 100 MB
+    min_file_size: 1048576 # 1 MB
+    delete_original_file: false
+    single_nzb_per_folder: false
+    follow_symlinks: false
+    schedule:
+      start_time: "00:00"
+      end_time: "23:59"
+    ignore_patterns: ["*.tmp", "*.part", "*.!ut"]
+```
+
+See [File Watcher](./watcher.md) for what each key does and how omitted keys behave.
+
+### Post-upload script
+
+![Post-upload script](/img/settings/post-upload-script.png)
+
+```yaml
+post_upload_script:
+  enabled: false
+  command: "" # placeholders: {nzb_path}, {source_path}, {source_dir}
+  timeout: 30s
+  max_retries: 3 # 0 = retry until max_retry_duration
+  retry_delay: 30s # doubles after each failure
+  max_backoff: 1h
+  max_retry_duration: 24h
+  retry_check_interval: 1m
+```
+
+The command runs after each completed upload. `{nzb_path}`, `{source_path}` and `{source_dir}` are
+replaced with the NZB, the uploaded file and its folder; the values are also in the environment as
+`POSTIE_NZB_PATH`, `POSTIE_SOURCE_PATH` and `POSTIE_SOURCE_DIR`. On Linux and macOS the placeholders are
+passed through those variables, so file names with spaces or quotes are safe. A failed run is retried with exponential backoff until it
+succeeds, `max_retries` is used up or `max_retry_duration` passes.
+
+```yaml
+# notify a webhook
+command: 'curl -X POST -H "Content-Type: application/json" -d "{\"nzb_path\": \"{nzb_path}\"}" https://example.com/notify'
+# run a PowerShell script on Windows
+command: 'powershell C:\Postie\Scripts\Zip.ps1 {nzb_path}'
+```
+
+### External API
+
+![External HTTP API](/img/settings/api.png)
+
+```yaml
+api:
+  enabled: false
+```
+
+Lets other tools queue uploads over HTTP with an API key. See [API and Arr](./integrations.md#http-api).
+
+### Arr integration
+
+![Arr integration](/img/settings/arr.png)
+
+Connects Sonarr and Radarr, so files they import are uploaded automatically. Instances are added in the
+UI. See [API and Arr](./integrations.md#sonarr-and-radarr).
+
+## Database
+
+```yaml
+database:
+  database_type: sqlite # only sqlite is supported
+  database_path: ./postie.db
+```
+
+The queue and upload history live in this SQLite database. The web server and desktop app keep it next to
+`config.yaml`.
+
+## Command line
+
+```text
+postie [flags]          upload the files in --dir (or the single --input-file), then exit
+postie watch [flags]    keep watching --dir and upload new files
+
+-c, --config <path>        configuration file (default "config.yaml")
+-d, --dir <path>           directory to upload or watch (default ".")
+-i, --input-file <path>    upload this single file instead of --dir
+-o, --output-dir <path>    directory for the NZB files (default ".")
+    --ignore-pattern <glob>  skip matching files (repeatable; not with watch)
+-v, --verbose              verbose logging
+-h, --help                 show help
+    --version              show the version
+```
+
+```bash
+postie -c config.yaml -i ./movie.mkv -o ./nzb
+postie -c config.yaml -d ./upload -o ./nzb --ignore-pattern '*.tmp' --ignore-pattern '*.part'
+postie watch -c config.yaml -d ./watch -o ./nzb
+```
+
+- Without `-i`, every file under `--dir` is uploaded, and `--dir` defaults to the current directory.
+- `--ignore-pattern` globs match file names (not directories) at every depth and support `*`, `?` and
+  `[0-9]`. Quote them so the shell does not expand them. If nothing is left, Postie reports `no files to
+  post` without connecting.
+- `postie watch` watches `--dir` (not `watch_directory`) with the settings of the first `watchers` entry,
+  and writes NZBs to `--output-dir`.
+
+## Complete example
+
+```yaml
+output_dir: ./output
+maintain_original_extension: true
+
+servers:
+  - name: Primary provider
+    host: news.example.com
+    port: 563
+    username: user
+    password: pass
+    ssl: true
+    max_connections: 20
+    role: upload
+  - name: Backbone check
+    host: news.other-provider.example
+    port: 563
+    username: user
+    password: pass
+    ssl: true
+    max_connections: 4
+    role: verify
+
+posting:
+  max_retries: 3
+  retry_delay: 5s
+  article_size_in_bytes: 768000
+  throttle_rate: 0
+  upload_buffer_memory_limit: 0
+  obfuscation_policy: full
+  par2_obfuscation_policy: full
+  message_id_format: random
+  group_policy: each_file
+  wait_for_par2: false
+  groups:
+    - name: alt.binaries.test
+      enabled: true
   post_headers:
     add_nxg_header: false
     default_from: ""
-    custom_headers:
-      - name: "X-Custom-Header"
-        value: "custom-value"
+    custom_headers: []
 
 post_check:
   enabled: true
   delay: 10s
   max_reposts: 1
-  deferred_check_delay: 30s # Delay before first deferred re-check (default: 30s)
-  deferred_max_retries: 5 # Max deferred retry attempts (default: 5)
-  deferred_max_backoff: 5m # Max backoff cap for deferred checks (default: 5m)
-  deferred_check_interval: 2m # Worker poll interval for deferred checks (default: 2m)
-  deferred_batch_size: 10000 # Articles processed per deferred check cycle (default: 10000, sized to sweep a full NZB)
+  check_during_upload: true
+  check_connections: 0
+  max_concurrent_checks: 0
+  stat_batch_size: 100
+  deferred_check_delay: 30s
+  deferred_max_retries: 5
+  deferred_max_backoff: 5m
+  deferred_check_interval: 2m
+  deferred_batch_size: 10000
+
+queue:
+  max_concurrent_uploads: 1
+  min_size_to_start: 0
 
 par2:
   enabled: true
-  redundancy: "1n*1.2" # ParPar redundancy expression (default: "1n*1.2"); percentage format also accepted (e.g. "10%")
-  temp_dir: "" # Optional temporary directory for PAR2 operations. Generated files go into a postie-par2/ subfolder there; orphaned sets older than 24h are swept hourly. Empty: PAR2 files are written next to the sources.
-  maintain_par2_files: false # Keep PAR2 files after successful upload
-  parpar_binary_path: "" # Path to external parpar binary (empty = use built-in)
-  gf16_method: auto # GF16 SIMD kernel for the built-in generator. Leave on auto unless troubleshooting; a kernel the CPU lacks makes PAR2 creation fail. Options: auto, lookup, lookup3, shuffle-avx2, shuffle-avx512, shuffle-vbmi, xor-jit-avx2, affine-avx2, affine-avx512, shuffle-neon, clmul-neon
+  redundancy: "5%"
+  temp_dir: /tmp
+  maintain_par2_files: false
+  skip_if_par2_exists: true
+  max_concurrent_jobs: 1
+  memory_limit: 4294967296
+  slice_size: 10485760
+  gf16_method: auto
+  parpar_binary_path: ""
+  parpar_extra_args: []
+
+duplicate_lookup:
+  enabled: false
+  url: ""
+  api_key: ""
+  timeout: 60s
 
 nzb_compression:
-  enabled: false # Whether to enable compression of the output NZB file
-  type: none # Options: none, zstd, brotli, zip
-  level: 0 # Compression level (zstd: 1-22, brotli: 0-11, zip: 0-9)
+  enabled: false
+  type: none
+  level: 0
 
-# Multiple watchers are supported. Use the watchers array (v1 single watcher key is still accepted for backward compatibility).
 watchers:
-  - name: "main" # Optional label for this watcher
-    enabled: false # Whether to enable the file watcher
-    watch_directory: "" # Directory to watch for new files
-    size_threshold: 104857600 # 100MB
+  - name: downloads
+    enabled: false
+    watch_directory: ""
+    check_interval: 5m
+    min_file_age: 60s
+    min_file_age_to_delete: 0s
+    size_threshold: 104857600
+    min_file_size: 1048576
+    delete_original_file: false
+    single_nzb_per_folder: false
+    follow_symlinks: false
     schedule:
       start_time: "00:00"
       end_time: "23:59"
-    ignore_patterns:
-      - "*.tmp"
-      - "*.part"
-      - "*.!ut"
-    min_file_size: 1048576 # 1MB
-    check_interval: 5m
-    delete_original_file: false # Delete source files after successful upload
-    single_nzb_per_folder: false # Create one NZB per folder instead of per file (default: false)
-    follow_symlinks: false # Follow symbolic links during directory scanning (default: false)
-    min_file_age: 60s # Min time since last modification before processing (default: 60s)
-    min_file_age_to_delete: 0s # Min time after upload before deleting source file (default: 0s)
+    ignore_patterns: ["*.tmp", "*.part", "*.!ut"]
 
-# Database configuration (used for queue persistence)
-database:
-  database_type: sqlite # Options: sqlite, postgres, mysql (default: sqlite)
-  database_path: ./postie.db # Database file path or connection string (default: ./postie.db)
-
-# Queue configuration for upload management
-queue:
-  max_concurrent_uploads: 1 # Maximum concurrent uploads from queue
-
-# Post upload script configuration
 post_upload_script:
-  enabled: false # Whether to enable post upload script execution
-  command: "" # Command to execute, use {nzb_path} placeholder for NZB file path
-  timeout: 30s # Maximum time to wait for command execution
-  max_retries: 3 # Max retry attempts for failed script executions (0 = unlimited, default: 3)
-  retry_delay: 30s # Base delay between retries with exponential backoff (default: 30s)
-  max_backoff: 1h # Maximum backoff cap for retries (default: 1h)
-  max_retry_duration: 24h # Total max window to keep retrying (default: 24h)
-  retry_check_interval: 1m # How often to check for pending retries (default: 1m)
-```
-
-## Configuration Sections
-
-### Usenet Servers
-
-Configure one or more Usenet providers:
-
-```yaml
-servers:
-  - name: "" # Optional display name shown in the UI instead of "Provider N"
-    host: news.example.com # Server hostname
-    port: 119 # Server port (typically 119 for non-SSL, 563 for SSL)
-    username: user # Your username
-    password: pass # Your password
-    ssl: true # Whether to use SSL/TLS
-    max_connections: 10 # Maximum concurrent connections to this server
-    max_connection_idle_time_in_seconds: 300 # Max idle time before recycling a connection
-    max_connection_ttl_in_seconds: 3600 # Max total lifetime of a connection
-    insecure_ssl: false # Set to true to skip SSL certificate verification
-    enabled: true # Whether this server is enabled
-    role: upload # "upload" (default) or "verify" — see Server Roles below
-    inflight: 10 # Concurrent in-flight requests per connection (default: 10)
-    proxy_url: "" # Optional SOCKS5 proxy (format: socks5://user:pass@host:port)
-```
-
-You can add multiple servers for redundancy. Postie will automatically fail over to another server if one becomes unavailable. It will also randomly post to any of the servers specified, so be aware if you use different backbones.
-
-#### Server Roles
-
-Each server has a `role` that determines how it is used:
-
-- **`upload`** (default): Used for posting articles. All upload-role servers share the same provider pool.
-- **`verify`**: Used only for STAT checks (post verification). Verify servers are never used for posting.
-
-Use `verify` servers when you have access to a second provider whose retention you want to check against, without actually posting to it.
-
-> **Note:** The deprecated `check_only` field from v1 configs is automatically migrated to `role: verify` on first load.
-
-**💡 Tip: Use the web UI to easily add, remove, and test server configurations with real-time validation.**
-
-### Connection Pool
-
-Configure how connections are managed:
-
-```yaml
-connection_pool:
-  min_connections: 5 # Minimum number of connections to maintain alive in watch mode.
-  health_check_interval: 1m # How often to check connection health.
-```
-
-**💡 Tip: The web UI provides real-time connection status and allows you to test your configuration before saving.**
-
-### Posting Settings
-
-Configure how files are posted:
-
-```yaml
-posting:
-  wait_for_par2: true # Wait for PAR2 generation before uploading
-  max_retries: 3 # Maximum retry attempts for posting
-  retry_delay: 5s # Delay between retry attempts
-  article_size_in_bytes: 750000 # Size of each article (default: 750KB)
-  groups: # Newsgroups to post to (array of objects with name + enabled)
-    - name: alt.binaries.test
-      enabled: true
-  throttle_rate: 0 # Upload speed limit in bytes/sec (0 = unlimited)
-  message_id_format: random # Format of message IDs ("random" or "[nxg](https://github.com/javi11/nxg)")
-  obfuscation_policy: full # Level of obfuscation ("full", "partial", or "none")
-  par2_obfuscation_policy: full # Obfuscation for PAR2 files
-  group_policy: each_file # How to distribute posts ("all" or "each_file") — default: each_file
-  post_headers: # Additional headers configuration
-    add_nxg_header: false # Whether to add [X-NXG](https://github.com/javi11/nxg) header
-    default_from: "" # Default poster name
-    custom_headers: # Custom headers to add to the post
-      - name: "X-Custom-Header"
-        value: "value"
-```
-
-**💡 Tip: The web UI provides helpful tooltips and validation for all posting options, making it easy to understand the impact of each setting.**
-
-#### Obfuscation Policies
-
-- **full**: Maximum obfuscation (randomized filenames, subjects, dates, and poster)
-- **partial**: Medium obfuscation (obfuscated filenames and subjects, consistent poster)
-- **none**: No obfuscation
-
-#### Group Policies
-
-- **all**: Post to all specified groups simultaneously
-- **each_file**: Post each file to a different group from the list
-
-### Post Verification
-
-Configure post verification:
-
-```yaml
-post_check:
-  enabled: true # Whether to verify posts after uploading using STAT method
-  delay: 10s # Delay between check attempts (default: 10s)
-  max_reposts: 1 # Maximum number of reposts if check fails
-  # Deferred check settings — used when an article is not yet available at check time
-  deferred_check_delay: 30s # Initial delay before first deferred re-check (default: 30s)
-  deferred_max_retries: 5 # Maximum deferred retry attempts (default: 5)
-  deferred_max_backoff: 5m # Maximum backoff cap for deferred checks (default: 5m)
-  deferred_check_interval: 2m # Worker poll interval for deferred checks (default: 2m)
-  deferred_batch_size: 10000 # Articles processed per deferred check cycle (default: 10000, sized to sweep a full NZB)
-```
-
-### PAR2 Recovery Files
-
-Postie includes a built-in PAR2 creator — no external binaries are required. PAR2 recovery files are generated natively in Go, producing output compatible with standard PAR2 repair tools (par2repair, MultiPar).
-
-Configure PAR2 recovery file generation:
-
-```yaml
-par2:
-  enabled: true
-  redundancy: "1n*1.2" # ParPar redundancy expression (default: "1n*1.2"); percentage also accepted (e.g. "10%")
-  temp_dir: "" # Optional temporary directory for PAR2 operations. Generated files go into a postie-par2/ subfolder there; orphaned sets older than 24h are swept hourly. Empty: PAR2 files are written next to the sources.
-  maintain_par2_files: false # Keep PAR2 files after successful upload
-  parpar_binary_path: "" # Path to external parpar binary (empty = use built-in)
-  gf16_method: auto # GF16 SIMD kernel for the built-in generator. Leave on auto unless troubleshooting; a kernel the CPU lacks makes PAR2 creation fail. Options: auto, lookup, lookup3, shuffle-avx2, shuffle-avx512, shuffle-vbmi, xor-jit-avx2, affine-avx2, affine-avx512, shuffle-neon, clmul-neon
-```
-
-**💡 Tip: The web UI provides easy-to-use controls for redundancy settings with preset buttons for common percentages.**
-
-### NZB Compression
-
-Configure NZB file compression:
-
-```yaml
-nzb_compression:
-  enabled: false # Whether to enable compression of the output NZB file
-  type: none # Compression algorithm to use (options: none, zstd, brotli, zip)
-  level: 0 # Compression level (zstd: 1-22, brotli: 0-11, zip: 0-9)
-```
-
-When compression is enabled, the generated NZB files will be compressed using the specified algorithm and will have the appropriate file extension added (`.nzb.zst` for zstd, `.nzb.br` for brotli, or `.nzb.zip` for zip). This can significantly reduce the size of NZB files, especially for large uploads with many segments.
-
-#### Compression Types
-
-- **none**: No compression (default)
-- **zstd**: [Zstandard compression](https://github.com/facebook/zstd) - fast compression with good ratios
-- **brotli**: [Brotli compression](https://github.com/google/brotli) - higher compression ratios but slower
-- **zip**: Standard ZIP compression - universal compatibility with moderate compression
-
-#### Compression Levels
-
-- **zstd**: 1-22 (higher = better compression but slower, default: 3)
-- **brotli**: 0-11 (higher = better compression but slower, default: 4)
-- **zip**: 0-9 (higher = better compression but slower, default: 6)
-
-**💡 Tip: The web UI provides compression size estimates and helps you choose the optimal settings for your use case.**
-
-### File Watcher
-
-Postie supports **multiple file watchers** — each watches a different directory. Configure them as an array under `watchers`. The legacy single `watcher:` key (used in v1 configs) is still accepted for backward compatibility and will be automatically migrated.
-
-```yaml
-watchers:
-  - name: "downloads" # Optional label for this watcher instance
-    enabled: false # Whether to enable this watcher
-    watch_directory: "" # Directory to watch for new files
-    size_threshold: 104857600 # 100MB
-    schedule:
-      start_time: "00:00" # When to start posting (24h format)
-      end_time: "23:59" # When to stop posting (24h format)
-    ignore_patterns:
-      - "*.tmp"
-      - "*.part"
-      - "*.!ut"
-    min_file_size: 1048576 # 1MB
-    check_interval: 5m # How often to check for new files
-    delete_original_file: false # Delete source files after upload
-    single_nzb_per_folder: false # Create one NZB per folder instead of per file (default: false)
-    follow_symlinks: false # Follow symbolic links during scanning (default: false)
-    min_file_age: 60s # Min time since last modification before processing (default: 60s)
-    min_file_age_to_delete: 0s # Min time after upload before deleting source (default: 0s; requires delete_original_file: true)
-```
-
-You can add as many entries as needed under `watchers` to monitor multiple directories simultaneously.
-
-**💡 Tip: The web UI provides an easy way to select directories, test ignore patterns, and validate schedule configurations.**
-
-### Database
-
-Configure the database used for queue persistence:
-
-```yaml
-database:
-  database_type: sqlite # Database type: sqlite (default), postgres, mysql
-  database_path: ./postie.db # File path (sqlite) or connection string (postgres/mysql)
-```
-
-### Queue Management
-
-Configure the upload queue system:
-
-```yaml
-queue:
-  max_concurrent_uploads: 1 # Maximum concurrent uploads from queue (default: 1)
-```
-
-### Post Upload Script
-
-Configure commands to run after successful uploads:
-
-```yaml
-post_upload_script:
-  enabled: false # Whether to enable post upload script execution
-  command: "" # Command to execute, use {nzb_path} placeholder for NZB file path
-  timeout: 30s # Maximum time to wait for command execution (default: 30s)
-  max_retries: 3 # Max retry attempts for failed executions; 0 = unlimited (default: 3)
-  retry_delay: 30s # Base delay between retries with exponential backoff (default: 30s)
-  max_backoff: 1h # Maximum backoff cap to prevent very long waits (default: 1h)
-  max_retry_duration: 24h # Total max window to keep retrying; after this, marked failed (default: 24h)
-  retry_check_interval: 1m # How often to check for pending retries (default: 1m)
-```
-
-Example webhook notification:
-
-```yaml
-post_upload_script:
-  enabled: true
-  command: 'curl -X POST -H "Content-Type: application/json" -d "{\"nzb_path\": \"{nzb_path}\"}" https://your-webhook-url.com/notify'
+  enabled: false
+  command: ""
   timeout: 30s
+  max_retries: 3
+  retry_delay: 30s
+  max_backoff: 1h
+  max_retry_duration: 24h
+  retry_check_interval: 1m
+
+api:
+  enabled: false
+
+database:
+  database_type: sqlite
+  database_path: ./postie.db
 ```
-
-Example running a PowerShell script on Windows:
-
-```yaml
-post_upload_script:
-  enabled: true
-  command: 'powershell C:\Usenet_Programms\Postie\Scripts\ZIP.ps1 {nzb_path}'
-  timeout: 30s
-```
-
-**💡 Tip: The web UI allows you to test your post-upload scripts and provides examples for common use cases.**
-
-### Global Settings
-
-Additional global configuration options:
-
-```yaml
-# Global output directory for processed files and NZB files
-output_dir: "./output"
-
-# Whether to maintain the original file extension in the NZB filename (default: true)
-maintain_original_extension: true
-```
-
-> **Note:** For information about file hashing and verification, please see the [File Hash and Verification](file-hash.md) documentation.
-
-## Command Line Parameters
-
-In addition to the configuration file, Postie accepts several command line parameters:
-
-- `-config`: Path to the configuration file
-- `-d`: Path to a directory containing files to post
-- `-o`: Output directory for processed files
-- `-v`: Enable verbose logging
-- `-i`: Path to a single file to post. If provided the dir is ignored.
-- `--ignore-pattern`: Ignore files matching a basename glob during directory uploads. Repeat the flag for multiple patterns. This option is ignored with `-i`.
-- `-version`: Display version information
-
-Example:
-
-```bash
-./postie -config config.yaml -d ./upload -o ./output
-```
-
-To exclude temporary downloads from a classic CLI directory upload:
-
-```bash
-./postie -c config.yaml -d ./upload -o ./output \
-  --ignore-pattern '*.tmp' --ignore-pattern '*.part' --ignore-pattern '*.!ut'
-```
-
-Quote patterns to prevent your shell from expanding them. Like watcher `ignore_patterns`, these globs match file basenames at every level of the directory tree; directory names are not filtered. Patterns support `*`, `?`, and character classes such as `[0-9]`. Invalid patterns cause an error before uploading. If no files remain, Postie reports `no files to post` without connecting to a server. Watcher configuration applies only to watch mode; classic CLI uploads use these flags and upload all files by default.
-
-```bash
-./postie watch -config config.yaml -d ./upload -o ./output
-```
-
-## Getting Started
-
-**For new users, we strongly recommend starting with the web UI:**
-
-1. Start Postie with minimal or no configuration
-2. Open the web interface at `http://localhost:8080`
-3. Use the Settings page to configure all options through the intuitive interface
-4. The UI will guide you through required settings and validate your configuration
-5. Once configured, you can use either the web interface or command line tools
-
-The web UI provides immediate feedback, configuration validation, and organized sections that make setup much easier than manually editing YAML files.

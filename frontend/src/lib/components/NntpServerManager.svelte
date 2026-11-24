@@ -2,7 +2,7 @@
   import apiClient from "$lib/api/client";
   import { t } from "$lib/i18n";
   import { toastStore } from "$lib/stores/toast";
-  import { config as configType } from "$lib/wailsjs/go/models";
+  import { config as configType } from "$lib/api/models";
   import { Check, ChevronDown, CirclePlus, Info, Loader2, Server, Trash2 } from "lucide-svelte";
   import FieldRow from "$lib/components/inputs/FieldRow.svelte";
   import { collapse } from "$lib/components/settings/collapse";

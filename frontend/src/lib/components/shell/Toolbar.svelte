@@ -38,13 +38,9 @@ let title = $derived($toolbar.title ?? routeTitle);
 		padding-inline: 1.25rem;
 		background: var(--surface-content);
 		border-bottom: 1px solid var(--ui-hairline);
-		--wails-draggable: drag;
 	}
 	:global(html[data-platform="mac"][data-desktop="true"]) .toolbar {
 		height: max(var(--toolbar-height), var(--titlebar-inset));
-	}
-	.toolbar :global(:is(button, a, input, select, [role="button"], .dropdown)) {
-		--wails-draggable: no-drag;
 	}
 	.title {
 		flex: 1;

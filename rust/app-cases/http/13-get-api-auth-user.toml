@@ -1,0 +1,10 @@
+[request]
+method = "GET"
+path = "/api/auth/user"
+
+[response]
+status = 200
+
+[response.headers]
+cache-control = "no-store"
+content-type = "application/json"

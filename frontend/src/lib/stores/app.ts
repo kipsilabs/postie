@@ -1,4 +1,4 @@
-import type { backend, processor } from "$lib/wailsjs/go/models";
+import type { backend, processor } from "$lib/api/models";
 import { derived, writable } from "svelte/store";
 
 // Create app status store

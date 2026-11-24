@@ -4,27 +4,176 @@ sidebar_position: 2
 
 # Installation
 
-There are several ways to install and run Postie. Choose the method that best suits your environment and needs.
+Postie comes in four forms. Pick the one that fits how you want to run it:
 
-The desktop, web, and Docker distributions include a web interface. The Homebrew package installs the command-line poster.
+| Form | What you get | Best for |
+|------|--------------|----------|
+| **Desktop app** | A native window around the web UI | Running Postie on your own computer |
+| **Docker** | `postie-web` in a container, web UI on port 8080 | Servers, NAS boxes, always-on setups |
+| **Binaries** | `postie-web` (web UI) and `postie` (command line) | Servers without Docker, scripting |
+| **Homebrew** | The `postie` command-line poster | macOS and Linux terminals |
 
-## Quick Download
+## Desktop app
 
-Download the latest release for your platform:
-
-<a href="https://github.com/kipsilabs/postie/releases/latest/download/postie-gui-windows-amd64.zip">
+<a href="https://github.com/kipsilabs/postie/releases/latest/download/Postie-windows-x64-setup.exe">
   <img src="/img/download-for-windows.webp" alt="Download for Windows" width="200" height="60" />
 </a>
-<a href="https://github.com/kipsilabs/postie/releases/latest/download/postie-gui-macos-universal.zip">
+<a href="https://github.com/kipsilabs/postie/releases/latest/download/Postie-macos-arm64.dmg">
   <img src="/img/download-for-mac.png" alt="Download for macOS" width="200" height="60" />
 </a>
 
-[![View All Releases](https://img.shields.io/badge/All%20Releases-View-6c757d?style=for-the-badge&logo=github)](https://github.com/kipsilabs/postie/releases/latest)
+[![All downloads](https://img.shields.io/badge/All%20Downloads-View-6c757d?style=for-the-badge&logo=github)](https://github.com/kipsilabs/postie/releases/latest)
+
+| Platform | Download |
+|----------|----------|
+| Windows x64 | `Postie_<version>_x64-setup.exe` (installer) or `Postie_<version>_x64_en-US.msi` |
+| macOS (Apple Silicon) | `Postie_<version>_aarch64.dmg` |
+| Linux x86_64 | `Postie_<version>_amd64.AppImage`, `.deb` or `.rpm` |
+
+Intel Macs are not supported by the desktop app. Use [Docker](#docker) instead.
+
+The bundles are not signed with a paid developer certificate:
+
+- **macOS** says it cannot verify the app on first launch. Open **System Settings → Privacy & Security** and
+  click **Open Anyway**, or run `xattr -dr com.apple.quarantine /Applications/Postie.app`.
+- **Windows SmartScreen** may warn about an unknown publisher. Click **More info → Run anyway**.
+
+The [setup wizard](./first-setup.md) opens on first launch.
+
+## Docker
+
+Images are published to `ghcr.io/kipsilabs/postie` for **amd64** and **arm64** (Raspberry Pi 4/5, Apple
+Silicon, AWS Graviton). Docker pulls the right one for your machine.
+
+| Tag | Meaning |
+|-----|---------|
+| `latest` | The newest stable release |
+| `vX.Y.Z` | A specific release, for example `v0.1.0` |
+| `vX.Y.Z-rc.N` | A release candidate (never tagged `latest`) |
+
+### Docker Compose (recommended)
+
+```yaml
+services:
+  postie:
+    container_name: postie
+    image: ghcr.io/kipsilabs/postie:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config:/config # config.yaml, the database and logs
+      - ./watch:/watch # point a watcher here
+      - ./output:/output # set the output directory to /output
+    environment:
+      - PUID=1000
+      - PGID=1000
+      # With authentication off, the UI only answers localhost, IP addresses and these hostnames:
+      # - POSTIE_ALLOWED_HOSTS=nas.local,postie.example.com
+      # Require an administrator login instead:
+      # - POSTIE_AUTH_ENABLED=true
+    restart: unless-stopped
+```
+
+```bash
+docker compose up -d
+```
+
+Open `http://localhost:8080` (or `http://<server-ip>:8080`). The setup wizard runs the first time. In the
+wizard, set the output directory to `/output` so NZBs land in the mounted folder, and use `/watch` as the
+watch directory if you set up a watcher.
+
+### Docker run
+
+```bash
+docker run -d \
+  --name postie \
+  -p 8080:8080 \
+  -v ./config:/config \
+  -v ./watch:/watch \
+  -v ./output:/output \
+  -e PUID=1000 \
+  -e PGID=1000 \
+  ghcr.io/kipsilabs/postie:latest
+```
+
+### Opening the UI by hostname
+
+With authentication off, Postie only answers requests addressed to `localhost`, an IP address, or a
+hostname listed in `POSTIE_ALLOWED_HOSTS`. This blocks DNS-rebinding attacks, where a malicious web page
+points its own hostname at your server. If you open the UI as `http://nas.local:8080` or through a reverse
+proxy, either add that hostname to `POSTIE_ALLOWED_HOSTS` (comma separated, with or without the port) or
+[enable authentication](./web-authentication.md). Rejected hostnames get `403` and are logged once.
+
+### Container settings
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `PUID` / `PGID` | `1000` | User and group the server runs as (owner of the mounted folders) |
+| `PORT` | `8080` | Port inside the container |
+| `HOST` | `0.0.0.0` | Address inside the container |
+| `POSTIE_AUTH_ENABLED` | `false` | Require an administrator login ([details](./web-authentication.md)) |
+| `POSTIE_ALLOWED_HOSTS` | | Extra hostnames accepted while authentication is off |
+| `POSTIE_COOKIE_SECURE` | `false` | Mark the session cookie Secure, behind an HTTPS reverse proxy |
+
+The health check endpoint is `GET /live`.
+
+## Binaries
+
+Each release has an archive per platform:
+
+| Platform | Archive |
+|----------|---------|
+| Linux x86_64 | `postie-rust-<tag>-linux-x86_64.tar.gz` |
+| Linux arm64 | `postie-rust-<tag>-linux-arm64.tar.gz` |
+| macOS (Apple Silicon) | `postie-rust-<tag>-macos-arm64.tar.gz` |
+| Windows x64 | `postie-rust-<tag>-windows-x86_64.zip` |
+
+Download it from the [releases page](https://github.com/kipsilabs/postie/releases/latest) and extract it.
+The Linux binaries need glibc 2.35 or newer (Ubuntu 22.04, Debian 12 or later).
+It contains:
+
+- `postie-web`: the web server and UI.
+- `frontend/`: the UI files. Keep this folder next to `postie-web`, or point `POSTIE_FRONTEND_DIR` at it.
+- `postie`: the command-line poster.
+
+### Web UI
+
+```bash
+./postie-web            # http://localhost:8080
+./postie-web --port 9090 --host 127.0.0.1
+```
+
+Run `./postie-web --help` for every flag. `postie-web` keeps its config, database and log in a fixed
+per-user directory (the same one the desktop app uses):
+
+| OS | Config and database | Log |
+|----|---------------------|-----|
+| Linux | `~/.config/postie/` (or `$XDG_CONFIG_HOME/postie/`) | `~/.local/share/postie/postie.log` |
+| macOS | `~/Library/Application Support/Postie/` | same folder |
+| Windows | `%APPDATA%\Postie\` | same folder |
+| Docker | `/config/` | `/config/postie.log` |
+
+### Command line
+
+`postie` uploads files once and exits, or watches a directory with `postie watch`. It reads a YAML config
+file (default `./config.yaml`) and does not start the web UI.
+
+```bash
+./postie -c config.yaml -i /path/to/file.mkv -o ./nzb   # one file
+./postie -c config.yaml -d /path/to/folder -o ./nzb     # every file in a folder
+./postie watch -c config.yaml -d /path/to/watch -o ./nzb  # keep watching a folder
+```
+
+:::warning
+Without `-i`, `postie` uploads every file in `--dir`, which defaults to the current directory. Always pass
+`-i` or `-d`.
+:::
+
+See [command line usage](./configuration.md#command-line) for every flag.
 
 ## Homebrew (CLI)
 
-On macOS or Linux, with ARM64 or Intel/AMD64 hardware. The prebuilt Linux CLI
-requires glibc 2.34 or newer and the system C++/GCC runtimes (`libstdc++` and `libgcc_s`):
+On Apple Silicon Macs and on Linux (x86_64 or arm64):
 
 ```bash
 brew tap kipsilabs/postie https://github.com/kipsilabs/postie
@@ -32,344 +181,31 @@ brew install kipsilabs/postie/postie
 postie --help
 ```
 
-The explicit repository URL is required because the formula lives in the Postie
-repository. The installed command is `postie`. Create a YAML configuration using
-the [configuration guide](./configuration.md), then run `postie -c config.yaml`.
+The explicit repository URL is needed because the formula lives in the Postie repository. Homebrew
+installs only the `postie` command line; for the web UI use Docker, the desktop app or the binaries.
+Upgrade with `brew update && brew upgrade kipsilabs/postie/postie`.
 
-Upgrade with:
+## Building from source
 
-```bash
-brew update
-brew upgrade kipsilabs/postie/postie
-```
-
-## Binary Installation
-
-The easiest way to get started is by downloading a pre-built binary:
-
-1. Go to the [releases page](https://github.com/kipsilabs/postie/releases) or use the download buttons above
-2. Download the appropriate binary for your platform
-3. Extract the archive
-4. Run Postie to start the web interface:
-
-```bash
-./postie
-```
-
-5. Open your browser to `http://localhost:8080` and configure through the web UI
-
-### Alternative: Command Line Configuration
-
-If you prefer to use a configuration file:
-
-1. Create a config.yaml file ([see configuration guide](./configuration.md))
-2. Run Postie with the configuration file:
-
-```bash
-./postie -config config.yaml -d ./upload -o ./output
-```
-
-## Web administrator login
-
-Web authentication is optional and disabled by default. Start the web binary
-with `postie-web --auth`, or set `POSTIE_AUTH_ENABLED=true` in your Docker
-Compose environment, to require an administrator login. Create the first
-administrator before exposing the server. See [Web authentication](./web-authentication.md)
-for session behavior and HTTPS reverse-proxy configuration.
-
-## Docker Installation
-
-### Multi-Architecture Support
-
-Postie Docker images support multiple architectures:
-- **AMD64 (x86_64)**: Intel/AMD 64-bit processors
-- **ARM64 (aarch64)**: ARM 64-bit processors (Raspberry Pi 4/5, Apple Silicon, AWS Graviton, etc.)
-
-Docker will automatically pull the correct image for your platform using manifest lists.
-
-### Using Docker Compose (Recommended)
-
-Postie provides a complete Docker setup that includes the web interface for easy management.
-
-1. Create a `docker-compose.yml` file:
-
-```yaml
-services:
-  postie:
-    container_name: postie
-    image: ghcr.io/kipsilabs/postie:latest
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./config:/config
-      - ./watch:/watch
-      - ./output:/output
-    environment:
-      - PORT=8080
-      - HOST=0.0.0.0
-      - PUID=1000
-      - PGID=1000
-    restart: unless-stopped
-```
-
-#### Platform-Specific Configuration
-
-For ARM devices like Raspberry Pi, you may want to explicitly specify the platform:
-
-```yaml
-services:
-  postie:
-    container_name: postie
-    image: ghcr.io/kipsilabs/postie:latest
-    platform: linux/arm64  # Explicitly specify ARM64
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./config:/config
-      - ./watch:/watch
-      - ./output:/output
-    environment:
-      - PORT=8080
-      - HOST=0.0.0.0
-      - PUID=1000
-      - PGID=1000
-    restart: unless-stopped
-```
-
-1. Create the following directories:
-
-   - `config`: Contains your configuration file
-   - `watch`: Directory to watch for new files
-   - `output`: Directory for output files
-
-1. Create a `config.yaml` file in the `config` directory ([see configuration guide](./configuration.md))
-
-1. Start the container:
-
-```bash
-docker-compose up -d
-```
-
-1. Access the web interface at `http://localhost:8080`
-
-### Using Docker Run
-
-Alternatively, you can run Postie directly with Docker:
-
-```bash
-docker run -d \
-  --name postie \
-  -p 8080:8080 \
-  -v ./config:/config \
-  -v ./watch:/watch \
-  -v ./output:/output \
-  -e PUID=1000 \
-  -e PGID=1000 \
-  ghcr.io/kipsilabs/postie:latest
-```
-
-#### ARM Device Configuration
-
-For ARM-based devices (Raspberry Pi, ARM servers), you can explicitly specify the platform:
-
-```bash
-docker run -d \
-  --name postie \
-  --platform linux/arm64 \
-  -p 8080:8080 \
-  -v ./config:/config \
-  -v ./watch:/watch \
-  -v ./output:/output \
-  -e PUID=1000 \
-  -e PGID=1000 \
-  ghcr.io/kipsilabs/postie:latest
-```
-
-#### Available Image Tags
-
-You can also use architecture-specific tags if needed:
-
-- `ghcr.io/kipsilabs/postie:latest` - Multi-arch manifest (recommended)
-- `ghcr.io/kipsilabs/postie:v{version}` - Multi-arch manifest for specific version
-- `ghcr.io/kipsilabs/postie:v{version}-amd64` - AMD64 specific
-- `ghcr.io/kipsilabs/postie:v{version}-arm64` - ARM64 specific
-
-### Web Interface Access
-
-After starting the Docker container, you can access the Postie web interface by:
-
-1. Opening your web browser
-2. Navigating to `http://localhost:8080`
-3. Using the web interface to:
-   - Monitor upload progress
-   - Manage the upload queue
-   - Configure settings
-   - View logs and statistics
-
-The web interface provides a modern, user-friendly way to interact with Postie without needing to use command-line tools.
-
-### ARM Device Specific Notes
-
-#### Performance Considerations
-- **Raspberry Pi 4/5**: Works well with default settings. Consider adjusting concurrent uploads based on available RAM
-- **ARM servers**: Generally provide excellent performance similar to AMD64
-- **Older ARM devices**: May need reduced concurrency settings in configuration
-
-#### Common ARM Issues and Solutions
-
-**Issue: "no matching manifest" error**
-```bash
-# Solution: Explicitly specify the platform
-docker run --platform linux/arm64 ...
-```
-
-**Issue: Poor performance on Raspberry Pi**
-```yaml
-# In your config.yaml, reduce concurrent operations:
-queue:
-  max_concurrent_uploads: 2  # Reduced from default
-```
-
-**Issue: Memory constraints**
-```yaml
-# Adjust chunk sizes for memory-limited devices:
-posting:
-  article_size_in_bytes: 500000  # Smaller chunks for less memory usage
-```
-
-#### Raspberry Pi Optimization
-
-For optimal performance on Raspberry Pi:
-
-1. **Use fast storage**: SD cards can be slow; consider USB 3.0 drives
-2. **Monitor temperature**: Use `docker stats` to monitor resource usage
-3. **Adjust memory settings**:
-
-```yaml
-services:
-  postie:
-    # ... other configuration
-    deploy:
-      resources:
-        limits:
-          memory: 512M  # Adjust based on available RAM
-    environment:
-      - GOMAXPROCS=2  # Limit to available CPU cores
-```
-
-## Using the Binary Version
-
-After downloading and extracting the binary for your platform:
-
-### Windows
-
-1. Extract the downloaded zip file
-2. Create a `config.yaml` file ([see configuration guide](./configuration.md))
-3. Open Command Prompt or PowerShell
-4. Navigate to the extracted folder
-5. Run Postie:
-
-```cmd
-postie.exe -config config.yaml -d ./upload -o ./output
-```
-
-### macOS
-
-1. Extract the downloaded tar.gz file
-2. Create a `config.yaml` file ([see configuration guide](./configuration.md))
-3. Open Terminal
-4. Navigate to the extracted folder
-5. Make the binary executable:
-
-```bash
-chmod +x postie
-```
-
-1. Run Postie:
-
-```bash
-./postie -config config.yaml -d ./upload -o ./output
-```
-
-### Linux
-
-1. Extract the downloaded tar.gz file
-2. Create a `config.yaml` file ([see configuration guide](./configuration.md))
-3. Open Terminal
-4. Navigate to the extracted folder
-5. Make the binary executable:
-
-```bash
-chmod +x postie
-```
-
-1. Run Postie:
-
-```bash
-./postie -config config.yaml -d ./upload -o ./output
-```
-
-#### ARM Linux (Raspberry Pi, ARM servers)
-
-The project provides native ARM64 binaries for Linux:
-
-1. Download the ARM64 binary from the [releases page](https://github.com/kipsilabs/postie/releases)
-   - Look for files ending in `-linux-arm64.tar.gz`
-2. Follow the same Linux installation steps above
-3. The ARM64 binary provides optimal performance on ARM devices
-
-**Performance tip for ARM devices**: Start with reduced concurrent uploads:
-```bash
-./postie -config config.yaml -d ./upload -o ./output --max-concurrent=2
-```
-
-#### Web Interface with Binary
-
-1. Download [postie-web](https://github.com/kipsilabs/postie/releases/latest/download/postie-web-linux-amd64.tar.gz)
-2. Extract the file
-3. Start Postie with the web server enabled `./postie-web --port 80080`
-4. Open your web browser
-5. Navigate to `http://localhost:8080` (or the port specified in your configuration)
-6. Use the same web interface features as the Docker version
-
-## Building from Source
-
-If you prefer to build from source:
+You need Rust (stable), [Bun](https://bun.sh), CMake and a C/C++ toolchain:
 
 ```bash
 git clone https://github.com/kipsilabs/postie.git
 cd postie
-go build
+make build          # frontend + rust/target/release/postie and postie-web
+make build-desktop  # desktop bundle in rust/desktop/target/release/bundle/
 ```
 
-## Installing with Go
+## System requirements
 
-If you have Go installed, you can install Postie directly:
+- **OS:** Linux (x86_64, arm64), macOS on Apple Silicon, or Windows x64. Docker covers amd64 and arm64.
+- **Memory:** the web server idles at a few tens of MB. The upload buffer is sized automatically between
+  64 MiB and 512 MiB (`posting.upload_buffer_memory_limit`), and PAR2 creation can use up to
+  `par2.memory_limit` (4 GiB by default). On small devices, lower both.
+- **Disk:** PAR2 files are written to `par2.temp_dir` (your system temp folder by default) while a job
+  runs, roughly the size of the source times the redundancy.
 
-```bash
-go install github.com/kipsilabs/postie@latest
-```
+## Next steps
 
-## System Requirements
-
-- **OS**: Linux, macOS, or Windows
-- **Architecture**: AMD64 (x86_64) or ARM64 (aarch64)
-  - **AMD64**: Intel/AMD 64-bit processors
-  - **ARM64**: ARM 64-bit processors (Raspberry Pi 4+, Apple Silicon, AWS Graviton, etc.)
-- **Memory**: 
-  - Minimum: 256MB RAM
-  - Recommended: 512MB+ RAM for optimal performance
-  - ARM devices: 512MB+ recommended for concurrent uploads
-- **Disk Space**: Varies based on file sizes being processed
-- **Network**: Reliable internet connection with sufficient bandwidth for Usenet posting
-
-### Hardware-Specific Notes
-
-- **Raspberry Pi 4/5**: Excellent performance with 4GB+ RAM models
-- **Raspberry Pi 3**: Supported but may need reduced concurrency settings
-- **Apple Silicon Macs**: Native ARM64 support via Docker or binary
-- **ARM servers** (AWS Graviton, Oracle Ampere): Full performance equivalent to AMD64
-
-## Next Steps
-
-After installation, you'll need to [configure Postie](./configuration) before you can start posting files.
+- [First setup](./first-setup.md): the setup wizard, step by step.
+- [Configuration](./configuration.md): every setting, in the UI and in YAML.

@@ -1,15 +1,13 @@
 # Postie
 
-[![Build](https://github.com/kipsilabs/postie/actions/workflows/pull-request.yml/badge.svg)](https://github.com/kipsilabs/postie/actions/workflows/pull-request.yml)
-[![Coverage](https://github.com/kipsilabs/postie/actions/workflows/coverage.yml/badge.svg)](https://github.com/kipsilabs/postie/actions/workflows/coverage.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/kipsilabs/postie)](https://goreportcard.com/report/github.com/kipsilabs/postie)
+[![Rust](https://github.com/kipsilabs/postie/actions/workflows/rust.yml/badge.svg)](https://github.com/kipsilabs/postie/actions/workflows/rust.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/qbt52hh7sjd)
 
 ![logo](./docs/static/img/full_logo.jpeg)
 
-A high-performance Usenet binary poster written in Go, inspired by Nyuu-Obfuscation.
+A high-performance Usenet binary poster written in Rust, inspired by Nyuu-Obfuscation.
 
 ## Features
 
@@ -40,10 +38,26 @@ docker-compose up -d
 # Access web interface at http://localhost:8080
 ```
 
+#### Authentication and allowed hosts
+
+Set `POSTIE_AUTH_ENABLED=true` to require an administrator login for the web UI.
+
+With authentication off, the web UI only answers requests whose `Host` is `localhost`, an IP address, or
+listed in `POSTIE_ALLOWED_HOSTS` (comma separated, with or without port). This protects against
+DNS-rebinding attacks, where a malicious website points its own hostname at your server. Anything else
+gets `403`, and the first rejected request per hostname is logged to stderr.
+
+```yaml
+environment:
+  - POSTIE_ALLOWED_HOSTS=nas.local,postie.example.com
+```
+
+Behind a reverse proxy, forward the original Host (nginx: `proxy_set_header Host $host;`) and add the
+public hostname to `POSTIE_ALLOWED_HOSTS`, or enable authentication instead.
+
 ### Homebrew (CLI)
 
-Install the command-line poster on macOS or Linux (Apple Silicon/ARM64 or Intel/AMD64).
-Linux requires glibc 2.34+ and the system C++/GCC runtimes:
+Install the command-line poster on Apple Silicon Macs or Linux (x86_64, arm64; glibc 2.35+):
 
 ```bash
 brew tap kipsilabs/postie https://github.com/kipsilabs/postie
@@ -57,9 +71,11 @@ To upgrade after a formula update, run `brew update && brew upgrade kipsilabs/po
 
 ### Binary Download
 
-[![Download for Windows](https://img.shields.io/badge/Windows-Download-0078d4?style=for-the-badge&logo=windows)](https://github.com/kipsilabs/postie/releases/latest/download/postie_windows_amd64.zip)
-[![Download for macOS](https://img.shields.io/badge/macOS-Download-0078d4?style=for-the-badge&logo=apple)](https://github.com/kipsilabs/postie/releases/latest/download/postie_darwin_amd64.zip)
-[![Download for Linux](https://img.shields.io/badge/Linux-Download-0078d4?style=for-the-badge&logo=linux)](https://github.com/kipsilabs/postie/releases/latest/download/postie_linux_amd64.zip)
+[![Download for Windows](https://img.shields.io/badge/Windows-Download-0078d4?style=for-the-badge&logo=windows)](https://github.com/kipsilabs/postie/releases/latest/download/Postie-windows-x64-setup.exe)
+[![Download for macOS](https://img.shields.io/badge/macOS_(Apple_Silicon)-Download-0078d4?style=for-the-badge&logo=apple)](https://github.com/kipsilabs/postie/releases/latest/download/Postie-macos-arm64.dmg)
+[![Download for Linux](https://img.shields.io/badge/Linux-AppImage-0078d4?style=for-the-badge&logo=linux)](https://github.com/kipsilabs/postie/releases/latest/download/Postie-linux-x86_64.AppImage)
+
+The [releases page](https://github.com/kipsilabs/postie/releases/latest) also has `.msi`, `.deb`, `.rpm` and the `postie` / `postie-web` binaries for Linux (x86_64, arm64), macOS (Apple Silicon) and Windows.
 
 ## Documentation
 
@@ -77,51 +93,40 @@ For detailed documentation, installation instructions, configuration options, an
 
 ### Prerequisites
 
-- **Go** 1.26+
-- **[Bun](https://bun.sh)** — used for the frontend (do not use npm)
-- A **C toolchain**, because the native PAR2 encoder uses cgo. On Windows use
-  [MSYS2](https://www.msys2.org/) with the MinGW-w64 GCC toolchain and build
-  from the MSYS2 shell; on macOS the Xcode command line tools are enough.
-
-Wails does not need to be installed separately — it is declared as a Go tool
-dependency and runs via `go tool wails`.
+- **Rust** (stable, edition 2024) via [rustup](https://rustup.rs)
+- **[Bun](https://bun.sh)** for the frontend (do not use npm)
+- **CMake** and a C/C++ toolchain, used to build the vendored rapidyenc encoder
+  (Xcode command line tools on macOS, MSVC Build Tools on Windows)
+- For the desktop app: the [Tauri v2 prerequisites](https://v2.tauri.app/start/prerequisites/)
+  and `cargo install tauri-cli --version "^2"`
 
 ### Building from Source
 
-The Go binaries embed the compiled frontend, so **the frontend must be built
-first**. Skipping this step fails with
-`pattern all:frontend/build: no matching files found`.
+`postie-web` serves the compiled frontend from a `frontend/` directory next to its binary
+(or `POSTIE_FRONTEND_DIR`), so build the frontend first.
 
 ```bash
 git clone https://github.com/kipsilabs/postie.git
 cd postie
 
-make build-frontend   # cd frontend && bun i && bun run build
-make build            # CLI + web server
+make build            # frontend + postie CLI + postie-web (release)
+make build-desktop    # Tauri desktop bundle
 ```
-
-Individual targets:
 
 | Command | Builds | Output |
 |---------|--------|--------|
-| `make build-cli` | CLI (`./cmd/postie`) | `./postie-cli` |
-| `make build-web` | Web server (`./cmd/web`) | `./postie-web` |
-| `make build-gui` | Desktop app via Wails | `./build/bin/postie` (`.app` on macOS) |
+| `make build` | CLI and web server | `rust/target/release/postie`, `rust/target/release/postie-web` |
+| `make build-desktop` | Desktop app (Tauri) | `rust/desktop/target/release/bundle/` |
+| `make docker-build` | Docker image | `postie:dev` |
 
-Run `make help` for the full target list, and `make check` before opening a pull
-request (it runs `go generate`, `go mod tidy`, golangci-lint and the race tests).
+Run `make help` for every target, and `make lint test` before opening a pull request.
 
 ### Development Mode
 
 ```bash
-make dev          # desktop app with hot reload
+make dev           # postie-web on http://localhost:8080
+make desktop-dev   # desktop app
 ```
-
-### Installing with Go
-
-`go install` cannot build this repository, because the embedded frontend assets
-are not present in a fresh module cache. Use the release binaries, or build from
-source as above.
 
 ## License
 
@@ -129,4 +134,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ### Duplicate lookup
 
-Optionally reuse an existing NZB before uploading individual files using a generic HTTP lookup service. Disabled by default; reused source files are always retained. See [configuration and provider protocol](docs/duplicate-lookup.md).
+Optionally reuse an existing NZB before uploading individual files using a generic HTTP lookup service. Disabled by default; reused source files are always retained. See [configuration and provider protocol](https://postie.kipsilabs.top/docs/duplicate-lookup).

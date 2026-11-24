@@ -5,7 +5,7 @@ export type Platform = "mac" | "windows" | "linux";
 
 export interface PlatformInfo {
 	os: Platform;
-	/** true when running inside the Wails desktop shell, false for the web build. */
+	/** true when running inside a desktop shell, false for the web build. */
 	desktop: boolean;
 }
 
@@ -52,19 +52,8 @@ function publish(next: PlatformInfo) {
 }
 
 /**
- * Confirms the platform with the Wails runtime in desktop mode. Safe to call
- * in the browser: it leaves the web-mode guess from app.html untouched.
+ * Returns the platform detected from app.html. Kept async so callers do not change.
  */
 export async function initPlatform(): Promise<PlatformInfo> {
-	if (!browser) return current;
-	const win = window as unknown as { go?: unknown; wails?: unknown };
-	if (!win.go && !win.wails) return current;
-	try {
-		const { Environment } = await import("$lib/wailsjs/runtime/runtime");
-		const env = await Environment();
-		publish({ os: normalizeOS(env.platform), desktop: true });
-	} catch {
-		publish({ ...current, desktop: true });
-	}
 	return current;
 }

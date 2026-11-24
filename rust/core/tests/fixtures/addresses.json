@@ -1,0 +1,183 @@
+[
+ {
+  "in": "a@b.c",
+  "ok": true
+ },
+ {
+  "in": "Poster \u003cposter@example.com\u003e",
+  "ok": true
+ },
+ {
+  "in": "\"Quoted Name\" \u003cq@x.org\u003e",
+  "ok": true
+ },
+ {
+  "in": "not-an-address",
+  "ok": false,
+  "err": "mail: missing '@' or angle-addr"
+ },
+ {
+  "in": "",
+  "ok": false,
+  "err": "mail: no address"
+ },
+ {
+  "in": "a@b",
+  "ok": true
+ },
+ {
+  "in": "@b.c",
+  "ok": false,
+  "err": "mail: missing word in phrase: mail: invalid string"
+ },
+ {
+  "in": "a@",
+  "ok": false,
+  "err": "mail: missing '@' or angle-addr"
+ },
+ {
+  "in": "a b@c.d",
+  "ok": false,
+  "err": "mail: no angle-addr"
+ },
+ {
+  "in": "Name \u003ca@b.c",
+  "ok": false,
+  "err": "mail: unclosed angle-addr"
+ },
+ {
+  "in": "a@b.c, d@e.f",
+  "ok": false,
+  "err": "mail: expected single address, got \", d@e.f\""
+ },
+ {
+  "in": "\u003ca@b.c\u003e",
+  "ok": true
+ },
+ {
+  "in": "a@b.c (comment)",
+  "ok": true
+ },
+ {
+  "in": "(c) a@b.c",
+  "ok": false,
+  "err": "mail: missing word in phrase: mail: invalid string"
+ },
+ {
+  "in": "\"a b\"@c.d",
+  "ok": true
+ },
+ {
+  "in": "a.b@c.d",
+  "ok": true
+ },
+ {
+  "in": ".a@b.c",
+  "ok": false,
+  "err": "mail: missing '@' or angle-addr"
+ },
+ {
+  "in": "a.@b.c",
+  "ok": false,
+  "err": "mail: missing '@' or angle-addr"
+ },
+ {
+  "in": "a..b@c.d",
+  "ok": false,
+  "err": "mail: missing '@' or angle-addr"
+ },
+ {
+  "in": "a@[1.2.3.4]",
+  "ok": true
+ },
+ {
+  "in": "a@b..c",
+  "ok": false,
+  "err": "mail: missing '@' or angle-addr"
+ },
+ {
+  "in": "日本 \u003cj@e.jp\u003e",
+  "ok": true
+ },
+ {
+  "in": "j@日本.jp",
+  "ok": true
+ },
+ {
+  "in": "üser@example.com",
+  "ok": true
+ },
+ {
+  "in": "=?UTF-8?q?J=C3=BCrgen?= \u003cj@x.de\u003e",
+  "ok": true
+ },
+ {
+  "in": "=?bogus?q?x?= \u003cj@x.de\u003e",
+  "ok": false,
+  "err": "mail: missing word in phrase: charset not supported: \"bogus\""
+ },
+ {
+  "in": "group: a@b.c, d@e.f;",
+  "ok": false,
+  "err": "mail: group with multiple addresses"
+ },
+ {
+  "in": "A \u003ca@b.c\u003e trailing",
+  "ok": false,
+  "err": "mail: expected single address, got \"trailing\""
+ },
+ {
+  "in": "a@b.c\n",
+  "ok": false,
+  "err": "mail: expected single address, got \"\\n\""
+ },
+ {
+  "in": " a@b.c ",
+  "ok": true
+ },
+ {
+  "in": "a+tag@b.c",
+  "ok": true
+ },
+ {
+  "in": "\"unterminated \u003ca@b.c\u003e",
+  "ok": false,
+  "err": "mail: missing word in phrase: mail: unclosed quoted-string"
+ },
+ {
+  "in": "Name With Spaces \u003ca@b.c\u003e",
+  "ok": true
+ },
+ {
+  "in": "Name, Comma \u003ca@b.c\u003e",
+  "ok": false,
+  "err": "mail: missing '@' or angle-addr"
+ },
+ {
+  "in": "a@b.c;",
+  "ok": false,
+  "err": "mail: expected single address, got \";\""
+ },
+ {
+  "in": "\u003c\u003e",
+  "ok": false,
+  "err": "mail: invalid string"
+ },
+ {
+  "in": "a@-b.c",
+  "ok": true
+ },
+ {
+  "in": "a@b-.c",
+  "ok": true
+ },
+ {
+  "in": "a@b_c.d",
+  "ok": true
+ },
+ {
+  "in": "john@example.com \u003cx@y.z\u003e",
+  "ok": false,
+  "err": "mail: expected single address, got \"\u003cx@y.z\u003e\""
+ }
+]

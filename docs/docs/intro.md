@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # Introduction to Postie
 
-Postie is a high-performance Usenet binary poster written in Go, inspired by Nyuu-Obfuscation.
+Postie is a high-performance Usenet binary poster written in Rust, inspired by Nyuu-Obfuscation. It runs as a desktop app, a Docker container, a web server or a command-line tool.
 
 ## What is Postie?
 
@@ -17,22 +17,16 @@ Postie is designed to efficiently upload binary files to Usenet with a focus on:
 
 ## Key Features
 
-- **Modern Web Interface**: Intuitive web UI for configuration, uploading, and monitoring
-- Multi-server support with automatic failover
-- Yenc encoding using rapidyenc for high performance
-- Post checking with multiple attempts
-- Configurable segment size
-- Automatic retry on failure
-- SSL/TLS support
-- Connection pooling for better performance
-- PAR2 support with configurable redundancy
-- Multiple obfuscation policies
-- Configurable group posting policies
-- File watching and automatic posting
-- Configurable posting schedules
-- Robust file hashing for integrity verification
-- Upload queue management with pause/resume functionality
-- Real-time upload progress monitoring
+- **Web interface** for setup, uploads, the queue, metrics and logs, also packaged as a desktop app
+- Several servers at once, with separate verify-only servers on other backbones
+- yEnc encoding with rapidyenc (SIMD) and pipelined NNTP posting over TLS
+- Built-in PAR2 creation, overlapped with the upload
+- Post verification (`STAT`) during and after the upload, with automatic reposts
+- Three obfuscation policies, for files and PAR2 separately
+- Multiple file watchers with schedules, filters and optional source deletion
+- Persistent upload queue with priorities, pause and retry
+- HTTP API, Sonarr/Radarr/Lidarr/Readarr webhooks and post-upload scripts
+- Optional [duplicate lookup](./duplicate-lookup.md) to reuse existing NZBs
 
 ## Screenshots
 
@@ -41,17 +35,27 @@ Postie comes with a modern web interface that makes it easy to manage your uploa
 ### Dashboard
 
 ![Dashboard](/img/examples/dashboard.png)
-*Main dashboard showing upload queue and progress with real-time updates*
+*Queue statistics, live upload progress and background verification, updated in real time*
 
-### Queue Management
+### Upload Queue
 
 ![Queue](/img/examples/queue.png)
-*Queue management interface for monitoring and controlling uploads with detailed progress tracking*
+*The upload queue on the dashboard: filter by status, search, reprioritize, retry failed items and download finished NZBs*
 
 ### Settings
 
 ![Settings](/img/examples/settings.png)
-*Comprehensive configuration interface with organized tabs and real-time validation*
+*Settings grouped into Core Configuration, Upload Settings, File Processing and Automation tabs; changes save automatically*
+
+### Metrics
+
+![Metrics](/img/examples/metrics.png)
+*Live transfer metrics: upload workers, buffer memory, PAR2 jobs, speed and per-server connection stats*
+
+### Logs
+
+![Logs](/img/examples/logs.png)
+*Live log viewer with filtering by text and level, plus copy and download*
 
 ## Why Use Postie?
 
@@ -69,9 +73,7 @@ Postie provides a robust solution for uploading content to Usenet with features 
 
 1. Follow the [Installation Guide](./installation) to get Postie running
 2. Open the web interface at `http://localhost:8080`
-3. Use the Settings page to configure your servers and preferences
+3. Follow the [setup wizard](./first-setup) to add your servers
 4. Start uploading files through the intuitive web interface
 
 For command-line usage and detailed configuration options, see the [Quick Start](./quick-start) and [Configuration Guide](./configuration) sections.
-
-For information about file hashing and verification, see the [File Hash and Verification](./file-hash) guide.

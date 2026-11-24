@@ -1,0 +1,3678 @@
+{
+ "arr_instances": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\narr:\n  instances:\n    - id: a\n      name: Sonarr\n      type: sonarr\n      url: http://s\n      api_key: k\n      enabled: true\n      webhook_id: 5\n",
+  "ok": true,
+  "config": {
+   "version": 2,
+   "servers": [
+    {
+     "host": "news.example.com",
+     "port": 563,
+     "username": "",
+     "password": "",
+     "ssl": true,
+     "max_connections": 10,
+     "max_connection_idle_time_in_seconds": 0,
+     "max_connection_ttl_in_seconds": 0,
+     "insecure_ssl": false,
+     "enabled": true,
+     "role": "upload",
+     "inflight": 0
+    }
+   ],
+   "connection_pool": {
+    "min_connections": 0,
+    "health_check_interval": ""
+   },
+   "posting": {
+    "wait_for_par2": false,
+    "max_retries": 3,
+    "retry_delay": "5s",
+    "article_size_in_bytes": 750000,
+    "groups": [
+     {
+      "name": "alt.binaries.test",
+      "enabled": true
+     }
+    ],
+    "throttle_rate": 0,
+    "message_id_format": "random",
+    "post_headers": {
+     "add_nxg_header": false,
+     "default_from": "",
+     "custom_headers": null
+    },
+    "obfuscation_policy": "full",
+    "par2_obfuscation_policy": "",
+    "group_policy": "each_file",
+    "upload_buffer_memory_limit": 0
+   },
+   "post_check": {
+    "enabled": true,
+    "delay": "",
+    "max_reposts": 0,
+    "deferred_check_delay": "30s",
+    "deferred_max_retries": 5,
+    "deferred_max_backoff": "5m",
+    "deferred_check_interval": "2m",
+    "deferred_batch_size": 10000,
+    "stat_batch_size": 100,
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
+   },
+   "par2": {
+    "enabled": true,
+    "redundancy": "5%",
+    "temp_dir": "",
+    "maintain_par2_files": false,
+    "skip_if_par2_exists": true,
+    "parpar_binary_path": "",
+    "parpar_extra_args": null,
+    "num_goroutines": 0,
+    "memory_limit": 4294967296,
+    "slice_size": 10485760,
+    "max_concurrent_jobs": 1,
+    "gf16_method": "auto"
+   },
+   "watcher": {
+    "name": "",
+    "enabled": false,
+    "watch_directory": "",
+    "size_threshold": 0,
+    "schedule": {
+     "start_time": "",
+     "end_time": ""
+    },
+    "ignore_patterns": null,
+    "min_file_size": 0,
+    "check_interval": "",
+    "delete_original_file": false,
+    "single_nzb_per_folder": false,
+    "follow_symlinks": false,
+    "min_file_age": "",
+    "min_file_age_to_delete": ""
+   },
+   "watchers": [
+    {
+     "name": "",
+     "enabled": false,
+     "watch_directory": "",
+     "size_threshold": 104857600,
+     "schedule": {
+      "start_time": "00:00",
+      "end_time": "23:59"
+     },
+     "ignore_patterns": [
+      "*.tmp",
+      "*.part",
+      "*.!ut"
+     ],
+     "min_file_size": 1048576,
+     "check_interval": "5m",
+     "delete_original_file": false,
+     "single_nzb_per_folder": false,
+     "follow_symlinks": false,
+     "min_file_age": "60s",
+     "min_file_age_to_delete": "0s"
+    }
+   ],
+   "nzb_compression": {
+    "enabled": false,
+    "type": "none",
+    "level": 0
+   },
+   "database": {
+    "database_type": "sqlite",
+    "database_path": "./postie.db"
+   },
+   "queue": {
+    "max_concurrent_uploads": 1,
+    "min_size_to_start": 0
+   },
+   "api": {
+    "enabled": false
+   },
+   "output_dir": "",
+   "maintain_original_extension": true,
+   "post_upload_script": {
+    "enabled": false,
+    "command": "",
+    "timeout": "30s",
+    "max_retries": 0,
+    "retry_delay": "30s",
+    "max_backoff": "1h",
+    "max_retry_duration": "24h",
+    "retry_check_interval": "1m"
+   },
+   "arr": {
+    "instances": [
+     {
+      "id": "a",
+      "name": "Sonarr",
+      "type": "sonarr",
+      "url": "http://s",
+      "api_key": "k",
+      "enabled": true,
+      "webhook_id": 5,
+      "delete_after_upload": false
+     }
+    ]
+   },
+   "duplicate_lookup": {
+    "enabled": false,
+    "url": "",
+    "api_key": "",
+    "timeout": ""
+   }
+  }
+ },
+ "bad_compression": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\nnzb_compression:\n  enabled: true\n  type: gzip\n",
+  "ok": false,
+  "error": "invalid configuration: invalid compression type: gzip"
+ },
+ "bad_db": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\ndatabase:\n  database_type: oracle\n",
+  "ok": false,
+  "error": "invalid configuration: invalid database type: oracle (supported: sqlite, postgres, mysql)"
+ },
+ "bad_duration": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\npost_check:\n  delay: 5\n",
+  "ok": false,
+  "error": "error parsing config file: time: missing unit in duration \"5\""
+ },
+ "bad_duration_unit": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\npost_check:\n  delay: 5x\n",
+  "ok": false,
+  "error": "error parsing config file: time: unknown unit \"x\" in duration \"5x\""
+ },
+ "bad_port": {
+  "yaml": "servers:\n  - host: h\n    port: 70000\n    max_connections: 1\nposting:\n  groups:\n    - name: g\n",
+  "ok": false,
+  "error": "invalid configuration: server 0: invalid port number"
+ },
+ "big_ints": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\npar2:\n  memory_limit: 9223372036854775807\n  slice_size: 5\nposting:\n  article_size_in_bytes: 18446744073709551615\n  groups:\n    - name: g\n",
+  "ok": false,
+  "error": "error parsing config file: yaml: unmarshal errors:\n  line 13: mapping key \"posting\" already defined at line 6"
+ },
+ "brotli_bad": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\nnzb_compression:\n  enabled: true\n  type: brotli\n  level: 12\n",
+  "ok": false,
+  "error": "invalid configuration: invalid brotli compression level: 12 (must be between 0-11)"
+ },
+ "compression_disabled_bad_type": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\nnzb_compression:\n  enabled: false\n  type: gzip\n",
+  "ok": true,
+  "config": {
+   "version": 2,
+   "servers": [
+    {
+     "host": "news.example.com",
+     "port": 563,
+     "username": "",
+     "password": "",
+     "ssl": true,
+     "max_connections": 10,
+     "max_connection_idle_time_in_seconds": 0,
+     "max_connection_ttl_in_seconds": 0,
+     "insecure_ssl": false,
+     "enabled": true,
+     "role": "upload",
+     "inflight": 0
+    }
+   ],
+   "connection_pool": {
+    "min_connections": 0,
+    "health_check_interval": ""
+   },
+   "posting": {
+    "wait_for_par2": false,
+    "max_retries": 3,
+    "retry_delay": "5s",
+    "article_size_in_bytes": 750000,
+    "groups": [
+     {
+      "name": "alt.binaries.test",
+      "enabled": true
+     }
+    ],
+    "throttle_rate": 0,
+    "message_id_format": "random",
+    "post_headers": {
+     "add_nxg_header": false,
+     "default_from": "",
+     "custom_headers": null
+    },
+    "obfuscation_policy": "full",
+    "par2_obfuscation_policy": "",
+    "group_policy": "each_file",
+    "upload_buffer_memory_limit": 0
+   },
+   "post_check": {
+    "enabled": true,
+    "delay": "",
+    "max_reposts": 0,
+    "deferred_check_delay": "30s",
+    "deferred_max_retries": 5,
+    "deferred_max_backoff": "5m",
+    "deferred_check_interval": "2m",
+    "deferred_batch_size": 10000,
+    "stat_batch_size": 100,
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
+   },
+   "par2": {
+    "enabled": true,
+    "redundancy": "5%",
+    "temp_dir": "",
+    "maintain_par2_files": false,
+    "skip_if_par2_exists": true,
+    "parpar_binary_path": "",
+    "parpar_extra_args": null,
+    "num_goroutines": 0,
+    "memory_limit": 4294967296,
+    "slice_size": 10485760,
+    "max_concurrent_jobs": 1,
+    "gf16_method": "auto"
+   },
+   "watcher": {
+    "name": "",
+    "enabled": false,
+    "watch_directory": "",
+    "size_threshold": 0,
+    "schedule": {
+     "start_time": "",
+     "end_time": ""
+    },
+    "ignore_patterns": null,
+    "min_file_size": 0,
+    "check_interval": "",
+    "delete_original_file": false,
+    "single_nzb_per_folder": false,
+    "follow_symlinks": false,
+    "min_file_age": "",
+    "min_file_age_to_delete": ""
+   },
+   "watchers": [
+    {
+     "name": "",
+     "enabled": false,
+     "watch_directory": "",
+     "size_threshold": 104857600,
+     "schedule": {
+      "start_time": "00:00",
+      "end_time": "23:59"
+     },
+     "ignore_patterns": [
+      "*.tmp",
+      "*.part",
+      "*.!ut"
+     ],
+     "min_file_size": 1048576,
+     "check_interval": "5m",
+     "delete_original_file": false,
+     "single_nzb_per_folder": false,
+     "follow_symlinks": false,
+     "min_file_age": "60s",
+     "min_file_age_to_delete": "0s"
+    }
+   ],
+   "nzb_compression": {
+    "enabled": false,
+    "type": "gzip",
+    "level": 0
+   },
+   "database": {
+    "database_type": "sqlite",
+    "database_path": "./postie.db"
+   },
+   "queue": {
+    "max_concurrent_uploads": 1,
+    "min_size_to_start": 0
+   },
+   "api": {
+    "enabled": false
+   },
+   "output_dir": "",
+   "maintain_original_extension": true,
+   "post_upload_script": {
+    "enabled": false,
+    "command": "",
+    "timeout": "30s",
+    "max_retries": 0,
+    "retry_delay": "30s",
+    "max_backoff": "1h",
+    "max_retry_duration": "24h",
+    "retry_check_interval": "1m"
+   },
+   "arr": {
+    "instances": null
+   },
+   "duplicate_lookup": {
+    "enabled": false,
+    "url": "",
+    "api_key": "",
+    "timeout": ""
+   }
+  }
+ },
+ "disabled_server": {
+  "yaml": "servers:\n  - host: h\n    port: 1\n    max_connections: 1\n    enabled: false\nposting:\n  groups:\n    - name: g\n",
+  "ok": false,
+  "error": "invalid configuration: at least one upload server is required"
+ },
+ "dup_lookup_bad_timeout": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\nduplicate_lookup:\n  enabled: true\n  url: http://h/x\n  timeout: 6m\n",
+  "ok": false,
+  "error": "invalid configuration: duplicate lookup timeout must be positive and at most 5m"
+ },
+ "dup_lookup_bad_url": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\nduplicate_lookup:\n  enabled: true\n  url: ftp://x/y\n",
+  "ok": false,
+  "error": "invalid configuration: duplicate lookup URL must be an HTTP or HTTPS endpoint without embedded credentials"
+ },
+ "dup_lookup_creds": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\nduplicate_lookup:\n  enabled: true\n  url: http://u:p@h/x\n",
+  "ok": false,
+  "error": "invalid configuration: duplicate lookup URL must be an HTTP or HTTPS endpoint without embedded credentials"
+ },
+ "dup_lookup_disabled_garbage": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\nduplicate_lookup:\n  enabled: false\n  url: ::::\n",
+  "ok": false,
+  "error": "error parsing config file: yaml: line 12: mapping values are not allowed in this context"
+ },
+ "dup_lookup_ok": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\nduplicate_lookup:\n  enabled: true\n  url: https://lookup.example.com/x\n",
+  "ok": true,
+  "config": {
+   "version": 2,
+   "servers": [
+    {
+     "host": "news.example.com",
+     "port": 563,
+     "username": "",
+     "password": "",
+     "ssl": true,
+     "max_connections": 10,
+     "max_connection_idle_time_in_seconds": 0,
+     "max_connection_ttl_in_seconds": 0,
+     "insecure_ssl": false,
+     "enabled": true,
+     "role": "upload",
+     "inflight": 0
+    }
+   ],
+   "connection_pool": {
+    "min_connections": 0,
+    "health_check_interval": ""
+   },
+   "posting": {
+    "wait_for_par2": false,
+    "max_retries": 3,
+    "retry_delay": "5s",
+    "article_size_in_bytes": 750000,
+    "groups": [
+     {
+      "name": "alt.binaries.test",
+      "enabled": true
+     }
+    ],
+    "throttle_rate": 0,
+    "message_id_format": "random",
+    "post_headers": {
+     "add_nxg_header": false,
+     "default_from": "",
+     "custom_headers": null
+    },
+    "obfuscation_policy": "full",
+    "par2_obfuscation_policy": "",
+    "group_policy": "each_file",
+    "upload_buffer_memory_limit": 0
+   },
+   "post_check": {
+    "enabled": true,
+    "delay": "",
+    "max_reposts": 0,
+    "deferred_check_delay": "30s",
+    "deferred_max_retries": 5,
+    "deferred_max_backoff": "5m",
+    "deferred_check_interval": "2m",
+    "deferred_batch_size": 10000,
+    "stat_batch_size": 100,
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
+   },
+   "par2": {
+    "enabled": true,
+    "redundancy": "5%",
+    "temp_dir": "",
+    "maintain_par2_files": false,
+    "skip_if_par2_exists": true,
+    "parpar_binary_path": "",
+    "parpar_extra_args": null,
+    "num_goroutines": 0,
+    "memory_limit": 4294967296,
+    "slice_size": 10485760,
+    "max_concurrent_jobs": 1,
+    "gf16_method": "auto"
+   },
+   "watcher": {
+    "name": "",
+    "enabled": false,
+    "watch_directory": "",
+    "size_threshold": 0,
+    "schedule": {
+     "start_time": "",
+     "end_time": ""
+    },
+    "ignore_patterns": null,
+    "min_file_size": 0,
+    "check_interval": "",
+    "delete_original_file": false,
+    "single_nzb_per_folder": false,
+    "follow_symlinks": false,
+    "min_file_age": "",
+    "min_file_age_to_delete": ""
+   },
+   "watchers": [
+    {
+     "name": "",
+     "enabled": false,
+     "watch_directory": "",
+     "size_threshold": 104857600,
+     "schedule": {
+      "start_time": "00:00",
+      "end_time": "23:59"
+     },
+     "ignore_patterns": [
+      "*.tmp",
+      "*.part",
+      "*.!ut"
+     ],
+     "min_file_size": 1048576,
+     "check_interval": "5m",
+     "delete_original_file": false,
+     "single_nzb_per_folder": false,
+     "follow_symlinks": false,
+     "min_file_age": "60s",
+     "min_file_age_to_delete": "0s"
+    }
+   ],
+   "nzb_compression": {
+    "enabled": false,
+    "type": "none",
+    "level": 0
+   },
+   "database": {
+    "database_type": "sqlite",
+    "database_path": "./postie.db"
+   },
+   "queue": {
+    "max_concurrent_uploads": 1,
+    "min_size_to_start": 0
+   },
+   "api": {
+    "enabled": false
+   },
+   "output_dir": "",
+   "maintain_original_extension": true,
+   "post_upload_script": {
+    "enabled": false,
+    "command": "",
+    "timeout": "30s",
+    "max_retries": 0,
+    "retry_delay": "30s",
+    "max_backoff": "1h",
+    "max_retry_duration": "24h",
+    "retry_check_interval": "1m"
+   },
+   "arr": {
+    "instances": null
+   },
+   "duplicate_lookup": {
+    "enabled": true,
+    "url": "https://lookup.example.com/x",
+    "api_key": "",
+    "timeout": ""
+   }
+  }
+ },
+ "dup_lookup_zero_timeout": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\nduplicate_lookup:\n  enabled: true\n  url: http://h/x\n  timeout: 0s\n",
+  "ok": false,
+  "error": "invalid configuration: duplicate lookup timeout must be positive and at most 5m"
+ },
+ "dup_server": {
+  "yaml": "servers:\n  - host: h\n    port: 1\n    max_connections: 1\n    username: u\n  - host: h\n    port: 2\n    max_connections: 1\n    username: u\nposting:\n  groups:\n    - name: g\n",
+  "ok": false,
+  "error": "invalid configuration: servers 1 and 2 have the same host (\"h\") and username (\"u\"); each provider account must be unique"
+ },
+ "durations": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\nposting:\n  retry_delay: 1h30m\n  groups:\n    - name: g\npost_check:\n  delay: 90s\n  deferred_check_delay: 500ms\n  deferred_max_backoff: 1.5h\npost_upload_script:\n  timeout: 2m\n",
+  "ok": false,
+  "error": "error parsing config file: yaml: unmarshal errors:\n  line 10: mapping key \"posting\" already defined at line 6"
+ },
+ "empty": {
+  "yaml": "",
+  "ok": false,
+  "error": "invalid configuration: at least one upload server is required"
+ },
+ "empty_duration": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\npost_check:\n  delay: \"\"\n",
+  "ok": true,
+  "config": {
+   "version": 2,
+   "servers": [
+    {
+     "host": "news.example.com",
+     "port": 563,
+     "username": "",
+     "password": "",
+     "ssl": true,
+     "max_connections": 10,
+     "max_connection_idle_time_in_seconds": 0,
+     "max_connection_ttl_in_seconds": 0,
+     "insecure_ssl": false,
+     "enabled": true,
+     "role": "upload",
+     "inflight": 0
+    }
+   ],
+   "connection_pool": {
+    "min_connections": 0,
+    "health_check_interval": ""
+   },
+   "posting": {
+    "wait_for_par2": false,
+    "max_retries": 3,
+    "retry_delay": "5s",
+    "article_size_in_bytes": 750000,
+    "groups": [
+     {
+      "name": "alt.binaries.test",
+      "enabled": true
+     }
+    ],
+    "throttle_rate": 0,
+    "message_id_format": "random",
+    "post_headers": {
+     "add_nxg_header": false,
+     "default_from": "",
+     "custom_headers": null
+    },
+    "obfuscation_policy": "full",
+    "par2_obfuscation_policy": "",
+    "group_policy": "each_file",
+    "upload_buffer_memory_limit": 0
+   },
+   "post_check": {
+    "enabled": true,
+    "delay": "",
+    "max_reposts": 0,
+    "deferred_check_delay": "30s",
+    "deferred_max_retries": 5,
+    "deferred_max_backoff": "5m",
+    "deferred_check_interval": "2m",
+    "deferred_batch_size": 10000,
+    "stat_batch_size": 100,
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
+   },
+   "par2": {
+    "enabled": true,
+    "redundancy": "5%",
+    "temp_dir": "",
+    "maintain_par2_files": false,
+    "skip_if_par2_exists": true,
+    "parpar_binary_path": "",
+    "parpar_extra_args": null,
+    "num_goroutines": 0,
+    "memory_limit": 4294967296,
+    "slice_size": 10485760,
+    "max_concurrent_jobs": 1,
+    "gf16_method": "auto"
+   },
+   "watcher": {
+    "name": "",
+    "enabled": false,
+    "watch_directory": "",
+    "size_threshold": 0,
+    "schedule": {
+     "start_time": "",
+     "end_time": ""
+    },
+    "ignore_patterns": null,
+    "min_file_size": 0,
+    "check_interval": "",
+    "delete_original_file": false,
+    "single_nzb_per_folder": false,
+    "follow_symlinks": false,
+    "min_file_age": "",
+    "min_file_age_to_delete": ""
+   },
+   "watchers": [
+    {
+     "name": "",
+     "enabled": false,
+     "watch_directory": "",
+     "size_threshold": 104857600,
+     "schedule": {
+      "start_time": "00:00",
+      "end_time": "23:59"
+     },
+     "ignore_patterns": [
+      "*.tmp",
+      "*.part",
+      "*.!ut"
+     ],
+     "min_file_size": 1048576,
+     "check_interval": "5m",
+     "delete_original_file": false,
+     "single_nzb_per_folder": false,
+     "follow_symlinks": false,
+     "min_file_age": "60s",
+     "min_file_age_to_delete": "0s"
+    }
+   ],
+   "nzb_compression": {
+    "enabled": false,
+    "type": "none",
+    "level": 0
+   },
+   "database": {
+    "database_type": "sqlite",
+    "database_path": "./postie.db"
+   },
+   "queue": {
+    "max_concurrent_uploads": 1,
+    "min_size_to_start": 0
+   },
+   "api": {
+    "enabled": false
+   },
+   "output_dir": "",
+   "maintain_original_extension": true,
+   "post_upload_script": {
+    "enabled": false,
+    "command": "",
+    "timeout": "30s",
+    "max_retries": 0,
+    "retry_delay": "30s",
+    "max_backoff": "1h",
+    "max_retry_duration": "24h",
+    "retry_check_interval": "1m"
+   },
+   "arr": {
+    "instances": null
+   },
+   "duplicate_lookup": {
+    "enabled": false,
+    "url": "",
+    "api_key": "",
+    "timeout": ""
+   }
+  }
+ },
+ "float_for_int": {
+  "yaml": "servers:\n  - host: h\n    port: 563.0\n    max_connections: 1\nposting:\n  groups:\n    - name: g\n",
+  "ok": true,
+  "config": {
+   "version": 2,
+   "servers": [
+    {
+     "host": "h",
+     "port": 563,
+     "username": "",
+     "password": "",
+     "ssl": false,
+     "max_connections": 1,
+     "max_connection_idle_time_in_seconds": 0,
+     "max_connection_ttl_in_seconds": 0,
+     "insecure_ssl": false,
+     "enabled": true,
+     "role": "upload",
+     "inflight": 0
+    }
+   ],
+   "connection_pool": {
+    "min_connections": 0,
+    "health_check_interval": ""
+   },
+   "posting": {
+    "wait_for_par2": false,
+    "max_retries": 3,
+    "retry_delay": "5s",
+    "article_size_in_bytes": 750000,
+    "groups": [
+     {
+      "name": "g",
+      "enabled": null
+     }
+    ],
+    "throttle_rate": 0,
+    "message_id_format": "random",
+    "post_headers": {
+     "add_nxg_header": false,
+     "default_from": "",
+     "custom_headers": null
+    },
+    "obfuscation_policy": "full",
+    "par2_obfuscation_policy": "",
+    "group_policy": "each_file",
+    "upload_buffer_memory_limit": 0
+   },
+   "post_check": {
+    "enabled": true,
+    "delay": "",
+    "max_reposts": 0,
+    "deferred_check_delay": "30s",
+    "deferred_max_retries": 5,
+    "deferred_max_backoff": "5m",
+    "deferred_check_interval": "2m",
+    "deferred_batch_size": 10000,
+    "stat_batch_size": 100,
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
+   },
+   "par2": {
+    "enabled": true,
+    "redundancy": "5%",
+    "temp_dir": "",
+    "maintain_par2_files": false,
+    "skip_if_par2_exists": true,
+    "parpar_binary_path": "",
+    "parpar_extra_args": null,
+    "num_goroutines": 0,
+    "memory_limit": 4294967296,
+    "slice_size": 10485760,
+    "max_concurrent_jobs": 1,
+    "gf16_method": "auto"
+   },
+   "watcher": {
+    "name": "",
+    "enabled": false,
+    "watch_directory": "",
+    "size_threshold": 0,
+    "schedule": {
+     "start_time": "",
+     "end_time": ""
+    },
+    "ignore_patterns": null,
+    "min_file_size": 0,
+    "check_interval": "",
+    "delete_original_file": false,
+    "single_nzb_per_folder": false,
+    "follow_symlinks": false,
+    "min_file_age": "",
+    "min_file_age_to_delete": ""
+   },
+   "watchers": [
+    {
+     "name": "",
+     "enabled": false,
+     "watch_directory": "",
+     "size_threshold": 104857600,
+     "schedule": {
+      "start_time": "00:00",
+      "end_time": "23:59"
+     },
+     "ignore_patterns": [
+      "*.tmp",
+      "*.part",
+      "*.!ut"
+     ],
+     "min_file_size": 1048576,
+     "check_interval": "5m",
+     "delete_original_file": false,
+     "single_nzb_per_folder": false,
+     "follow_symlinks": false,
+     "min_file_age": "60s",
+     "min_file_age_to_delete": "0s"
+    }
+   ],
+   "nzb_compression": {
+    "enabled": false,
+    "type": "none",
+    "level": 0
+   },
+   "database": {
+    "database_type": "sqlite",
+    "database_path": "./postie.db"
+   },
+   "queue": {
+    "max_concurrent_uploads": 1,
+    "min_size_to_start": 0
+   },
+   "api": {
+    "enabled": false
+   },
+   "output_dir": "",
+   "maintain_original_extension": true,
+   "post_upload_script": {
+    "enabled": false,
+    "command": "",
+    "timeout": "30s",
+    "max_retries": 0,
+    "retry_delay": "30s",
+    "max_backoff": "1h",
+    "max_retry_duration": "24h",
+    "retry_check_interval": "1m"
+   },
+   "arr": {
+    "instances": null
+   },
+   "duplicate_lookup": {
+    "enabled": false,
+    "url": "",
+    "api_key": "",
+    "timeout": ""
+   }
+  }
+ },
+ "from_bad": {
+  "yaml": "servers:\n  - host: h\n    port: 1\n    max_connections: 1\nposting:\n  post_headers:\n    default_from: not-an-address\n  groups:\n    - name: g\n",
+  "ok": false,
+  "error": "invalid configuration: posting post_headers default_from is not a valid email address: mail: missing '@' or angle-addr"
+ },
+ "from_ok": {
+  "yaml": "servers:\n  - host: h\n    port: 1\n    max_connections: 1\nposting:\n  post_headers:\n    default_from: Poster \u003cposter@example.com\u003e\n  groups:\n    - name: g\n",
+  "ok": true,
+  "config": {
+   "version": 2,
+   "servers": [
+    {
+     "host": "h",
+     "port": 1,
+     "username": "",
+     "password": "",
+     "ssl": false,
+     "max_connections": 1,
+     "max_connection_idle_time_in_seconds": 0,
+     "max_connection_ttl_in_seconds": 0,
+     "insecure_ssl": false,
+     "enabled": true,
+     "role": "upload",
+     "inflight": 0
+    }
+   ],
+   "connection_pool": {
+    "min_connections": 0,
+    "health_check_interval": ""
+   },
+   "posting": {
+    "wait_for_par2": false,
+    "max_retries": 3,
+    "retry_delay": "5s",
+    "article_size_in_bytes": 750000,
+    "groups": [
+     {
+      "name": "g",
+      "enabled": null
+     }
+    ],
+    "throttle_rate": 0,
+    "message_id_format": "random",
+    "post_headers": {
+     "add_nxg_header": false,
+     "default_from": "Poster \u003cposter@example.com\u003e",
+     "custom_headers": null
+    },
+    "obfuscation_policy": "full",
+    "par2_obfuscation_policy": "",
+    "group_policy": "each_file",
+    "upload_buffer_memory_limit": 0
+   },
+   "post_check": {
+    "enabled": true,
+    "delay": "",
+    "max_reposts": 0,
+    "deferred_check_delay": "30s",
+    "deferred_max_retries": 5,
+    "deferred_max_backoff": "5m",
+    "deferred_check_interval": "2m",
+    "deferred_batch_size": 10000,
+    "stat_batch_size": 100,
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
+   },
+   "par2": {
+    "enabled": true,
+    "redundancy": "5%",
+    "temp_dir": "",
+    "maintain_par2_files": false,
+    "skip_if_par2_exists": true,
+    "parpar_binary_path": "",
+    "parpar_extra_args": null,
+    "num_goroutines": 0,
+    "memory_limit": 4294967296,
+    "slice_size": 10485760,
+    "max_concurrent_jobs": 1,
+    "gf16_method": "auto"
+   },
+   "watcher": {
+    "name": "",
+    "enabled": false,
+    "watch_directory": "",
+    "size_threshold": 0,
+    "schedule": {
+     "start_time": "",
+     "end_time": ""
+    },
+    "ignore_patterns": null,
+    "min_file_size": 0,
+    "check_interval": "",
+    "delete_original_file": false,
+    "single_nzb_per_folder": false,
+    "follow_symlinks": false,
+    "min_file_age": "",
+    "min_file_age_to_delete": ""
+   },
+   "watchers": [
+    {
+     "name": "",
+     "enabled": false,
+     "watch_directory": "",
+     "size_threshold": 104857600,
+     "schedule": {
+      "start_time": "00:00",
+      "end_time": "23:59"
+     },
+     "ignore_patterns": [
+      "*.tmp",
+      "*.part",
+      "*.!ut"
+     ],
+     "min_file_size": 1048576,
+     "check_interval": "5m",
+     "delete_original_file": false,
+     "single_nzb_per_folder": false,
+     "follow_symlinks": false,
+     "min_file_age": "60s",
+     "min_file_age_to_delete": "0s"
+    }
+   ],
+   "nzb_compression": {
+    "enabled": false,
+    "type": "none",
+    "level": 0
+   },
+   "database": {
+    "database_type": "sqlite",
+    "database_path": "./postie.db"
+   },
+   "queue": {
+    "max_concurrent_uploads": 1,
+    "min_size_to_start": 0
+   },
+   "api": {
+    "enabled": false
+   },
+   "output_dir": "",
+   "maintain_original_extension": true,
+   "post_upload_script": {
+    "enabled": false,
+    "command": "",
+    "timeout": "30s",
+    "max_retries": 0,
+    "retry_delay": "30s",
+    "max_backoff": "1h",
+    "max_retry_duration": "24h",
+    "retry_check_interval": "1m"
+   },
+   "arr": {
+    "instances": null
+   },
+   "duplicate_lookup": {
+    "enabled": false,
+    "url": "",
+    "api_key": "",
+    "timeout": ""
+   }
+  }
+ },
+ "future_version": {
+  "yaml": "version: 99\nservers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\n",
+  "ok": false,
+  "error": "config version 99 is newer than supported version 2; please upgrade the application"
+ },
+ "gf16_bad": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\npar2:\n  gf16_method: bogus\n",
+  "ok": false,
+  "error": "invalid configuration: invalid par2 gf16_method: \"bogus\" (accepted: auto, lookup, lookup3, shuffle-avx2, shuffle-avx512, shuffle-vbmi, xor-jit-avx2, affine-avx2, affine-avx512, shuffle-neon, clmul-neon)"
+ },
+ "gf16_ok": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\npar2:\n  gf16_method: affine-avx2\n",
+  "ok": true,
+  "config": {
+   "version": 2,
+   "servers": [
+    {
+     "host": "news.example.com",
+     "port": 563,
+     "username": "",
+     "password": "",
+     "ssl": true,
+     "max_connections": 10,
+     "max_connection_idle_time_in_seconds": 0,
+     "max_connection_ttl_in_seconds": 0,
+     "insecure_ssl": false,
+     "enabled": true,
+     "role": "upload",
+     "inflight": 0
+    }
+   ],
+   "connection_pool": {
+    "min_connections": 0,
+    "health_check_interval": ""
+   },
+   "posting": {
+    "wait_for_par2": false,
+    "max_retries": 3,
+    "retry_delay": "5s",
+    "article_size_in_bytes": 750000,
+    "groups": [
+     {
+      "name": "alt.binaries.test",
+      "enabled": true
+     }
+    ],
+    "throttle_rate": 0,
+    "message_id_format": "random",
+    "post_headers": {
+     "add_nxg_header": false,
+     "default_from": "",
+     "custom_headers": null
+    },
+    "obfuscation_policy": "full",
+    "par2_obfuscation_policy": "",
+    "group_policy": "each_file",
+    "upload_buffer_memory_limit": 0
+   },
+   "post_check": {
+    "enabled": true,
+    "delay": "",
+    "max_reposts": 0,
+    "deferred_check_delay": "30s",
+    "deferred_max_retries": 5,
+    "deferred_max_backoff": "5m",
+    "deferred_check_interval": "2m",
+    "deferred_batch_size": 10000,
+    "stat_batch_size": 100,
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
+   },
+   "par2": {
+    "enabled": true,
+    "redundancy": "5%",
+    "temp_dir": "",
+    "maintain_par2_files": false,
+    "skip_if_par2_exists": true,
+    "parpar_binary_path": "",
+    "parpar_extra_args": null,
+    "num_goroutines": 0,
+    "memory_limit": 4294967296,
+    "slice_size": 10485760,
+    "max_concurrent_jobs": 1,
+    "gf16_method": "affine-avx2"
+   },
+   "watcher": {
+    "name": "",
+    "enabled": false,
+    "watch_directory": "",
+    "size_threshold": 0,
+    "schedule": {
+     "start_time": "",
+     "end_time": ""
+    },
+    "ignore_patterns": null,
+    "min_file_size": 0,
+    "check_interval": "",
+    "delete_original_file": false,
+    "single_nzb_per_folder": false,
+    "follow_symlinks": false,
+    "min_file_age": "",
+    "min_file_age_to_delete": ""
+   },
+   "watchers": [
+    {
+     "name": "",
+     "enabled": false,
+     "watch_directory": "",
+     "size_threshold": 104857600,
+     "schedule": {
+      "start_time": "00:00",
+      "end_time": "23:59"
+     },
+     "ignore_patterns": [
+      "*.tmp",
+      "*.part",
+      "*.!ut"
+     ],
+     "min_file_size": 1048576,
+     "check_interval": "5m",
+     "delete_original_file": false,
+     "single_nzb_per_folder": false,
+     "follow_symlinks": false,
+     "min_file_age": "60s",
+     "min_file_age_to_delete": "0s"
+    }
+   ],
+   "nzb_compression": {
+    "enabled": false,
+    "type": "none",
+    "level": 0
+   },
+   "database": {
+    "database_type": "sqlite",
+    "database_path": "./postie.db"
+   },
+   "queue": {
+    "max_concurrent_uploads": 1,
+    "min_size_to_start": 0
+   },
+   "api": {
+    "enabled": false
+   },
+   "output_dir": "",
+   "maintain_original_extension": true,
+   "post_upload_script": {
+    "enabled": false,
+    "command": "",
+    "timeout": "30s",
+    "max_retries": 0,
+    "retry_delay": "30s",
+    "max_backoff": "1h",
+    "max_retry_duration": "24h",
+    "retry_check_interval": "1m"
+   },
+   "arr": {
+    "instances": null
+   },
+   "duplicate_lookup": {
+    "enabled": false,
+    "url": "",
+    "api_key": "",
+    "timeout": ""
+   }
+  }
+ },
+ "minimal": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\n",
+  "ok": true,
+  "config": {
+   "version": 2,
+   "servers": [
+    {
+     "host": "news.example.com",
+     "port": 563,
+     "username": "",
+     "password": "",
+     "ssl": true,
+     "max_connections": 10,
+     "max_connection_idle_time_in_seconds": 0,
+     "max_connection_ttl_in_seconds": 0,
+     "insecure_ssl": false,
+     "enabled": true,
+     "role": "upload",
+     "inflight": 0
+    }
+   ],
+   "connection_pool": {
+    "min_connections": 0,
+    "health_check_interval": ""
+   },
+   "posting": {
+    "wait_for_par2": false,
+    "max_retries": 3,
+    "retry_delay": "5s",
+    "article_size_in_bytes": 750000,
+    "groups": [
+     {
+      "name": "alt.binaries.test",
+      "enabled": true
+     }
+    ],
+    "throttle_rate": 0,
+    "message_id_format": "random",
+    "post_headers": {
+     "add_nxg_header": false,
+     "default_from": "",
+     "custom_headers": null
+    },
+    "obfuscation_policy": "full",
+    "par2_obfuscation_policy": "",
+    "group_policy": "each_file",
+    "upload_buffer_memory_limit": 0
+   },
+   "post_check": {
+    "enabled": true,
+    "delay": "",
+    "max_reposts": 0,
+    "deferred_check_delay": "30s",
+    "deferred_max_retries": 5,
+    "deferred_max_backoff": "5m",
+    "deferred_check_interval": "2m",
+    "deferred_batch_size": 10000,
+    "stat_batch_size": 100,
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
+   },
+   "par2": {
+    "enabled": true,
+    "redundancy": "5%",
+    "temp_dir": "",
+    "maintain_par2_files": false,
+    "skip_if_par2_exists": true,
+    "parpar_binary_path": "",
+    "parpar_extra_args": null,
+    "num_goroutines": 0,
+    "memory_limit": 4294967296,
+    "slice_size": 10485760,
+    "max_concurrent_jobs": 1,
+    "gf16_method": "auto"
+   },
+   "watcher": {
+    "name": "",
+    "enabled": false,
+    "watch_directory": "",
+    "size_threshold": 0,
+    "schedule": {
+     "start_time": "",
+     "end_time": ""
+    },
+    "ignore_patterns": null,
+    "min_file_size": 0,
+    "check_interval": "",
+    "delete_original_file": false,
+    "single_nzb_per_folder": false,
+    "follow_symlinks": false,
+    "min_file_age": "",
+    "min_file_age_to_delete": ""
+   },
+   "watchers": [
+    {
+     "name": "",
+     "enabled": false,
+     "watch_directory": "",
+     "size_threshold": 104857600,
+     "schedule": {
+      "start_time": "00:00",
+      "end_time": "23:59"
+     },
+     "ignore_patterns": [
+      "*.tmp",
+      "*.part",
+      "*.!ut"
+     ],
+     "min_file_size": 1048576,
+     "check_interval": "5m",
+     "delete_original_file": false,
+     "single_nzb_per_folder": false,
+     "follow_symlinks": false,
+     "min_file_age": "60s",
+     "min_file_age_to_delete": "0s"
+    }
+   ],
+   "nzb_compression": {
+    "enabled": false,
+    "type": "none",
+    "level": 0
+   },
+   "database": {
+    "database_type": "sqlite",
+    "database_path": "./postie.db"
+   },
+   "queue": {
+    "max_concurrent_uploads": 1,
+    "min_size_to_start": 0
+   },
+   "api": {
+    "enabled": false
+   },
+   "output_dir": "",
+   "maintain_original_extension": true,
+   "post_upload_script": {
+    "enabled": false,
+    "command": "",
+    "timeout": "30s",
+    "max_retries": 0,
+    "retry_delay": "30s",
+    "max_backoff": "1h",
+    "max_retry_duration": "24h",
+    "retry_check_interval": "1m"
+   },
+   "arr": {
+    "instances": null
+   },
+   "duplicate_lookup": {
+    "enabled": false,
+    "url": "",
+    "api_key": "",
+    "timeout": ""
+   }
+  }
+ },
+ "neg_checks": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\npost_check:\n  max_concurrent_checks: -1\n",
+  "ok": false,
+  "error": "invalid configuration: post_check max_concurrent_checks must be \u003e= 0 (0 = auto)"
+ },
+ "neg_par2_jobs": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\npar2:\n  max_concurrent_jobs: -1\n",
+  "ok": true,
+  "config": {
+   "version": 2,
+   "servers": [
+    {
+     "host": "news.example.com",
+     "port": 563,
+     "username": "",
+     "password": "",
+     "ssl": true,
+     "max_connections": 10,
+     "max_connection_idle_time_in_seconds": 0,
+     "max_connection_ttl_in_seconds": 0,
+     "insecure_ssl": false,
+     "enabled": true,
+     "role": "upload",
+     "inflight": 0
+    }
+   ],
+   "connection_pool": {
+    "min_connections": 0,
+    "health_check_interval": ""
+   },
+   "posting": {
+    "wait_for_par2": false,
+    "max_retries": 3,
+    "retry_delay": "5s",
+    "article_size_in_bytes": 750000,
+    "groups": [
+     {
+      "name": "alt.binaries.test",
+      "enabled": true
+     }
+    ],
+    "throttle_rate": 0,
+    "message_id_format": "random",
+    "post_headers": {
+     "add_nxg_header": false,
+     "default_from": "",
+     "custom_headers": null
+    },
+    "obfuscation_policy": "full",
+    "par2_obfuscation_policy": "",
+    "group_policy": "each_file",
+    "upload_buffer_memory_limit": 0
+   },
+   "post_check": {
+    "enabled": true,
+    "delay": "",
+    "max_reposts": 0,
+    "deferred_check_delay": "30s",
+    "deferred_max_retries": 5,
+    "deferred_max_backoff": "5m",
+    "deferred_check_interval": "2m",
+    "deferred_batch_size": 10000,
+    "stat_batch_size": 100,
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
+   },
+   "par2": {
+    "enabled": true,
+    "redundancy": "5%",
+    "temp_dir": "",
+    "maintain_par2_files": false,
+    "skip_if_par2_exists": true,
+    "parpar_binary_path": "",
+    "parpar_extra_args": null,
+    "num_goroutines": 0,
+    "memory_limit": 4294967296,
+    "slice_size": 10485760,
+    "max_concurrent_jobs": 1,
+    "gf16_method": "auto"
+   },
+   "watcher": {
+    "name": "",
+    "enabled": false,
+    "watch_directory": "",
+    "size_threshold": 0,
+    "schedule": {
+     "start_time": "",
+     "end_time": ""
+    },
+    "ignore_patterns": null,
+    "min_file_size": 0,
+    "check_interval": "",
+    "delete_original_file": false,
+    "single_nzb_per_folder": false,
+    "follow_symlinks": false,
+    "min_file_age": "",
+    "min_file_age_to_delete": ""
+   },
+   "watchers": [
+    {
+     "name": "",
+     "enabled": false,
+     "watch_directory": "",
+     "size_threshold": 104857600,
+     "schedule": {
+      "start_time": "00:00",
+      "end_time": "23:59"
+     },
+     "ignore_patterns": [
+      "*.tmp",
+      "*.part",
+      "*.!ut"
+     ],
+     "min_file_size": 1048576,
+     "check_interval": "5m",
+     "delete_original_file": false,
+     "single_nzb_per_folder": false,
+     "follow_symlinks": false,
+     "min_file_age": "60s",
+     "min_file_age_to_delete": "0s"
+    }
+   ],
+   "nzb_compression": {
+    "enabled": false,
+    "type": "none",
+    "level": 0
+   },
+   "database": {
+    "database_type": "sqlite",
+    "database_path": "./postie.db"
+   },
+   "queue": {
+    "max_concurrent_uploads": 1,
+    "min_size_to_start": 0
+   },
+   "api": {
+    "enabled": false
+   },
+   "output_dir": "",
+   "maintain_original_extension": true,
+   "post_upload_script": {
+    "enabled": false,
+    "command": "",
+    "timeout": "30s",
+    "max_retries": 0,
+    "retry_delay": "30s",
+    "max_backoff": "1h",
+    "max_retry_duration": "24h",
+    "retry_check_interval": "1m"
+   },
+   "arr": {
+    "instances": null
+   },
+   "duplicate_lookup": {
+    "enabled": false,
+    "url": "",
+    "api_key": "",
+    "timeout": ""
+   }
+  }
+ },
+ "neg_upload_buffer": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\nposting:\n  upload_buffer_memory_limit: -1\n  groups:\n    - name: g\n",
+  "ok": false,
+  "error": "error parsing config file: yaml: unmarshal errors:\n  line 10: mapping key \"posting\" already defined at line 6"
+ },
+ "no_groups": {
+  "yaml": "servers:\n  - host: h\n    port: 1\n    max_connections: 1\n",
+  "ok": false,
+  "error": "invalid configuration: posting groups are required"
+ },
+ "no_host": {
+  "yaml": "servers:\n  - port: 1\n    max_connections: 1\nposting:\n  groups:\n    - name: g\n",
+  "ok": false,
+  "error": "invalid configuration: server 0: host is required"
+ },
+ "no_servers": {
+  "yaml": "posting:\n  groups:\n    - name: g\n",
+  "ok": false,
+  "error": "invalid configuration: at least one upload server is required"
+ },
+ "null_sections": {
+  "yaml": "servers:\nposting:\npar2:\n",
+  "ok": false,
+  "error": "invalid configuration: at least one upload server is required"
+ },
+ "obfuscation": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\nposting:\n  obfuscation_policy: partial\n  par2_obfuscation_policy: none\n  message_id_format: nxg\n  group_policy: all\n  article_size_in_bytes: 100\n  throttle_rate: -5\n  groups:\n    - name: g\n",
+  "ok": false,
+  "error": "error parsing config file: yaml: unmarshal errors:\n  line 10: mapping key \"posting\" already defined at line 6"
+ },
+ "only_comment": {
+  "yaml": "# nothing\n",
+  "ok": false,
+  "error": "invalid configuration: at least one upload server is required"
+ },
+ "only_verify_server": {
+  "yaml": "servers:\n  - host: h\n    port: 1\n    max_connections: 1\n    role: verify\nposting:\n  groups:\n    - name: g\n",
+  "ok": false,
+  "error": "invalid configuration: at least one upload server is required"
+ },
+ "par2_defaults_override": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\npar2:\n  enabled: false\nposting:\n  wait_for_par2: false\n  groups:\n    - name: g\n",
+  "ok": false,
+  "error": "error parsing config file: yaml: unmarshal errors:\n  line 12: mapping key \"posting\" already defined at line 6"
+ },
+ "post_script_neg_retries": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\npost_upload_script:\n  max_retries: -1\n",
+  "ok": true,
+  "config": {
+   "version": 2,
+   "servers": [
+    {
+     "host": "news.example.com",
+     "port": 563,
+     "username": "",
+     "password": "",
+     "ssl": true,
+     "max_connections": 10,
+     "max_connection_idle_time_in_seconds": 0,
+     "max_connection_ttl_in_seconds": 0,
+     "insecure_ssl": false,
+     "enabled": true,
+     "role": "upload",
+     "inflight": 0
+    }
+   ],
+   "connection_pool": {
+    "min_connections": 0,
+    "health_check_interval": ""
+   },
+   "posting": {
+    "wait_for_par2": false,
+    "max_retries": 3,
+    "retry_delay": "5s",
+    "article_size_in_bytes": 750000,
+    "groups": [
+     {
+      "name": "alt.binaries.test",
+      "enabled": true
+     }
+    ],
+    "throttle_rate": 0,
+    "message_id_format": "random",
+    "post_headers": {
+     "add_nxg_header": false,
+     "default_from": "",
+     "custom_headers": null
+    },
+    "obfuscation_policy": "full",
+    "par2_obfuscation_policy": "",
+    "group_policy": "each_file",
+    "upload_buffer_memory_limit": 0
+   },
+   "post_check": {
+    "enabled": true,
+    "delay": "",
+    "max_reposts": 0,
+    "deferred_check_delay": "30s",
+    "deferred_max_retries": 5,
+    "deferred_max_backoff": "5m",
+    "deferred_check_interval": "2m",
+    "deferred_batch_size": 10000,
+    "stat_batch_size": 100,
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
+   },
+   "par2": {
+    "enabled": true,
+    "redundancy": "5%",
+    "temp_dir": "",
+    "maintain_par2_files": false,
+    "skip_if_par2_exists": true,
+    "parpar_binary_path": "",
+    "parpar_extra_args": null,
+    "num_goroutines": 0,
+    "memory_limit": 4294967296,
+    "slice_size": 10485760,
+    "max_concurrent_jobs": 1,
+    "gf16_method": "auto"
+   },
+   "watcher": {
+    "name": "",
+    "enabled": false,
+    "watch_directory": "",
+    "size_threshold": 0,
+    "schedule": {
+     "start_time": "",
+     "end_time": ""
+    },
+    "ignore_patterns": null,
+    "min_file_size": 0,
+    "check_interval": "",
+    "delete_original_file": false,
+    "single_nzb_per_folder": false,
+    "follow_symlinks": false,
+    "min_file_age": "",
+    "min_file_age_to_delete": ""
+   },
+   "watchers": [
+    {
+     "name": "",
+     "enabled": false,
+     "watch_directory": "",
+     "size_threshold": 104857600,
+     "schedule": {
+      "start_time": "00:00",
+      "end_time": "23:59"
+     },
+     "ignore_patterns": [
+      "*.tmp",
+      "*.part",
+      "*.!ut"
+     ],
+     "min_file_size": 1048576,
+     "check_interval": "5m",
+     "delete_original_file": false,
+     "single_nzb_per_folder": false,
+     "follow_symlinks": false,
+     "min_file_age": "60s",
+     "min_file_age_to_delete": "0s"
+    }
+   ],
+   "nzb_compression": {
+    "enabled": false,
+    "type": "none",
+    "level": 0
+   },
+   "database": {
+    "database_type": "sqlite",
+    "database_path": "./postie.db"
+   },
+   "queue": {
+    "max_concurrent_uploads": 1,
+    "min_size_to_start": 0
+   },
+   "api": {
+    "enabled": false
+   },
+   "output_dir": "",
+   "maintain_original_extension": true,
+   "post_upload_script": {
+    "enabled": false,
+    "command": "",
+    "timeout": "30s",
+    "max_retries": 3,
+    "retry_delay": "30s",
+    "max_backoff": "1h",
+    "max_retry_duration": "24h",
+    "retry_check_interval": "1m"
+   },
+   "arr": {
+    "instances": null
+   },
+   "duplicate_lookup": {
+    "enabled": false,
+    "url": "",
+    "api_key": "",
+    "timeout": ""
+   }
+  }
+ },
+ "postgres_db": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\ndatabase:\n  database_type: postgres\n  database_path: x\n",
+  "ok": true,
+  "config": {
+   "version": 2,
+   "servers": [
+    {
+     "host": "news.example.com",
+     "port": 563,
+     "username": "",
+     "password": "",
+     "ssl": true,
+     "max_connections": 10,
+     "max_connection_idle_time_in_seconds": 0,
+     "max_connection_ttl_in_seconds": 0,
+     "insecure_ssl": false,
+     "enabled": true,
+     "role": "upload",
+     "inflight": 0
+    }
+   ],
+   "connection_pool": {
+    "min_connections": 0,
+    "health_check_interval": ""
+   },
+   "posting": {
+    "wait_for_par2": false,
+    "max_retries": 3,
+    "retry_delay": "5s",
+    "article_size_in_bytes": 750000,
+    "groups": [
+     {
+      "name": "alt.binaries.test",
+      "enabled": true
+     }
+    ],
+    "throttle_rate": 0,
+    "message_id_format": "random",
+    "post_headers": {
+     "add_nxg_header": false,
+     "default_from": "",
+     "custom_headers": null
+    },
+    "obfuscation_policy": "full",
+    "par2_obfuscation_policy": "",
+    "group_policy": "each_file",
+    "upload_buffer_memory_limit": 0
+   },
+   "post_check": {
+    "enabled": true,
+    "delay": "",
+    "max_reposts": 0,
+    "deferred_check_delay": "30s",
+    "deferred_max_retries": 5,
+    "deferred_max_backoff": "5m",
+    "deferred_check_interval": "2m",
+    "deferred_batch_size": 10000,
+    "stat_batch_size": 100,
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
+   },
+   "par2": {
+    "enabled": true,
+    "redundancy": "5%",
+    "temp_dir": "",
+    "maintain_par2_files": false,
+    "skip_if_par2_exists": true,
+    "parpar_binary_path": "",
+    "parpar_extra_args": null,
+    "num_goroutines": 0,
+    "memory_limit": 4294967296,
+    "slice_size": 10485760,
+    "max_concurrent_jobs": 1,
+    "gf16_method": "auto"
+   },
+   "watcher": {
+    "name": "",
+    "enabled": false,
+    "watch_directory": "",
+    "size_threshold": 0,
+    "schedule": {
+     "start_time": "",
+     "end_time": ""
+    },
+    "ignore_patterns": null,
+    "min_file_size": 0,
+    "check_interval": "",
+    "delete_original_file": false,
+    "single_nzb_per_folder": false,
+    "follow_symlinks": false,
+    "min_file_age": "",
+    "min_file_age_to_delete": ""
+   },
+   "watchers": [
+    {
+     "name": "",
+     "enabled": false,
+     "watch_directory": "",
+     "size_threshold": 104857600,
+     "schedule": {
+      "start_time": "00:00",
+      "end_time": "23:59"
+     },
+     "ignore_patterns": [
+      "*.tmp",
+      "*.part",
+      "*.!ut"
+     ],
+     "min_file_size": 1048576,
+     "check_interval": "5m",
+     "delete_original_file": false,
+     "single_nzb_per_folder": false,
+     "follow_symlinks": false,
+     "min_file_age": "60s",
+     "min_file_age_to_delete": "0s"
+    }
+   ],
+   "nzb_compression": {
+    "enabled": false,
+    "type": "none",
+    "level": 0
+   },
+   "database": {
+    "database_type": "postgres",
+    "database_path": "x"
+   },
+   "queue": {
+    "max_concurrent_uploads": 1,
+    "min_size_to_start": 0
+   },
+   "api": {
+    "enabled": false
+   },
+   "output_dir": "",
+   "maintain_original_extension": true,
+   "post_upload_script": {
+    "enabled": false,
+    "command": "",
+    "timeout": "30s",
+    "max_retries": 0,
+    "retry_delay": "30s",
+    "max_backoff": "1h",
+    "max_retry_duration": "24h",
+    "retry_check_interval": "1m"
+   },
+   "arr": {
+    "instances": null
+   },
+   "duplicate_lookup": {
+    "enabled": false,
+    "url": "",
+    "api_key": "",
+    "timeout": ""
+   }
+  }
+ },
+ "proxy_url": {
+  "yaml": "servers:\n  - host: h\n    port: 1\n    max_connections: 1\n    proxy_url: socks5://u:p@px:1080\n    name: Mine\nposting:\n  groups:\n    - name: g\n",
+  "ok": true,
+  "config": {
+   "version": 2,
+   "servers": [
+    {
+     "name": "Mine",
+     "host": "h",
+     "port": 1,
+     "username": "",
+     "password": "",
+     "ssl": false,
+     "max_connections": 1,
+     "max_connection_idle_time_in_seconds": 0,
+     "max_connection_ttl_in_seconds": 0,
+     "insecure_ssl": false,
+     "enabled": true,
+     "role": "upload",
+     "inflight": 0,
+     "proxy_url": "socks5://u:p@px:1080"
+    }
+   ],
+   "connection_pool": {
+    "min_connections": 0,
+    "health_check_interval": ""
+   },
+   "posting": {
+    "wait_for_par2": false,
+    "max_retries": 3,
+    "retry_delay": "5s",
+    "article_size_in_bytes": 750000,
+    "groups": [
+     {
+      "name": "g",
+      "enabled": null
+     }
+    ],
+    "throttle_rate": 0,
+    "message_id_format": "random",
+    "post_headers": {
+     "add_nxg_header": false,
+     "default_from": "",
+     "custom_headers": null
+    },
+    "obfuscation_policy": "full",
+    "par2_obfuscation_policy": "",
+    "group_policy": "each_file",
+    "upload_buffer_memory_limit": 0
+   },
+   "post_check": {
+    "enabled": true,
+    "delay": "",
+    "max_reposts": 0,
+    "deferred_check_delay": "30s",
+    "deferred_max_retries": 5,
+    "deferred_max_backoff": "5m",
+    "deferred_check_interval": "2m",
+    "deferred_batch_size": 10000,
+    "stat_batch_size": 100,
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
+   },
+   "par2": {
+    "enabled": true,
+    "redundancy": "5%",
+    "temp_dir": "",
+    "maintain_par2_files": false,
+    "skip_if_par2_exists": true,
+    "parpar_binary_path": "",
+    "parpar_extra_args": null,
+    "num_goroutines": 0,
+    "memory_limit": 4294967296,
+    "slice_size": 10485760,
+    "max_concurrent_jobs": 1,
+    "gf16_method": "auto"
+   },
+   "watcher": {
+    "name": "",
+    "enabled": false,
+    "watch_directory": "",
+    "size_threshold": 0,
+    "schedule": {
+     "start_time": "",
+     "end_time": ""
+    },
+    "ignore_patterns": null,
+    "min_file_size": 0,
+    "check_interval": "",
+    "delete_original_file": false,
+    "single_nzb_per_folder": false,
+    "follow_symlinks": false,
+    "min_file_age": "",
+    "min_file_age_to_delete": ""
+   },
+   "watchers": [
+    {
+     "name": "",
+     "enabled": false,
+     "watch_directory": "",
+     "size_threshold": 104857600,
+     "schedule": {
+      "start_time": "00:00",
+      "end_time": "23:59"
+     },
+     "ignore_patterns": [
+      "*.tmp",
+      "*.part",
+      "*.!ut"
+     ],
+     "min_file_size": 1048576,
+     "check_interval": "5m",
+     "delete_original_file": false,
+     "single_nzb_per_folder": false,
+     "follow_symlinks": false,
+     "min_file_age": "60s",
+     "min_file_age_to_delete": "0s"
+    }
+   ],
+   "nzb_compression": {
+    "enabled": false,
+    "type": "none",
+    "level": 0
+   },
+   "database": {
+    "database_type": "sqlite",
+    "database_path": "./postie.db"
+   },
+   "queue": {
+    "max_concurrent_uploads": 1,
+    "min_size_to_start": 0
+   },
+   "api": {
+    "enabled": false
+   },
+   "output_dir": "",
+   "maintain_original_extension": true,
+   "post_upload_script": {
+    "enabled": false,
+    "command": "",
+    "timeout": "30s",
+    "max_retries": 0,
+    "retry_delay": "30s",
+    "max_backoff": "1h",
+    "max_retry_duration": "24h",
+    "retry_check_interval": "1m"
+   },
+   "arr": {
+    "instances": null
+   },
+   "duplicate_lookup": {
+    "enabled": false,
+    "url": "",
+    "api_key": "",
+    "timeout": ""
+   }
+  }
+ },
+ "queue_neg": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\nqueue:\n  max_concurrent_uploads: -3\n",
+  "ok": true,
+  "config": {
+   "version": 2,
+   "servers": [
+    {
+     "host": "news.example.com",
+     "port": 563,
+     "username": "",
+     "password": "",
+     "ssl": true,
+     "max_connections": 10,
+     "max_connection_idle_time_in_seconds": 0,
+     "max_connection_ttl_in_seconds": 0,
+     "insecure_ssl": false,
+     "enabled": true,
+     "role": "upload",
+     "inflight": 0
+    }
+   ],
+   "connection_pool": {
+    "min_connections": 0,
+    "health_check_interval": ""
+   },
+   "posting": {
+    "wait_for_par2": false,
+    "max_retries": 3,
+    "retry_delay": "5s",
+    "article_size_in_bytes": 750000,
+    "groups": [
+     {
+      "name": "alt.binaries.test",
+      "enabled": true
+     }
+    ],
+    "throttle_rate": 0,
+    "message_id_format": "random",
+    "post_headers": {
+     "add_nxg_header": false,
+     "default_from": "",
+     "custom_headers": null
+    },
+    "obfuscation_policy": "full",
+    "par2_obfuscation_policy": "",
+    "group_policy": "each_file",
+    "upload_buffer_memory_limit": 0
+   },
+   "post_check": {
+    "enabled": true,
+    "delay": "",
+    "max_reposts": 0,
+    "deferred_check_delay": "30s",
+    "deferred_max_retries": 5,
+    "deferred_max_backoff": "5m",
+    "deferred_check_interval": "2m",
+    "deferred_batch_size": 10000,
+    "stat_batch_size": 100,
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
+   },
+   "par2": {
+    "enabled": true,
+    "redundancy": "5%",
+    "temp_dir": "",
+    "maintain_par2_files": false,
+    "skip_if_par2_exists": true,
+    "parpar_binary_path": "",
+    "parpar_extra_args": null,
+    "num_goroutines": 0,
+    "memory_limit": 4294967296,
+    "slice_size": 10485760,
+    "max_concurrent_jobs": 1,
+    "gf16_method": "auto"
+   },
+   "watcher": {
+    "name": "",
+    "enabled": false,
+    "watch_directory": "",
+    "size_threshold": 0,
+    "schedule": {
+     "start_time": "",
+     "end_time": ""
+    },
+    "ignore_patterns": null,
+    "min_file_size": 0,
+    "check_interval": "",
+    "delete_original_file": false,
+    "single_nzb_per_folder": false,
+    "follow_symlinks": false,
+    "min_file_age": "",
+    "min_file_age_to_delete": ""
+   },
+   "watchers": [
+    {
+     "name": "",
+     "enabled": false,
+     "watch_directory": "",
+     "size_threshold": 104857600,
+     "schedule": {
+      "start_time": "00:00",
+      "end_time": "23:59"
+     },
+     "ignore_patterns": [
+      "*.tmp",
+      "*.part",
+      "*.!ut"
+     ],
+     "min_file_size": 1048576,
+     "check_interval": "5m",
+     "delete_original_file": false,
+     "single_nzb_per_folder": false,
+     "follow_symlinks": false,
+     "min_file_age": "60s",
+     "min_file_age_to_delete": "0s"
+    }
+   ],
+   "nzb_compression": {
+    "enabled": false,
+    "type": "none",
+    "level": 0
+   },
+   "database": {
+    "database_type": "sqlite",
+    "database_path": "./postie.db"
+   },
+   "queue": {
+    "max_concurrent_uploads": 1,
+    "min_size_to_start": 0
+   },
+   "api": {
+    "enabled": false
+   },
+   "output_dir": "",
+   "maintain_original_extension": true,
+   "post_upload_script": {
+    "enabled": false,
+    "command": "",
+    "timeout": "30s",
+    "max_retries": 0,
+    "retry_delay": "30s",
+    "max_backoff": "1h",
+    "max_retry_duration": "24h",
+    "retry_check_interval": "1m"
+   },
+   "arr": {
+    "instances": null
+   },
+   "duplicate_lookup": {
+    "enabled": false,
+    "url": "",
+    "api_key": "",
+    "timeout": ""
+   }
+  }
+ },
+ "unicode_strings": {
+  "yaml": "servers:\n  - host: h\n    port: 1\n    max_connections: 1\n    username: \"üser\"\n    password: \"p@ss: #1\"\nposting:\n  groups:\n    - name: \"日本\"\n",
+  "ok": true,
+  "config": {
+   "version": 2,
+   "servers": [
+    {
+     "host": "h",
+     "port": 1,
+     "username": "üser",
+     "password": "p@ss: #1",
+     "ssl": false,
+     "max_connections": 1,
+     "max_connection_idle_time_in_seconds": 0,
+     "max_connection_ttl_in_seconds": 0,
+     "insecure_ssl": false,
+     "enabled": true,
+     "role": "upload",
+     "inflight": 0
+    }
+   ],
+   "connection_pool": {
+    "min_connections": 0,
+    "health_check_interval": ""
+   },
+   "posting": {
+    "wait_for_par2": false,
+    "max_retries": 3,
+    "retry_delay": "5s",
+    "article_size_in_bytes": 750000,
+    "groups": [
+     {
+      "name": "日本",
+      "enabled": null
+     }
+    ],
+    "throttle_rate": 0,
+    "message_id_format": "random",
+    "post_headers": {
+     "add_nxg_header": false,
+     "default_from": "",
+     "custom_headers": null
+    },
+    "obfuscation_policy": "full",
+    "par2_obfuscation_policy": "",
+    "group_policy": "each_file",
+    "upload_buffer_memory_limit": 0
+   },
+   "post_check": {
+    "enabled": true,
+    "delay": "",
+    "max_reposts": 0,
+    "deferred_check_delay": "30s",
+    "deferred_max_retries": 5,
+    "deferred_max_backoff": "5m",
+    "deferred_check_interval": "2m",
+    "deferred_batch_size": 10000,
+    "stat_batch_size": 100,
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
+   },
+   "par2": {
+    "enabled": true,
+    "redundancy": "5%",
+    "temp_dir": "",
+    "maintain_par2_files": false,
+    "skip_if_par2_exists": true,
+    "parpar_binary_path": "",
+    "parpar_extra_args": null,
+    "num_goroutines": 0,
+    "memory_limit": 4294967296,
+    "slice_size": 10485760,
+    "max_concurrent_jobs": 1,
+    "gf16_method": "auto"
+   },
+   "watcher": {
+    "name": "",
+    "enabled": false,
+    "watch_directory": "",
+    "size_threshold": 0,
+    "schedule": {
+     "start_time": "",
+     "end_time": ""
+    },
+    "ignore_patterns": null,
+    "min_file_size": 0,
+    "check_interval": "",
+    "delete_original_file": false,
+    "single_nzb_per_folder": false,
+    "follow_symlinks": false,
+    "min_file_age": "",
+    "min_file_age_to_delete": ""
+   },
+   "watchers": [
+    {
+     "name": "",
+     "enabled": false,
+     "watch_directory": "",
+     "size_threshold": 104857600,
+     "schedule": {
+      "start_time": "00:00",
+      "end_time": "23:59"
+     },
+     "ignore_patterns": [
+      "*.tmp",
+      "*.part",
+      "*.!ut"
+     ],
+     "min_file_size": 1048576,
+     "check_interval": "5m",
+     "delete_original_file": false,
+     "single_nzb_per_folder": false,
+     "follow_symlinks": false,
+     "min_file_age": "60s",
+     "min_file_age_to_delete": "0s"
+    }
+   ],
+   "nzb_compression": {
+    "enabled": false,
+    "type": "none",
+    "level": 0
+   },
+   "database": {
+    "database_type": "sqlite",
+    "database_path": "./postie.db"
+   },
+   "queue": {
+    "max_concurrent_uploads": 1,
+    "min_size_to_start": 0
+   },
+   "api": {
+    "enabled": false
+   },
+   "output_dir": "",
+   "maintain_original_extension": true,
+   "post_upload_script": {
+    "enabled": false,
+    "command": "",
+    "timeout": "30s",
+    "max_retries": 0,
+    "retry_delay": "30s",
+    "max_backoff": "1h",
+    "max_retry_duration": "24h",
+    "retry_check_interval": "1m"
+   },
+   "arr": {
+    "instances": null
+   },
+   "duplicate_lookup": {
+    "enabled": false,
+    "url": "",
+    "api_key": "",
+    "timeout": ""
+   }
+  }
+ },
+ "unknown_keys": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\ntotally_unknown: 1\nposting2:\n  x: y\n",
+  "ok": true,
+  "config": {
+   "version": 2,
+   "servers": [
+    {
+     "host": "news.example.com",
+     "port": 563,
+     "username": "",
+     "password": "",
+     "ssl": true,
+     "max_connections": 10,
+     "max_connection_idle_time_in_seconds": 0,
+     "max_connection_ttl_in_seconds": 0,
+     "insecure_ssl": false,
+     "enabled": true,
+     "role": "upload",
+     "inflight": 0
+    }
+   ],
+   "connection_pool": {
+    "min_connections": 0,
+    "health_check_interval": ""
+   },
+   "posting": {
+    "wait_for_par2": false,
+    "max_retries": 3,
+    "retry_delay": "5s",
+    "article_size_in_bytes": 750000,
+    "groups": [
+     {
+      "name": "alt.binaries.test",
+      "enabled": true
+     }
+    ],
+    "throttle_rate": 0,
+    "message_id_format": "random",
+    "post_headers": {
+     "add_nxg_header": false,
+     "default_from": "",
+     "custom_headers": null
+    },
+    "obfuscation_policy": "full",
+    "par2_obfuscation_policy": "",
+    "group_policy": "each_file",
+    "upload_buffer_memory_limit": 0
+   },
+   "post_check": {
+    "enabled": true,
+    "delay": "",
+    "max_reposts": 0,
+    "deferred_check_delay": "30s",
+    "deferred_max_retries": 5,
+    "deferred_max_backoff": "5m",
+    "deferred_check_interval": "2m",
+    "deferred_batch_size": 10000,
+    "stat_batch_size": 100,
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
+   },
+   "par2": {
+    "enabled": true,
+    "redundancy": "5%",
+    "temp_dir": "",
+    "maintain_par2_files": false,
+    "skip_if_par2_exists": true,
+    "parpar_binary_path": "",
+    "parpar_extra_args": null,
+    "num_goroutines": 0,
+    "memory_limit": 4294967296,
+    "slice_size": 10485760,
+    "max_concurrent_jobs": 1,
+    "gf16_method": "auto"
+   },
+   "watcher": {
+    "name": "",
+    "enabled": false,
+    "watch_directory": "",
+    "size_threshold": 0,
+    "schedule": {
+     "start_time": "",
+     "end_time": ""
+    },
+    "ignore_patterns": null,
+    "min_file_size": 0,
+    "check_interval": "",
+    "delete_original_file": false,
+    "single_nzb_per_folder": false,
+    "follow_symlinks": false,
+    "min_file_age": "",
+    "min_file_age_to_delete": ""
+   },
+   "watchers": [
+    {
+     "name": "",
+     "enabled": false,
+     "watch_directory": "",
+     "size_threshold": 104857600,
+     "schedule": {
+      "start_time": "00:00",
+      "end_time": "23:59"
+     },
+     "ignore_patterns": [
+      "*.tmp",
+      "*.part",
+      "*.!ut"
+     ],
+     "min_file_size": 1048576,
+     "check_interval": "5m",
+     "delete_original_file": false,
+     "single_nzb_per_folder": false,
+     "follow_symlinks": false,
+     "min_file_age": "60s",
+     "min_file_age_to_delete": "0s"
+    }
+   ],
+   "nzb_compression": {
+    "enabled": false,
+    "type": "none",
+    "level": 0
+   },
+   "database": {
+    "database_type": "sqlite",
+    "database_path": "./postie.db"
+   },
+   "queue": {
+    "max_concurrent_uploads": 1,
+    "min_size_to_start": 0
+   },
+   "api": {
+    "enabled": false
+   },
+   "output_dir": "",
+   "maintain_original_extension": true,
+   "post_upload_script": {
+    "enabled": false,
+    "command": "",
+    "timeout": "30s",
+    "max_retries": 0,
+    "retry_delay": "30s",
+    "max_backoff": "1h",
+    "max_retry_duration": "24h",
+    "retry_check_interval": "1m"
+   },
+   "arr": {
+    "instances": null
+   },
+   "duplicate_lookup": {
+    "enabled": false,
+    "url": "",
+    "api_key": "",
+    "timeout": ""
+   }
+  }
+ },
+ "v1_check_only": {
+  "yaml": "version: 1\nservers:\n  - host: a.example.com\n    port: 119\n    max_connections: 5\n    check_only: true\n  - host: b.example.com\n    port: 563\n    max_connections: 5\nposting:\n  groups:\n    - name: g\n",
+  "ok": true,
+  "config": {
+   "version": 2,
+   "servers": [
+    {
+     "host": "a.example.com",
+     "port": 119,
+     "username": "",
+     "password": "",
+     "ssl": false,
+     "max_connections": 5,
+     "max_connection_idle_time_in_seconds": 0,
+     "max_connection_ttl_in_seconds": 0,
+     "insecure_ssl": false,
+     "enabled": true,
+     "role": "verify",
+     "inflight": 0
+    },
+    {
+     "host": "b.example.com",
+     "port": 563,
+     "username": "",
+     "password": "",
+     "ssl": false,
+     "max_connections": 5,
+     "max_connection_idle_time_in_seconds": 0,
+     "max_connection_ttl_in_seconds": 0,
+     "insecure_ssl": false,
+     "enabled": true,
+     "role": "upload",
+     "inflight": 0
+    }
+   ],
+   "connection_pool": {
+    "min_connections": 0,
+    "health_check_interval": ""
+   },
+   "posting": {
+    "wait_for_par2": false,
+    "max_retries": 3,
+    "retry_delay": "5s",
+    "article_size_in_bytes": 750000,
+    "groups": [
+     {
+      "name": "g",
+      "enabled": null
+     }
+    ],
+    "throttle_rate": 0,
+    "message_id_format": "random",
+    "post_headers": {
+     "add_nxg_header": false,
+     "default_from": "",
+     "custom_headers": null
+    },
+    "obfuscation_policy": "full",
+    "par2_obfuscation_policy": "",
+    "group_policy": "each_file",
+    "upload_buffer_memory_limit": 0
+   },
+   "post_check": {
+    "enabled": true,
+    "delay": "",
+    "max_reposts": 0,
+    "deferred_check_delay": "30s",
+    "deferred_max_retries": 5,
+    "deferred_max_backoff": "5m",
+    "deferred_check_interval": "2m",
+    "deferred_batch_size": 10000,
+    "stat_batch_size": 100,
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
+   },
+   "par2": {
+    "enabled": true,
+    "redundancy": "5%",
+    "temp_dir": "",
+    "maintain_par2_files": false,
+    "skip_if_par2_exists": true,
+    "parpar_binary_path": "",
+    "parpar_extra_args": null,
+    "num_goroutines": 0,
+    "memory_limit": 4294967296,
+    "slice_size": 10485760,
+    "max_concurrent_jobs": 1,
+    "gf16_method": "auto"
+   },
+   "watcher": {
+    "name": "",
+    "enabled": false,
+    "watch_directory": "",
+    "size_threshold": 0,
+    "schedule": {
+     "start_time": "",
+     "end_time": ""
+    },
+    "ignore_patterns": null,
+    "min_file_size": 0,
+    "check_interval": "",
+    "delete_original_file": false,
+    "single_nzb_per_folder": false,
+    "follow_symlinks": false,
+    "min_file_age": "",
+    "min_file_age_to_delete": ""
+   },
+   "watchers": [
+    {
+     "name": "",
+     "enabled": false,
+     "watch_directory": "",
+     "size_threshold": 104857600,
+     "schedule": {
+      "start_time": "00:00",
+      "end_time": "23:59"
+     },
+     "ignore_patterns": [
+      "*.tmp",
+      "*.part",
+      "*.!ut"
+     ],
+     "min_file_size": 1048576,
+     "check_interval": "5m",
+     "delete_original_file": false,
+     "single_nzb_per_folder": false,
+     "follow_symlinks": false,
+     "min_file_age": "60s",
+     "min_file_age_to_delete": "0s"
+    }
+   ],
+   "nzb_compression": {
+    "enabled": false,
+    "type": "none",
+    "level": 0
+   },
+   "database": {
+    "database_type": "sqlite",
+    "database_path": "./postie.db"
+   },
+   "queue": {
+    "max_concurrent_uploads": 1,
+    "min_size_to_start": 0
+   },
+   "api": {
+    "enabled": false
+   },
+   "output_dir": "",
+   "maintain_original_extension": true,
+   "post_upload_script": {
+    "enabled": false,
+    "command": "",
+    "timeout": "30s",
+    "max_retries": 0,
+    "retry_delay": "30s",
+    "max_backoff": "1h",
+    "max_retry_duration": "24h",
+    "retry_check_interval": "1m"
+   },
+   "arr": {
+    "instances": null
+   },
+   "duplicate_lookup": {
+    "enabled": false,
+    "url": "",
+    "api_key": "",
+    "timeout": ""
+   }
+  }
+ },
+ "v1_no_version": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\n",
+  "ok": true,
+  "config": {
+   "version": 2,
+   "servers": [
+    {
+     "host": "news.example.com",
+     "port": 563,
+     "username": "",
+     "password": "",
+     "ssl": true,
+     "max_connections": 10,
+     "max_connection_idle_time_in_seconds": 0,
+     "max_connection_ttl_in_seconds": 0,
+     "insecure_ssl": false,
+     "enabled": true,
+     "role": "upload",
+     "inflight": 0
+    }
+   ],
+   "connection_pool": {
+    "min_connections": 0,
+    "health_check_interval": ""
+   },
+   "posting": {
+    "wait_for_par2": false,
+    "max_retries": 3,
+    "retry_delay": "5s",
+    "article_size_in_bytes": 750000,
+    "groups": [
+     {
+      "name": "alt.binaries.test",
+      "enabled": true
+     }
+    ],
+    "throttle_rate": 0,
+    "message_id_format": "random",
+    "post_headers": {
+     "add_nxg_header": false,
+     "default_from": "",
+     "custom_headers": null
+    },
+    "obfuscation_policy": "full",
+    "par2_obfuscation_policy": "",
+    "group_policy": "each_file",
+    "upload_buffer_memory_limit": 0
+   },
+   "post_check": {
+    "enabled": true,
+    "delay": "",
+    "max_reposts": 0,
+    "deferred_check_delay": "30s",
+    "deferred_max_retries": 5,
+    "deferred_max_backoff": "5m",
+    "deferred_check_interval": "2m",
+    "deferred_batch_size": 10000,
+    "stat_batch_size": 100,
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
+   },
+   "par2": {
+    "enabled": true,
+    "redundancy": "5%",
+    "temp_dir": "",
+    "maintain_par2_files": false,
+    "skip_if_par2_exists": true,
+    "parpar_binary_path": "",
+    "parpar_extra_args": null,
+    "num_goroutines": 0,
+    "memory_limit": 4294967296,
+    "slice_size": 10485760,
+    "max_concurrent_jobs": 1,
+    "gf16_method": "auto"
+   },
+   "watcher": {
+    "name": "",
+    "enabled": false,
+    "watch_directory": "",
+    "size_threshold": 0,
+    "schedule": {
+     "start_time": "",
+     "end_time": ""
+    },
+    "ignore_patterns": null,
+    "min_file_size": 0,
+    "check_interval": "",
+    "delete_original_file": false,
+    "single_nzb_per_folder": false,
+    "follow_symlinks": false,
+    "min_file_age": "",
+    "min_file_age_to_delete": ""
+   },
+   "watchers": [
+    {
+     "name": "",
+     "enabled": false,
+     "watch_directory": "",
+     "size_threshold": 104857600,
+     "schedule": {
+      "start_time": "00:00",
+      "end_time": "23:59"
+     },
+     "ignore_patterns": [
+      "*.tmp",
+      "*.part",
+      "*.!ut"
+     ],
+     "min_file_size": 1048576,
+     "check_interval": "5m",
+     "delete_original_file": false,
+     "single_nzb_per_folder": false,
+     "follow_symlinks": false,
+     "min_file_age": "60s",
+     "min_file_age_to_delete": "0s"
+    }
+   ],
+   "nzb_compression": {
+    "enabled": false,
+    "type": "none",
+    "level": 0
+   },
+   "database": {
+    "database_type": "sqlite",
+    "database_path": "./postie.db"
+   },
+   "queue": {
+    "max_concurrent_uploads": 1,
+    "min_size_to_start": 0
+   },
+   "api": {
+    "enabled": false
+   },
+   "output_dir": "",
+   "maintain_original_extension": true,
+   "post_upload_script": {
+    "enabled": false,
+    "command": "",
+    "timeout": "30s",
+    "max_retries": 0,
+    "retry_delay": "30s",
+    "max_backoff": "1h",
+    "max_retry_duration": "24h",
+    "retry_check_interval": "1m"
+   },
+   "arr": {
+    "instances": null
+   },
+   "duplicate_lookup": {
+    "enabled": false,
+    "url": "",
+    "api_key": "",
+    "timeout": ""
+   }
+  }
+ },
+ "wait_for_par2_false_par2_on": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\npar2:\n  enabled: true\nposting:\n  wait_for_par2: false\n  groups:\n    - name: g\n",
+  "ok": false,
+  "error": "error parsing config file: yaml: unmarshal errors:\n  line 12: mapping key \"posting\" already defined at line 6"
+ },
+ "watcher_legacy": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\nwatcher:\n  enabled: true\n  watch_directory: /data\n  size_threshold: 5\n",
+  "ok": true,
+  "config": {
+   "version": 2,
+   "servers": [
+    {
+     "host": "news.example.com",
+     "port": 563,
+     "username": "",
+     "password": "",
+     "ssl": true,
+     "max_connections": 10,
+     "max_connection_idle_time_in_seconds": 0,
+     "max_connection_ttl_in_seconds": 0,
+     "insecure_ssl": false,
+     "enabled": true,
+     "role": "upload",
+     "inflight": 0
+    }
+   ],
+   "connection_pool": {
+    "min_connections": 0,
+    "health_check_interval": ""
+   },
+   "posting": {
+    "wait_for_par2": false,
+    "max_retries": 3,
+    "retry_delay": "5s",
+    "article_size_in_bytes": 750000,
+    "groups": [
+     {
+      "name": "alt.binaries.test",
+      "enabled": true
+     }
+    ],
+    "throttle_rate": 0,
+    "message_id_format": "random",
+    "post_headers": {
+     "add_nxg_header": false,
+     "default_from": "",
+     "custom_headers": null
+    },
+    "obfuscation_policy": "full",
+    "par2_obfuscation_policy": "",
+    "group_policy": "each_file",
+    "upload_buffer_memory_limit": 0
+   },
+   "post_check": {
+    "enabled": true,
+    "delay": "",
+    "max_reposts": 0,
+    "deferred_check_delay": "30s",
+    "deferred_max_retries": 5,
+    "deferred_max_backoff": "5m",
+    "deferred_check_interval": "2m",
+    "deferred_batch_size": 10000,
+    "stat_batch_size": 100,
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
+   },
+   "par2": {
+    "enabled": true,
+    "redundancy": "5%",
+    "temp_dir": "",
+    "maintain_par2_files": false,
+    "skip_if_par2_exists": true,
+    "parpar_binary_path": "",
+    "parpar_extra_args": null,
+    "num_goroutines": 0,
+    "memory_limit": 4294967296,
+    "slice_size": 10485760,
+    "max_concurrent_jobs": 1,
+    "gf16_method": "auto"
+   },
+   "watcher": {
+    "name": "",
+    "enabled": false,
+    "watch_directory": "",
+    "size_threshold": 0,
+    "schedule": {
+     "start_time": "",
+     "end_time": ""
+    },
+    "ignore_patterns": null,
+    "min_file_size": 0,
+    "check_interval": "",
+    "delete_original_file": false,
+    "single_nzb_per_folder": false,
+    "follow_symlinks": false,
+    "min_file_age": "",
+    "min_file_age_to_delete": ""
+   },
+   "watchers": [
+    {
+     "name": "",
+     "enabled": true,
+     "watch_directory": "/data",
+     "size_threshold": 5,
+     "schedule": {
+      "start_time": "",
+      "end_time": ""
+     },
+     "ignore_patterns": null,
+     "min_file_size": 0,
+     "check_interval": "",
+     "delete_original_file": false,
+     "single_nzb_per_folder": false,
+     "follow_symlinks": false,
+     "min_file_age": "",
+     "min_file_age_to_delete": ""
+    }
+   ],
+   "nzb_compression": {
+    "enabled": false,
+    "type": "none",
+    "level": 0
+   },
+   "database": {
+    "database_type": "sqlite",
+    "database_path": "./postie.db"
+   },
+   "queue": {
+    "max_concurrent_uploads": 1,
+    "min_size_to_start": 0
+   },
+   "api": {
+    "enabled": false
+   },
+   "output_dir": "",
+   "maintain_original_extension": true,
+   "post_upload_script": {
+    "enabled": false,
+    "command": "",
+    "timeout": "30s",
+    "max_retries": 0,
+    "retry_delay": "30s",
+    "max_backoff": "1h",
+    "max_retry_duration": "24h",
+    "retry_check_interval": "1m"
+   },
+   "arr": {
+    "instances": null
+   },
+   "duplicate_lookup": {
+    "enabled": false,
+    "url": "",
+    "api_key": "",
+    "timeout": ""
+   }
+  }
+ },
+ "watchers_list": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\nwatchers:\n  - name: one\n    enabled: true\n    watch_directory: /a\n    check_interval: 10m\n    min_file_age: 2m\n  - name: two\n    watch_directory: /b\n",
+  "ok": true,
+  "config": {
+   "version": 2,
+   "servers": [
+    {
+     "host": "news.example.com",
+     "port": 563,
+     "username": "",
+     "password": "",
+     "ssl": true,
+     "max_connections": 10,
+     "max_connection_idle_time_in_seconds": 0,
+     "max_connection_ttl_in_seconds": 0,
+     "insecure_ssl": false,
+     "enabled": true,
+     "role": "upload",
+     "inflight": 0
+    }
+   ],
+   "connection_pool": {
+    "min_connections": 0,
+    "health_check_interval": ""
+   },
+   "posting": {
+    "wait_for_par2": false,
+    "max_retries": 3,
+    "retry_delay": "5s",
+    "article_size_in_bytes": 750000,
+    "groups": [
+     {
+      "name": "alt.binaries.test",
+      "enabled": true
+     }
+    ],
+    "throttle_rate": 0,
+    "message_id_format": "random",
+    "post_headers": {
+     "add_nxg_header": false,
+     "default_from": "",
+     "custom_headers": null
+    },
+    "obfuscation_policy": "full",
+    "par2_obfuscation_policy": "",
+    "group_policy": "each_file",
+    "upload_buffer_memory_limit": 0
+   },
+   "post_check": {
+    "enabled": true,
+    "delay": "",
+    "max_reposts": 0,
+    "deferred_check_delay": "30s",
+    "deferred_max_retries": 5,
+    "deferred_max_backoff": "5m",
+    "deferred_check_interval": "2m",
+    "deferred_batch_size": 10000,
+    "stat_batch_size": 100,
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
+   },
+   "par2": {
+    "enabled": true,
+    "redundancy": "5%",
+    "temp_dir": "",
+    "maintain_par2_files": false,
+    "skip_if_par2_exists": true,
+    "parpar_binary_path": "",
+    "parpar_extra_args": null,
+    "num_goroutines": 0,
+    "memory_limit": 4294967296,
+    "slice_size": 10485760,
+    "max_concurrent_jobs": 1,
+    "gf16_method": "auto"
+   },
+   "watcher": {
+    "name": "",
+    "enabled": false,
+    "watch_directory": "",
+    "size_threshold": 0,
+    "schedule": {
+     "start_time": "",
+     "end_time": ""
+    },
+    "ignore_patterns": null,
+    "min_file_size": 0,
+    "check_interval": "",
+    "delete_original_file": false,
+    "single_nzb_per_folder": false,
+    "follow_symlinks": false,
+    "min_file_age": "",
+    "min_file_age_to_delete": ""
+   },
+   "watchers": [
+    {
+     "name": "one",
+     "enabled": true,
+     "watch_directory": "/a",
+     "size_threshold": 0,
+     "schedule": {
+      "start_time": "",
+      "end_time": ""
+     },
+     "ignore_patterns": null,
+     "min_file_size": 0,
+     "check_interval": "10m0s",
+     "delete_original_file": false,
+     "single_nzb_per_folder": false,
+     "follow_symlinks": false,
+     "min_file_age": "2m0s",
+     "min_file_age_to_delete": ""
+    },
+    {
+     "name": "two",
+     "enabled": false,
+     "watch_directory": "/b",
+     "size_threshold": 0,
+     "schedule": {
+      "start_time": "",
+      "end_time": ""
+     },
+     "ignore_patterns": null,
+     "min_file_size": 0,
+     "check_interval": "",
+     "delete_original_file": false,
+     "single_nzb_per_folder": false,
+     "follow_symlinks": false,
+     "min_file_age": "",
+     "min_file_age_to_delete": ""
+    }
+   ],
+   "nzb_compression": {
+    "enabled": false,
+    "type": "none",
+    "level": 0
+   },
+   "database": {
+    "database_type": "sqlite",
+    "database_path": "./postie.db"
+   },
+   "queue": {
+    "max_concurrent_uploads": 1,
+    "min_size_to_start": 0
+   },
+   "api": {
+    "enabled": false
+   },
+   "output_dir": "",
+   "maintain_original_extension": true,
+   "post_upload_script": {
+    "enabled": false,
+    "command": "",
+    "timeout": "30s",
+    "max_retries": 0,
+    "retry_delay": "30s",
+    "max_backoff": "1h",
+    "max_retry_duration": "24h",
+    "retry_check_interval": "1m"
+   },
+   "arr": {
+    "instances": null
+   },
+   "duplicate_lookup": {
+    "enabled": false,
+    "url": "",
+    "api_key": "",
+    "timeout": ""
+   }
+  }
+ },
+ "yaml_on_bool": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\nmaintain_original_extension: off\n",
+  "ok": true,
+  "config": {
+   "version": 2,
+   "servers": [
+    {
+     "host": "news.example.com",
+     "port": 563,
+     "username": "",
+     "password": "",
+     "ssl": true,
+     "max_connections": 10,
+     "max_connection_idle_time_in_seconds": 0,
+     "max_connection_ttl_in_seconds": 0,
+     "insecure_ssl": false,
+     "enabled": true,
+     "role": "upload",
+     "inflight": 0
+    }
+   ],
+   "connection_pool": {
+    "min_connections": 0,
+    "health_check_interval": ""
+   },
+   "posting": {
+    "wait_for_par2": false,
+    "max_retries": 3,
+    "retry_delay": "5s",
+    "article_size_in_bytes": 750000,
+    "groups": [
+     {
+      "name": "alt.binaries.test",
+      "enabled": true
+     }
+    ],
+    "throttle_rate": 0,
+    "message_id_format": "random",
+    "post_headers": {
+     "add_nxg_header": false,
+     "default_from": "",
+     "custom_headers": null
+    },
+    "obfuscation_policy": "full",
+    "par2_obfuscation_policy": "",
+    "group_policy": "each_file",
+    "upload_buffer_memory_limit": 0
+   },
+   "post_check": {
+    "enabled": true,
+    "delay": "",
+    "max_reposts": 0,
+    "deferred_check_delay": "30s",
+    "deferred_max_retries": 5,
+    "deferred_max_backoff": "5m",
+    "deferred_check_interval": "2m",
+    "deferred_batch_size": 10000,
+    "stat_batch_size": 100,
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
+   },
+   "par2": {
+    "enabled": true,
+    "redundancy": "5%",
+    "temp_dir": "",
+    "maintain_par2_files": false,
+    "skip_if_par2_exists": true,
+    "parpar_binary_path": "",
+    "parpar_extra_args": null,
+    "num_goroutines": 0,
+    "memory_limit": 4294967296,
+    "slice_size": 10485760,
+    "max_concurrent_jobs": 1,
+    "gf16_method": "auto"
+   },
+   "watcher": {
+    "name": "",
+    "enabled": false,
+    "watch_directory": "",
+    "size_threshold": 0,
+    "schedule": {
+     "start_time": "",
+     "end_time": ""
+    },
+    "ignore_patterns": null,
+    "min_file_size": 0,
+    "check_interval": "",
+    "delete_original_file": false,
+    "single_nzb_per_folder": false,
+    "follow_symlinks": false,
+    "min_file_age": "",
+    "min_file_age_to_delete": ""
+   },
+   "watchers": [
+    {
+     "name": "",
+     "enabled": false,
+     "watch_directory": "",
+     "size_threshold": 104857600,
+     "schedule": {
+      "start_time": "00:00",
+      "end_time": "23:59"
+     },
+     "ignore_patterns": [
+      "*.tmp",
+      "*.part",
+      "*.!ut"
+     ],
+     "min_file_size": 1048576,
+     "check_interval": "5m",
+     "delete_original_file": false,
+     "single_nzb_per_folder": false,
+     "follow_symlinks": false,
+     "min_file_age": "60s",
+     "min_file_age_to_delete": "0s"
+    }
+   ],
+   "nzb_compression": {
+    "enabled": false,
+    "type": "none",
+    "level": 0
+   },
+   "database": {
+    "database_type": "sqlite",
+    "database_path": "./postie.db"
+   },
+   "queue": {
+    "max_concurrent_uploads": 1,
+    "min_size_to_start": 0
+   },
+   "api": {
+    "enabled": false
+   },
+   "output_dir": "",
+   "maintain_original_extension": false,
+   "post_upload_script": {
+    "enabled": false,
+    "command": "",
+    "timeout": "30s",
+    "max_retries": 0,
+    "retry_delay": "30s",
+    "max_backoff": "1h",
+    "max_retry_duration": "24h",
+    "retry_check_interval": "1m"
+   },
+   "arr": {
+    "instances": null
+   },
+   "duplicate_lookup": {
+    "enabled": false,
+    "url": "",
+    "api_key": "",
+    "timeout": ""
+   }
+  }
+ },
+ "yaml_string_for_int": {
+  "yaml": "servers:\n  - host: h\n    port: abc\n    max_connections: 1\nposting:\n  groups:\n    - name: g\n",
+  "ok": false,
+  "error": "error parsing config file: yaml: unmarshal errors:\n  line 3: cannot unmarshal !!str `abc` into int"
+ },
+ "yaml_syntax_error": {
+  "yaml": "servers: [\n",
+  "ok": false,
+  "error": "error parsing config file: yaml: line 1: did not find expected node content"
+ },
+ "yaml_tab": {
+  "yaml": "servers:\n\t- host: h\n",
+  "ok": false,
+  "error": "error parsing config file: yaml: line 2: found character that cannot start any token"
+ },
+ "yaml_yes_bool": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\napi:\n  enabled: yes\n",
+  "ok": true,
+  "config": {
+   "version": 2,
+   "servers": [
+    {
+     "host": "news.example.com",
+     "port": 563,
+     "username": "",
+     "password": "",
+     "ssl": true,
+     "max_connections": 10,
+     "max_connection_idle_time_in_seconds": 0,
+     "max_connection_ttl_in_seconds": 0,
+     "insecure_ssl": false,
+     "enabled": true,
+     "role": "upload",
+     "inflight": 0
+    }
+   ],
+   "connection_pool": {
+    "min_connections": 0,
+    "health_check_interval": ""
+   },
+   "posting": {
+    "wait_for_par2": false,
+    "max_retries": 3,
+    "retry_delay": "5s",
+    "article_size_in_bytes": 750000,
+    "groups": [
+     {
+      "name": "alt.binaries.test",
+      "enabled": true
+     }
+    ],
+    "throttle_rate": 0,
+    "message_id_format": "random",
+    "post_headers": {
+     "add_nxg_header": false,
+     "default_from": "",
+     "custom_headers": null
+    },
+    "obfuscation_policy": "full",
+    "par2_obfuscation_policy": "",
+    "group_policy": "each_file",
+    "upload_buffer_memory_limit": 0
+   },
+   "post_check": {
+    "enabled": true,
+    "delay": "",
+    "max_reposts": 0,
+    "deferred_check_delay": "30s",
+    "deferred_max_retries": 5,
+    "deferred_max_backoff": "5m",
+    "deferred_check_interval": "2m",
+    "deferred_batch_size": 10000,
+    "stat_batch_size": 100,
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
+   },
+   "par2": {
+    "enabled": true,
+    "redundancy": "5%",
+    "temp_dir": "",
+    "maintain_par2_files": false,
+    "skip_if_par2_exists": true,
+    "parpar_binary_path": "",
+    "parpar_extra_args": null,
+    "num_goroutines": 0,
+    "memory_limit": 4294967296,
+    "slice_size": 10485760,
+    "max_concurrent_jobs": 1,
+    "gf16_method": "auto"
+   },
+   "watcher": {
+    "name": "",
+    "enabled": false,
+    "watch_directory": "",
+    "size_threshold": 0,
+    "schedule": {
+     "start_time": "",
+     "end_time": ""
+    },
+    "ignore_patterns": null,
+    "min_file_size": 0,
+    "check_interval": "",
+    "delete_original_file": false,
+    "single_nzb_per_folder": false,
+    "follow_symlinks": false,
+    "min_file_age": "",
+    "min_file_age_to_delete": ""
+   },
+   "watchers": [
+    {
+     "name": "",
+     "enabled": false,
+     "watch_directory": "",
+     "size_threshold": 104857600,
+     "schedule": {
+      "start_time": "00:00",
+      "end_time": "23:59"
+     },
+     "ignore_patterns": [
+      "*.tmp",
+      "*.part",
+      "*.!ut"
+     ],
+     "min_file_size": 1048576,
+     "check_interval": "5m",
+     "delete_original_file": false,
+     "single_nzb_per_folder": false,
+     "follow_symlinks": false,
+     "min_file_age": "60s",
+     "min_file_age_to_delete": "0s"
+    }
+   ],
+   "nzb_compression": {
+    "enabled": false,
+    "type": "none",
+    "level": 0
+   },
+   "database": {
+    "database_type": "sqlite",
+    "database_path": "./postie.db"
+   },
+   "queue": {
+    "max_concurrent_uploads": 1,
+    "min_size_to_start": 0
+   },
+   "api": {
+    "enabled": true
+   },
+   "output_dir": "",
+   "maintain_original_extension": true,
+   "post_upload_script": {
+    "enabled": false,
+    "command": "",
+    "timeout": "30s",
+    "max_retries": 0,
+    "retry_delay": "30s",
+    "max_backoff": "1h",
+    "max_retry_duration": "24h",
+    "retry_check_interval": "1m"
+   },
+   "arr": {
+    "instances": null
+   },
+   "duplicate_lookup": {
+    "enabled": false,
+    "url": "",
+    "api_key": "",
+    "timeout": ""
+   }
+  }
+ },
+ "zero_conns": {
+  "yaml": "servers:\n  - host: h\n    port: 1\n    max_connections: 0\nposting:\n  groups:\n    - name: g\n",
+  "ok": false,
+  "error": "invalid configuration: server 0: max_connections must be positive"
+ },
+ "zero_port": {
+  "yaml": "servers:\n  - host: h\n    port: 0\n    max_connections: 1\nposting:\n  groups:\n    - name: g\n",
+  "ok": false,
+  "error": "invalid configuration: server 0: invalid port number"
+ },
+ "zip_bad": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\nnzb_compression:\n  enabled: true\n  type: zip\n  level: 10\n",
+  "ok": false,
+  "error": "invalid configuration: invalid zip compression level: 10 (must be between 0-9)"
+ },
+ "zstd_level_high": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\nnzb_compression:\n  enabled: true\n  type: zstd\n  level: 23\n",
+  "ok": false,
+  "error": "invalid configuration: invalid zstd compression level: 23 (must be between 1-22)"
+ },
+ "zstd_ok": {
+  "yaml": "servers:\n  - host: news.example.com\n    port: 563\n    ssl: true\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\nnzb_compression:\n  enabled: true\n  type: zstd\n",
+  "ok": true,
+  "config": {
+   "version": 2,
+   "servers": [
+    {
+     "host": "news.example.com",
+     "port": 563,
+     "username": "",
+     "password": "",
+     "ssl": true,
+     "max_connections": 10,
+     "max_connection_idle_time_in_seconds": 0,
+     "max_connection_ttl_in_seconds": 0,
+     "insecure_ssl": false,
+     "enabled": true,
+     "role": "upload",
+     "inflight": 0
+    }
+   ],
+   "connection_pool": {
+    "min_connections": 0,
+    "health_check_interval": ""
+   },
+   "posting": {
+    "wait_for_par2": false,
+    "max_retries": 3,
+    "retry_delay": "5s",
+    "article_size_in_bytes": 750000,
+    "groups": [
+     {
+      "name": "alt.binaries.test",
+      "enabled": true
+     }
+    ],
+    "throttle_rate": 0,
+    "message_id_format": "random",
+    "post_headers": {
+     "add_nxg_header": false,
+     "default_from": "",
+     "custom_headers": null
+    },
+    "obfuscation_policy": "full",
+    "par2_obfuscation_policy": "",
+    "group_policy": "each_file",
+    "upload_buffer_memory_limit": 0
+   },
+   "post_check": {
+    "enabled": true,
+    "delay": "",
+    "max_reposts": 0,
+    "deferred_check_delay": "30s",
+    "deferred_max_retries": 5,
+    "deferred_max_backoff": "5m",
+    "deferred_check_interval": "2m",
+    "deferred_batch_size": 10000,
+    "stat_batch_size": 100,
+    "max_concurrent_checks": 0,
+    "check_during_upload": true,
+    "check_connections": 0
+   },
+   "par2": {
+    "enabled": true,
+    "redundancy": "5%",
+    "temp_dir": "",
+    "maintain_par2_files": false,
+    "skip_if_par2_exists": true,
+    "parpar_binary_path": "",
+    "parpar_extra_args": null,
+    "num_goroutines": 0,
+    "memory_limit": 4294967296,
+    "slice_size": 10485760,
+    "max_concurrent_jobs": 1,
+    "gf16_method": "auto"
+   },
+   "watcher": {
+    "name": "",
+    "enabled": false,
+    "watch_directory": "",
+    "size_threshold": 0,
+    "schedule": {
+     "start_time": "",
+     "end_time": ""
+    },
+    "ignore_patterns": null,
+    "min_file_size": 0,
+    "check_interval": "",
+    "delete_original_file": false,
+    "single_nzb_per_folder": false,
+    "follow_symlinks": false,
+    "min_file_age": "",
+    "min_file_age_to_delete": ""
+   },
+   "watchers": [
+    {
+     "name": "",
+     "enabled": false,
+     "watch_directory": "",
+     "size_threshold": 104857600,
+     "schedule": {
+      "start_time": "00:00",
+      "end_time": "23:59"
+     },
+     "ignore_patterns": [
+      "*.tmp",
+      "*.part",
+      "*.!ut"
+     ],
+     "min_file_size": 1048576,
+     "check_interval": "5m",
+     "delete_original_file": false,
+     "single_nzb_per_folder": false,
+     "follow_symlinks": false,
+     "min_file_age": "60s",
+     "min_file_age_to_delete": "0s"
+    }
+   ],
+   "nzb_compression": {
+    "enabled": true,
+    "type": "zstd",
+    "level": 3
+   },
+   "database": {
+    "database_type": "sqlite",
+    "database_path": "./postie.db"
+   },
+   "queue": {
+    "max_concurrent_uploads": 1,
+    "min_size_to_start": 0
+   },
+   "api": {
+    "enabled": false
+   },
+   "output_dir": "",
+   "maintain_original_extension": true,
+   "post_upload_script": {
+    "enabled": false,
+    "command": "",
+    "timeout": "30s",
+    "max_retries": 0,
+    "retry_delay": "30s",
+    "max_backoff": "1h",
+    "max_retry_duration": "24h",
+    "retry_check_interval": "1m"
+   },
+   "arr": {
+    "instances": null
+   },
+   "duplicate_lookup": {
+    "enabled": false,
+    "url": "",
+    "api_key": "",
+    "timeout": ""
+   }
+  }
+ }
+}

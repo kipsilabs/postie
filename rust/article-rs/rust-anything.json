@@ -1,0 +1,196 @@
+{
+  "schema": "rust-anything/bridge@1",
+  "root": "../..",
+  "unit": "internal/article/",
+  "language": "go",
+  "kind": "ffi",
+  "crate_name": "article-rs",
+  "exports": [
+    {
+      "name": "EncodeWire",
+      "file": "internal/article/article.go",
+      "line": 158,
+      "params": [
+        {
+          "name": "header",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false,
+          "native_type": "string"
+        },
+        {
+          "name": "fileName",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false,
+          "native_type": "string"
+        },
+        {
+          "name": "fileSize",
+          "ts_type": "int",
+          "optional": false,
+          "rest": false,
+          "native_type": "int64"
+        },
+        {
+          "name": "partNumber",
+          "ts_type": "int",
+          "optional": false,
+          "rest": false,
+          "native_type": "int64"
+        },
+        {
+          "name": "totalParts",
+          "ts_type": "int",
+          "optional": false,
+          "rest": false,
+          "native_type": "int64"
+        },
+        {
+          "name": "offset",
+          "ts_type": "int",
+          "optional": false,
+          "rest": false,
+          "native_type": "int64"
+        },
+        {
+          "name": "partSize",
+          "ts_type": "int",
+          "optional": false,
+          "rest": false,
+          "native_type": "int64"
+        },
+        {
+          "name": "body",
+          "ts_type": "int[]",
+          "optional": false,
+          "rest": false,
+          "native_type": "[]byte"
+        }
+      ],
+      "returns": "int[]",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false,
+      "native_return": "([]byte, error)",
+      "prototype": "func EncodeWire(header, fileName string, fileSize, partNumber, totalParts, offset, partSize int64, body []byte) ([]byte, error)"
+    },
+    {
+      "name": "GenerateMessageID",
+      "file": "internal/article/article.go",
+      "line": 189,
+      "params": [],
+      "returns": "string",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false,
+      "native_return": "(string)",
+      "prototype": "func GenerateMessageID() string"
+    },
+    {
+      "name": "GenerateFrom",
+      "file": "internal/article/article.go",
+      "line": 195,
+      "params": [],
+      "returns": "string",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false,
+      "native_return": "(string)",
+      "prototype": "func GenerateFrom() string"
+    },
+    {
+      "name": "GenerateSubject",
+      "file": "internal/article/article.go",
+      "line": 201,
+      "params": [
+        {
+          "name": "fileNumber",
+          "ts_type": "int",
+          "optional": false,
+          "rest": false,
+          "native_type": "int"
+        },
+        {
+          "name": "totalFiles",
+          "ts_type": "int",
+          "optional": false,
+          "rest": false,
+          "native_type": "int"
+        },
+        {
+          "name": "fileName",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false,
+          "native_type": "string"
+        },
+        {
+          "name": "partNumber",
+          "ts_type": "int",
+          "optional": false,
+          "rest": false,
+          "native_type": "int"
+        },
+        {
+          "name": "numSegments",
+          "ts_type": "int",
+          "optional": false,
+          "rest": false,
+          "native_type": "int"
+        }
+      ],
+      "returns": "string",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false,
+      "native_return": "(string)",
+      "prototype": "func GenerateSubject(fileNumber int, totalFiles int, fileName string, partNumber int, numSegments int) string"
+    },
+    {
+      "name": "GenerateRandomSubject",
+      "file": "internal/article/article.go",
+      "line": 205,
+      "params": [],
+      "returns": "string",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false,
+      "native_return": "(string)",
+      "prototype": "func GenerateRandomSubject() string"
+    },
+    {
+      "name": "GenerateRandomFilename",
+      "file": "internal/article/article.go",
+      "line": 220,
+      "params": [],
+      "returns": "string",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false,
+      "native_return": "(string)",
+      "prototype": "func GenerateRandomFilename() string"
+    }
+  ],
+  "classes": [],
+  "js_only": [
+    {
+      "name": "New",
+      "file": "internal/article/article.go",
+      "line": 52,
+      "reason": "takes or returns a pointer (`*Article`)"
+    },
+    {
+      "name": "RandomDateWithinLast6Hours",
+      "file": "internal/article/article.go",
+      "line": 209,
+      "reason": "uses `time.Time` from another package"
+    }
+  ]
+}

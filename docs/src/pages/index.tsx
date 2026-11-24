@@ -32,7 +32,7 @@ function HomepageHeader() {
         </div>
         <div className={styles.buttons} style={{ marginTop: '20px' }}>
           <Link
-            to="https://github.com/kipsilabs/postie/releases/latest/download/postie-gui-windows-amd64.zip"
+            to="https://github.com/kipsilabs/postie/releases/latest/download/Postie-windows-x64-setup.exe"
             style={{ margin: '5px', display: 'inline-block' }}>
             <img 
               src="/img/download-for-windows.webp" 
@@ -41,7 +41,7 @@ function HomepageHeader() {
             />
           </Link>
           <Link
-            to="https://github.com/kipsilabs/postie/releases/latest/download/postie-gui-macos-universal.zip"
+            to="https://github.com/kipsilabs/postie/releases/latest/download/Postie-macos-arm64.dmg"
             style={{ margin: '5px', display: 'inline-block' }}>
             <img 
               src="/img/download-for-mac.png" 
@@ -73,7 +73,7 @@ export default function Home(): ReactNode {
   return (
     <Layout
       title={`${siteConfig.title} - High Performance Usenet Poster`}
-      description="A high-performance Usenet binary poster written in Go, inspired by Nyuu-Obfuscation">
+      description="A high-performance Usenet binary poster written in Rust, inspired by Nyuu-Obfuscation">
       <HomepageHeader />
       <main>
         <section style={{ padding: '2rem 0', backgroundColor: 'var(--ifm-background-color)' }}>
@@ -92,8 +92,8 @@ export default function Home(): ReactNode {
               </div>
               <div className="col col--4">
                 <div style={{ textAlign: 'center' }}>
-                  <img src="/img/examples/queue.png" alt="Queue Management" style={{ width: '100%', borderRadius: '8px', boxShadow: '0 4px 8px rgba(0,0,0,0.1)' }} />
-                  <h4>Queue Management</h4>
+                  <img src="/img/examples/queue.png" alt="Upload Queue" style={{ width: '100%', borderRadius: '8px', boxShadow: '0 4px 8px rgba(0,0,0,0.1)' }} />
+                  <h4>Upload Queue</h4>
                   <p>Control and prioritize your uploads</p>
                 </div>
               </div>
@@ -132,7 +132,7 @@ export default function Home(): ReactNode {
                 <p>Then open <strong>http://localhost:8080</strong> in your browser</p>
                 <Link
                   className="button button--primary button--lg"
-                  to="/docs/installation#docker-installation">
+                  to="/docs/installation#docker">
                   Full Docker Setup Guide
                 </Link>
               </div>

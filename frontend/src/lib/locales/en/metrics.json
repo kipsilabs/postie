@@ -13,42 +13,33 @@
 			"par2_jobs": "PAR2 Jobs",
 			"queued": "queued"
 		},
-
 		"time_period": "Time Period",
 		"compressed_data": "Compressed Data",
 		"data_source": "Data Source",
 		"compressed_metrics_title": "Historical Compressed Metrics",
 		"daily_metrics_description": "View compressed daily metrics aggregated over 24-hour periods. This data is optimized for storage and provides insights into daily usage patterns.",
 		"weekly_metrics_description": "View compressed weekly metrics aggregated over 7-day periods. This data shows long-term trends and weekly usage patterns.",
-		
 		"no_compressed_data_title": "No Compressed Data Available",
 		"no_daily_data_description": "No daily compressed metrics are available yet. The system needs time to accumulate daily data, or the nntppool version may not support this feature.",
 		"no_weekly_data_description": "No weekly compressed metrics are available yet. The system needs time to accumulate weekly data, or the nntppool version may not support this feature.",
 		"showing_current_data": "Showing current real-time data instead",
-		
 		"periods": {
 			"current": "Real-time",
 			"daily": "Daily History",
 			"weekly": "Weekly History"
 		},
-		
 		"active_connections": "Active Connections",
-		"avg_speed": "Avg Speed",
-		"elapsed": "Pool Uptime",
 		"total_errors": "Total Errors",
 		"missing": "Missing",
-		"ping_rtt": "Ping RTT",
 		"errors": "Errors",
 		"connections": "Connections",
-		"current_speed": "Current Speed",
-		"ttfb": "TTFB",
-		"downloaded": "Downloaded",
 		"free_slots": "Free Slots",
-		"quota": "Quota",
-		"quota_exceeded": "Exceeded",
-
 		"nntp_servers": "NNTP Servers",
-		"server_host": "Server Host"
+		"server_host": "Server Host",
+		"upload_speed": "Upload Speed",
+		"avg_upload_speed": "Avg",
+		"uploaded": "Uploaded",
+		"articles_posted": "Articles Posted"
 	},
 	"logs": {
 		"search_placeholder": "Filter logs",

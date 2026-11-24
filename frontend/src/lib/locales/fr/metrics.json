@@ -1,9 +1,6 @@
 {
 	"metrics": {
-		"ping_rtt": "Latence (RTT)",
 		"missing": "Manquants",
-		"elapsed": "Durée de fonctionnement du pool",
-		"avg_speed": "Vitesse moyenne",
 		"title": "Métriques du Pool de Connexions",
 		"description": "Métriques de performance et de connexion en temps réel pour votre pool de connexions",
 		"auto_refresh": "Actualisation automatique",
@@ -17,56 +14,43 @@
 			"par2_jobs": "Tâches PAR2",
 			"queued": "en attente"
 		},
-		
 		"time_period": "Période de Temps",
 		"compressed_data": "Données Compressées",
 		"data_source": "Source de Données",
 		"compressed_metrics_title": "Métriques Historiques Compressées",
 		"daily_metrics_description": "Voir les métriques quotidiennes compressées agrégées sur des périodes de 24 heures. Ces données sont optimisées pour le stockage et fournissent des informations sur les modèles d'utilisation quotidiens.",
 		"weekly_metrics_description": "Voir les métriques hebdomadaires compressées agrégées sur des périodes de 7 jours. Ces données montrent les tendances à long terme et les modèles d'utilisation hebdomadaire.",
-		
 		"no_compressed_data_title": "Aucune Donnée Compressée Disponible",
 		"no_daily_data_description": "Aucune métrique quotidienne compressée n'est encore disponible. Le système a besoin de temps pour accumuler les données quotidiennes, ou la version nntppool peut ne pas supporter cette fonctionnalité.",
 		"no_weekly_data_description": "Aucune métrique hebdomadaire compressée n'est encore disponible. Le système a besoin de temps pour accumuler les données hebdomadaires, ou la version nntppool peut ne pas supporter cette fonctionnalité.",
 		"showing_current_data": "Affichage des données actuelles en temps réel",
-		
 		"periods": {
 			"current": "Temps Réel",
 			"daily": "Historique Quotidien",
 			"weekly": "Historique Hebdomadaire"
 		},
-		
 		"active_connections": "Connexions Actives",
 		"download_speed": "Vitesse de Téléchargement",
-		"upload_speed": "Vitesse d'Upload approximative",
+		"upload_speed": "Vitesse d'Envoi",
 		"uptime": "Temps de Fonctionnement du Pool",
-		
 		"performance": "Métriques de Performance",
 		"error_rate": "Taux d'Erreur",
 		"total_acquires": "Total des Acquisitions",
 		"total_articles": "Articles Récupérés",
 		"avg_wait_time": "Temps d'Attente Moyen",
 		"total_errors": "Total des Erreurs",
-		
 		"data_transfer": "Transfert de Données",
 		"total_downloaded": "Total Téléchargé",
 		"total_uploaded": "Total Uploadé",
 		"data_uploaded": "Données Téléversées",
 		"errors": "Erreurs",
-
 		"providers": "Fournisseurs NNTP",
 		"provider_host": "Hôte/Serveur",
 		"status": "Statut",
 		"connections": "Connexions",
-		"current_speed": "Vitesse Actuelle",
-		"ttfb": "TTFB",
-		"downloaded": "Téléchargé",
 		"free_slots": "Emplacements Libres",
-		"quota": "Quota",
-		"quota_exceeded": "Dépassé",
 		"success_rate": "Taux de Réussite",
 		"avg_age": "Âge Moyen des Connexions",
-
 		"articles_posted": "Articles Publiés",
 		"pool_uptime": "Temps de Fonctionnement du Pool",
 		"posting_performance": "Rendement de Publication",
@@ -82,7 +66,9 @@
 		"nntp_servers": "Serveurs NNTP",
 		"server_host": "Hôte du Serveur",
 		"data_posted": "Données Publiées",
-		"connection_age": "Âge de Connexion"
+		"connection_age": "Âge de Connexion",
+		"avg_upload_speed": "Moyenne",
+		"uploaded": "Envoyé"
 	},
 	"logs": {
 		"search_placeholder": "Filtrer les journaux",

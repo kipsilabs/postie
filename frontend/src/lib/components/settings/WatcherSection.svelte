@@ -4,7 +4,7 @@ import DurationInput from "$lib/components/inputs/DurationInput.svelte";
 import SizeInput from "$lib/components/inputs/SizeInput.svelte";
 import { t } from "$lib/i18n";
 import { toastStore } from "$lib/stores/toast";
-import { config as configType } from "$lib/wailsjs/go/models";
+import { config as configType } from "$lib/api/models";
 import { ChevronDown, CirclePlus, FolderOpen, Trash2 } from "lucide-svelte";
 import FieldRow from "$lib/components/inputs/FieldRow.svelte";
 import ToggleRow from "$lib/components/inputs/ToggleRow.svelte";
@@ -108,13 +108,12 @@ async function selectWatchDirectory(index: number) {
 	try {
 		await apiClient.initialize();
 
-		if (apiClient.environment !== "wails") {
+		if (!apiClient.isDesktop) {
 			toastStore.warning($t("common.messages.wails_only_feature"));
 			return;
 		}
 
-		const { SelectWatchDirectory } = await import("$lib/wailsjs/go/backend/App");
-		const dir = await SelectWatchDirectory();
+		const dir = await apiClient.selectWatchDirectory();
 
 		if (dir) {
 			config.watchers[index].watch_directory = dir;
@@ -236,7 +235,7 @@ function getWatcherDisplayName(w: configType.WatcherConfig, index: number): stri
 							{/if}
 						{/snippet}
 						<div class="flex items-center gap-2 max-sm:flex-col max-sm:items-stretch">
-							{#if apiClient.environment === 'wails'}
+							{#if apiClient.isDesktop}
 								<input
 									id="watch-directory-{index}"
 									class="input input-sm w-64 max-sm:w-full"

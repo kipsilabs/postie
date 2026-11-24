@@ -1,0 +1,160 @@
+name: Rust
+
+on:
+  push:
+    branches: [main, "release/**"]
+    paths: ["rust/**", "frontend/**", "docker/**", ".github/workflows/rust.yml"]
+  pull_request:
+    paths: ["rust/**", "frontend/**", "docker/**", ".github/workflows/rust.yml"]
+
+concurrency:
+  group: rust-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: rust
+
+jobs:
+  check:
+    name: fmt + clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  frontend:
+    name: frontend (check + test + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - run: bun test
+      - run: bun run build
+
+  docker:
+    name: docker image (build only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      # persist the Dockerfile's cargo cache mounts (registry + target) across runs; the gha
+      # layer cache alone does not keep `RUN --mount=type=cache`, so every build started cold
+      - uses: actions/cache@v4
+        id: cargo-cache
+        with:
+          path: docker-cargo-cache
+          key: docker-cargo-${{ hashFiles('rust/Cargo.lock') }}-${{ github.sha }}
+          restore-keys: docker-cargo-${{ hashFiles('rust/Cargo.lock') }}-
+      - uses: reproducible-containers/buildkit-cache-dance@v3
+        with:
+          cache-map: |
+            {
+              "docker-cargo-cache/registry": "/usr/local/cargo/registry",
+              "docker-cargo-cache/target": "/app/rust/target"
+            }
+          skip-extraction: ${{ steps.cargo-cache.outputs.cache-hit }}
+      - uses: docker/build-push-action@v6
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: false
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Install par2cmdline
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            sudo apt-get update && sudo apt-get install -y par2
+          else
+            brew install par2
+          fi
+          echo "POSTIE_REQUIRE_PAR2=1" >> "$GITHUB_ENV"
+      - run: cargo test --workspace --no-fail-fast
+
+  # Compile checks run alongside the tests (no `needs`) and use the fast `ci` profile; the
+  # LTO release binaries and desktop bundles are produced by rust-release.yml.
+  binaries:
+    name: build postie + postie-web (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile && bun run build
+        working-directory: frontend
+      - run: cargo build --profile ci -p postie-cli -p postie-web
+      - name: Bundle frontend beside the binaries
+        shell: bash
+        run: cp -r ../frontend/build target/ci/frontend
+      - uses: actions/upload-artifact@v4
+        with:
+          name: postie-rust-${{ matrix.os }}
+          path: |
+            rust/target/ci/postie
+            rust/target/ci/postie.exe
+            rust/target/ci/postie-web
+            rust/target/ci/postie-web.exe
+            rust/target/ci/frontend
+          if-no-files-found: ignore
+
+  # Branch/PR CI only checks that the desktop shell compiles; bundling (dmg/msi/AppImage) is the
+  # slowest step and runs for release-candidate tags in rust-release.yml.
+  desktop:
+    name: desktop compile (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Linux system libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust/desktop
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile && bun run build
+        working-directory: frontend
+      - run: cargo build --locked
+        working-directory: rust/desktop

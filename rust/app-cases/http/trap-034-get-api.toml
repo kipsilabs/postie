@@ -1,0 +1,9 @@
+[request]
+method = "GET"
+path = "/api//status"
+
+[response]
+status = 301
+
+[response.headers]
+location = "/api/status"

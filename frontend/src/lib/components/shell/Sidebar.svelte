@@ -180,7 +180,6 @@ function handleNavClick(event: MouseEvent, disabled: boolean) {
 	.drag-spacer {
 		flex: none;
 		height: var(--titlebar-inset);
-		--wails-draggable: drag;
 	}
 	.sidebar-strip {
 		flex: none;
@@ -247,7 +246,6 @@ function handleNavClick(event: MouseEvent, disabled: boolean) {
 		color: color-mix(in oklab, var(--color-base-content) 82%, transparent);
 		text-decoration: none;
 		transition: background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
-		--wails-draggable: no-drag;
 	}
 	.nav-item:hover:not(.active):not(.disabled) {
 		background: color-mix(in oklab, var(--color-base-content) 6%, transparent);

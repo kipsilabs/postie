@@ -4,7 +4,7 @@ import DurationInput from "$lib/components/inputs/DurationInput.svelte";
 import ThrottleRateInput from "$lib/components/inputs/ThrottleRateInput.svelte";
 import { t } from "$lib/i18n";
 import { advancedMode } from "$lib/stores/app";
-import { config as configType } from "$lib/wailsjs/go/models";
+import { config as configType } from "$lib/api/models";
 import { Plus, Trash2 } from "lucide-svelte";
 import FieldRow from "$lib/components/inputs/FieldRow.svelte";
 import NumberField from "$lib/components/inputs/NumberField.svelte";
@@ -26,7 +26,7 @@ let { config = $bindable() }: ComponentProps = $props();
 let maxRetries = $state(config.posting.max_retries || 3);
 let retryDelay = $state(config.posting.retry_delay || "5s");
 let articleSizeInBytes = $state(config.posting.article_size_in_bytes || 750000);
-let waitForPar2 = $state(config.posting.wait_for_par2 ?? true);
+let waitForPar2 = $state(config.posting.wait_for_par2 ?? false);
 let groups = $state(
 	config.posting.groups?.length > 0 
 		? [...config.posting.groups] 

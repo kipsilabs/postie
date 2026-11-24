@@ -1,0 +1,13 @@
+[package]
+name = "postie-yenc"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Article wire encoding: headers + yEnc part (=ybegin/=ypart/=yend) on the vendored rapidyenc"
+
+[dependencies]
+crc32fast = "1"
+rapidyenc-sys = { path = "../rapidyenc-sys" }
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }

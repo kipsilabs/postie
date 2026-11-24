@@ -79,6 +79,7 @@
 			"processing_time": "Temps de traitement"
 		},
 		"progress": {
+			"verified": "Vérifié",
 			"title": "Progression de Téléchargement",
 			"file_size": "Taille du fichier",
 			"path": "Chemin",
@@ -110,7 +111,7 @@
 			"details": "Détails",
 			"last_update": "Dernière Mise à Jour",
 			"no_upload_title": "Aucun téléchargement en cours",
-			"no_upload_description": "Cliquez sur \"Démarrer le Téléchargement\" pour commencer le traitement de la file d'attente",
+			"no_upload_description": "Utilisez \"Ajouter des Fichiers\" ou \"Ajouter un Dossier\" pour mettre des envois en file ; ils démarrent automatiquement",
 			"active_tasks": "Tâches Actives",
 			"elapsed": "Écoulé",
 			"remaining": "Restant",
@@ -187,29 +188,20 @@
 			"anonymous": "Anonyme",
 			"connections": "Connexions",
 			"success_rate": "Taux de Réussite",
-			"uploaded": "Téléchargé",
+			"uploaded": "Envoyé",
 			"articles": "Articles",
 			"idle_connections": "Inactives",
 			"pool_summary": "Résumé du Pool",
 			"active_connections": "connexions actives",
 			"total_uploaded": "Total Téléchargé",
 			"no_providers": "Aucun fournisseur configuré",
-			"avg_speed": "Vitesse Moyenne",
 			"missing": "Manquants",
 			"errors": "Erreurs",
-			"elapsed": "Disponibilité",
 			"total_errors": "Erreurs Totales",
 			"inflight": "Profondeur du pipeline",
-			"current_speed": "Vitesse Actuelle",
-			"ttfb": "TTFB",
-			"downloaded": "Téléchargé",
-			"uploaded": "Envoyé",
 			"upload_speed": "Vitesse d’envoi",
 			"avg_upload_speed": "Vitesse d’envoi moyenne",
 			"free_slots": "libres",
-			"quota": "Quota",
-			"quota_exceeded": "Dépassé",
-			"quota_resets": "Réinitialisation",
 			"status": {
 				"connected": "Connecté",
 				"idle": "Inactif",
@@ -240,6 +232,24 @@
 			"scan_triggered_description": "Le scan du répertoire a été lancé",
 			"watcher_number": "Surveillant #{n}",
 			"no_watchers": "Aucun répertoire de surveillance configuré"
+		},
+		"verification": {
+			"title": "Vérification",
+			"count": "{count} en attente",
+			"phase": {
+				"checking": "Contrôle des articles",
+				"repairing": "Réparation",
+				"waiting": "Attente de propagation",
+				"deferred": "Attente de connexions libres",
+				"queued": "En file"
+			},
+			"detail": {
+				"checking": "{verified} sur {total} articles confirmés sur le serveur",
+				"repairing": "{missing} articles manquants en cours de revérification et de republication",
+				"waiting": "Prochain contrôle dans {seconds} s",
+				"deferred": "Les envois utilisent toutes les connexions ; les contrôles reprennent dès qu'une se libère",
+				"queued": "Démarre au prochain cycle de vérification"
+			}
 		}
 	}
 }

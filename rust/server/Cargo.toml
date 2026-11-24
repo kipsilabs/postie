@@ -1,0 +1,33 @@
+[package]
+name = "postie-web"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Postie web server (port of cmd/web): the HTTP/WebSocket API and static frontend over postie-core"
+
+[[bin]]
+name = "postie-web"
+path = "src/main.rs"
+
+[dependencies]
+postie-core = { path = "../core" }
+axum = { version = "0.8", features = ["multipart", "ws"] }
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal", "time", "sync", "fs", "io-util"] }
+tokio-util = "0.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+rand = "0.10"
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+reqwest = { version = "0.13", default-features = false, features = ["json", "multipart"] }
+tokio-tungstenite = "0.28"
+futures-util = { version = "0.3", default-features = false, features = ["sink"] }
+md-5 = "0.11"
+crc32fast = "1"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }

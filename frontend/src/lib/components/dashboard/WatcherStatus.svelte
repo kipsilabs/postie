@@ -5,7 +5,7 @@ import { toastStore } from "$lib/stores/toast";
 import { onMount, onDestroy } from "svelte";
 import { fade, fly, listFlip } from "$lib/motion";
 import { AlertCircle, RefreshCw } from "lucide-svelte";
-import { watcher } from "$lib/wailsjs/go/models";
+import { watcher } from "$lib/api/models";
 
 let watcherStatuses = $state<watcher.WatcherStatusInfo[]>([]);
 let loading = $state(true);

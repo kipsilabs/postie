@@ -1,6 +1,6 @@
-// Web API client for browser environment (replaces Wails bindings)
+// Web API client for the postie-web HTTP/WebSocket API
 
-import type { backend, config, processor, watcher } from "$lib/wailsjs/go/models";
+import type { backend, config, processor, watcher } from "$lib/api/models";
 // Using backend types for pagination
 
 const API_BASE = "/api";
@@ -215,6 +215,10 @@ export class WebClient {
 			queryParams.set("status", params.status);
 		}
 		return this.get<backend.PaginatedQueueResult>(`/queue?${queryParams}`);
+	}
+
+	async getVerificationActivity(): Promise<backend.VerificationActivity[]> {
+		return this.get<backend.VerificationActivity[]>("/verification/active");
 	}
 
 	async getQueueStats(): Promise<backend.QueueStats> {

@@ -1,7 +1,7 @@
 <script lang="ts">
 import apiClient from "$lib/api/client";
 import { t } from "$lib/i18n";
-import type { backend } from "$lib/wailsjs/go/models";
+import type { backend } from "$lib/api/models";
 import { fade } from "$lib/motion";
 import StatValue from "./StatValue.svelte";
 import { onDestroy, onMount } from "svelte";

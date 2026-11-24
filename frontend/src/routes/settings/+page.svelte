@@ -20,7 +20,7 @@ import ArrSection from "$lib/components/settings/ArrSection.svelte";
 import { t } from "$lib/i18n";
 import { advancedMode, appStatus, settingsSaveFunction } from "$lib/stores/app";
 import { toastStore } from "$lib/stores/toast";
-import { backend, config as configType } from "$lib/wailsjs/go/models";
+import { backend, config as configType } from "$lib/api/models";
 import { AlertCircle, RefreshCw, Save } from "lucide-svelte";
 import { collapse } from "$lib/components/settings/collapse";
 import { fade, fly } from "$lib/motion";
@@ -383,9 +383,7 @@ onDestroy(() => {
             <WatcherSection bind:config={localConfig} />
             <PostUploadScriptSection bind:config={localConfig} />
             <ApiSection bind:config={localConfig} />
-            {#if apiClient.environment !== 'wails'}
-              <ArrSection />
-            {/if}
+            <ArrSection />
           </div>
         </div>
       </div>
