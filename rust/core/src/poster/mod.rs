@@ -47,6 +47,11 @@ pub trait ArticleClient: Send + Sync {
     fn stat<'a>(&'a self, message_id: &'a str) -> BoxFut<'a, Result<bool, NntpError>>;
     /// Total connection capacity (sizes the shared worker pool).
     fn max_connections(&self) -> usize;
+    /// Requests the client can keep on the wire at once; `STAT`s pipeline up to this many. Defaults
+    /// to one per connection.
+    fn max_inflight(&self) -> usize {
+        self.max_connections()
+    }
 }
 
 impl ArticleClient for postie_nntp::pool::Client {
@@ -59,6 +64,15 @@ impl ArticleClient for postie_nntp::pool::Client {
     fn max_connections(&self) -> usize {
         postie_nntp::pool::Client::max_connections(self)
     }
+    fn max_inflight(&self) -> usize {
+        postie_nntp::pool::Client::max_inflight(self)
+    }
+}
+
+/// Told about every article the poster has just posted successfully (the early checker STATs it
+/// after the propagation delay, while the rest of the upload is still running). Must not block.
+pub trait PostObserver: Send + Sync {
+    fn posted(&self, message_id: &str);
 }
 
 /// Records a durable manifest before a file's articles are posted and returns an earlier one for crash
@@ -460,6 +474,7 @@ struct Inner {
     progress: Arc<JobProgress>,
     engine: Option<Arc<Engine>>,
     manifest_sink: Option<Arc<dyn ManifestSink>>,
+    observer: Option<Arc<dyn PostObserver>>,
     /// Shared upload workers: total posting concurrency is bounded by upload connection capacity no
     /// matter how many `post` calls run at once.
     workers: Arc<Semaphore>,
@@ -537,10 +552,25 @@ impl Poster {
             progress,
             engine,
             manifest_sink,
+            observer: None,
             workers: Arc::new(Semaphore::new(conns)),
             closed: AtomicBool::new(false),
             shutdown: CancellationToken::new(),
         }))
+    }
+
+    /// Installs the observer told about each posted article. Only meaningful in durable mode (with a
+    /// manifest sink); must be called right after [`Poster::new`], before the poster is cloned.
+    #[must_use]
+    pub fn with_post_observer(mut self, observer: Option<Arc<dyn PostObserver>>) -> Self {
+        match Arc::get_mut(&mut self.0) {
+            Some(inner) => inner.observer = observer,
+            None => crate::logx::warn(
+                "Post observer ignored: poster already shared",
+                &[("component", "poster".into())],
+            ),
+        }
+        self
     }
 
     pub fn stats(&self) -> StatsSnapshot {
@@ -1159,6 +1189,9 @@ impl Poster {
             body,
         )
         .await?;
+        if let Some(o) = &self.0.observer {
+            o.posted(&art.message_id);
+        }
         Ok(art)
     }
 

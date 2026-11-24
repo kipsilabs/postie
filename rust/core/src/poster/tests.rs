@@ -471,6 +471,46 @@ async fn pause_blocks_posting_until_resumed() {
     assert_eq!(mock.posts.lock().unwrap().len(), 1);
 }
 
+#[derive(Default)]
+struct Observed(Mutex<Vec<String>>);
+impl PostObserver for Observed {
+    fn posted(&self, message_id: &str) {
+        self.0.lock().unwrap().push(message_id.to_string());
+    }
+}
+
+#[tokio::test]
+async fn the_post_observer_hears_every_posted_article() {
+    let t = Tmp::new();
+    let mock = Mock::new(2);
+    let sink: Arc<dyn ManifestSink> = Arc::new(Sink::new(Arc::new(Mutex::new(vec![]))));
+    let seen = Arc::new(Observed::default());
+    let p = Poster::new(
+        posting(),
+        PostCheck::default(),
+        mock.clone(),
+        mock.clone(),
+        Arc::new(JobProgress::new("j")),
+        None,
+        Some(sink),
+    )
+    .with_post_observer(Some(seen.clone()));
+    p.post(
+        &CancellationToken::new(),
+        &[t.file("a.bin", 3500)],
+        &generator(),
+        None,
+    )
+    .await
+    .unwrap();
+    let mut heard = seen.0.lock().unwrap().clone();
+    let mut posted = mock.posted_ids();
+    heard.sort();
+    posted.sort();
+    assert_eq!(posted.len(), 4);
+    assert_eq!(heard, posted);
+}
+
 #[tokio::test]
 async fn durable_mode_records_the_manifest_before_any_post_and_skips_the_check() {
     let t = Tmp::new();

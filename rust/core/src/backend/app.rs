@@ -19,7 +19,7 @@ use crate::config::{self, ConfigData, ServerConfig, WatcherConfig};
 use crate::database::{self, MigrationRunner};
 use crate::db::Db;
 use crate::pool::Manager;
-use crate::postie::runtime::{PoolStater, RuntimeMetrics};
+use crate::postie::runtime::{PoolStater, RuntimeMetrics, stat_limits};
 use crate::processor::postcheck_retry::PostCheckRetryWorker;
 use crate::processor::runner::{
     PoolManager, Processor, ProcessorOptions, RunningJobDetails, RunningJobItem,
@@ -712,7 +712,15 @@ impl App {
         let worker = PostCheckRetryWorker::new(
             &self.root,
             queue,
-            Arc::new(PoolStater::new(verify, 16)),
+            Arc::new(PoolStater::new(
+                verify.clone(),
+                stat_limits(
+                    cfg.post_check.max_concurrent_checks,
+                    false,
+                    verify.max_inflight(),
+                ),
+                None,
+            )),
             &cfg.post_check,
             Some(Arc::new(move || {
                 if let Some(a) = me.upgrade() {

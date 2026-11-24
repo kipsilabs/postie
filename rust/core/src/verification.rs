@@ -7,7 +7,6 @@
 //! work survives restarts. It talks to the network only through [`Stater`] and [`Reposter`].
 
 use std::collections::{HashMap, HashSet};
-use std::io;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -15,7 +14,7 @@ use chrono::{DateTime, Duration, Utc};
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 
-use crate::manifest::{ArticleRecord, ManifestError, Reader};
+use crate::manifest::{ArticleRecord, Reader};
 use crate::poster::BoxFut;
 use crate::transferstore::{
     self as ts, PendingFile, Store, StoreError, TransferFile, VerificationFailure,
@@ -32,6 +31,11 @@ pub trait Stater: Send + Sync {
         &'a self,
         ids: &'a [String],
     ) -> BoxFut<'a, std::result::Result<HashSet<String>, String>>;
+    /// STATs worth keeping in flight at once (the sweep's sliding window). The implementation still
+    /// enforces its own limit; this only bounds how many requests a caller queues up.
+    fn window(&self) -> usize {
+        16
+    }
 }
 
 /// Why a re-post failed: a missing source file can never succeed, anything else may be retried.
@@ -155,6 +159,11 @@ pub enum VerifyError {
 
 type Result<T> = std::result::Result<T, VerifyError>;
 
+mod early;
+mod sweep;
+
+pub use early::EarlyChecker;
+
 const STATUS_VERIFIED: &str = "verified";
 const STATUS_FAILED: &str = "verification_failed";
 /// Poll ticks between periodic `reconcile_stuck` passes (~5 minutes at the default interval).
@@ -162,6 +171,9 @@ const RECONCILE_EVERY_TICKS: u64 = 20;
 /// Consecutive cycles the busy gate may defer before a full cycle is forced (~5 minutes): without
 /// it a continuously saturated upload pool would starve verification and repost recovery forever.
 const MAX_BUSY_SKIPS: usize = 20;
+/// Shortest sleep between cycles, so an overdue file the cycle could not take (busy gate, error)
+/// does not spin the loop.
+const MIN_WAIT: std::time::Duration = std::time::Duration::from_secs(1);
 
 fn log(msg: &str) {
     crate::logx::warn(&format!("verification: {msg}"), &[]);
@@ -282,6 +294,15 @@ pub struct Service {
     /// Set while the busy gate holds cycles back.
     deferred: AtomicBool,
     live: Mutex<HashMap<LiveKey, (i64, i64)>>,
+    /// Confirmations from checking during upload; the sweep skips articles found here.
+    early: Option<Arc<EarlyChecker>>,
+    /// Cuts the poll sleep short when a transfer finishes uploading.
+    wake: tokio::sync::Notify,
+    /// Serializes finalization. Concurrent sweeps share one task today and finalize reads the rows
+    /// with no await after the state write, so two finalizes cannot both see a transfer terminal;
+    /// this keeps it that way if that ever changes, since overlapping finalizes would run cleanup
+    /// (and the post-upload script) twice. Sequential calls are safe: cleanup drops the rows.
+    finalize_lock: tokio::sync::Mutex<()>,
 }
 
 #[derive(PartialEq, Eq, Hash, Clone)]
@@ -308,7 +329,21 @@ impl Service {
             busy_skips: AtomicUsize::new(0),
             deferred: AtomicBool::new(false),
             live: Mutex::new(HashMap::new()),
+            early: None,
+            wake: tokio::sync::Notify::new(),
+            finalize_lock: tokio::sync::Mutex::new(()),
         }
+    }
+
+    /// Installs the checker whose upload-time confirmations let the sweep skip STATs.
+    pub fn set_early_checker(&mut self, e: Arc<EarlyChecker>) {
+        self.early = Some(e);
+    }
+
+    /// Re-evaluates when the next check is due (call after files are marked uploaded), instead of
+    /// waiting out the current poll interval.
+    pub fn wake(&self) {
+        self.wake.notify_one();
     }
 
     pub fn with_clock(mut self, now: Clock) -> Self {
@@ -358,6 +393,7 @@ impl Service {
     /// Reflects a transfer's terminal verification outcome onto its completed item and, on full
     /// success, runs cleanup. A no-op until every file is terminal; failure retains all recovery data.
     async fn finalize_transfer(&self, transfer_id: &str) {
+        let _serial = self.finalize_lock.lock().await;
         let files = match self.store.list_files_by_transfer(transfer_id) {
             Ok(f) => f,
             Err(e) => {
@@ -440,16 +476,40 @@ impl Service {
             {
                 log(&format!("periodic reconciliation failed: {e}"));
             }
-            let wait = self
-                .cfg
-                .poll_interval
-                .to_std()
-                .unwrap_or(std::time::Duration::from_secs(15));
+            let wait = self.next_wait();
             tokio::select! {
                 () = cancel.cancelled() => return,
                 () = tokio::time::sleep(wait) => {}
+                () = self.wake.notified() => {}
             }
         }
+    }
+
+    /// The poll interval, shortened to when the next file's first check is due so a finished
+    /// upload is swept right after its propagation delay rather than on the next poll tick. Never
+    /// shortened after a cycle the busy gate deferred.
+    fn next_wait(&self) -> std::time::Duration {
+        let poll = self
+            .cfg
+            .poll_interval
+            .to_std()
+            .unwrap_or(std::time::Duration::from_secs(15));
+        // A cycle the busy gate held back leaves due files overdue; waking early for them would
+        // burn through MAX_BUSY_SKIPS (and the reconcile cadence) in seconds instead of minutes.
+        if self.deferred.load(Ordering::Relaxed) {
+            return poll;
+        }
+        let until_due = match self.store.next_file_check_at() {
+            Ok(Some(at)) => (at - self.now())
+                .to_std()
+                .unwrap_or(std::time::Duration::ZERO),
+            Ok(None) => return poll,
+            Err(e) => {
+                log(&format!("read next check time failed: {e}"));
+                return poll;
+            }
+        };
+        until_due.clamp(MIN_WAIT, poll)
     }
 
     /// One verification cycle.
@@ -479,163 +539,6 @@ impl Service {
         if let Err(e) = self.process_due_failures(cancel, now).await {
             log(&format!("process due failures failed: {e}"));
         }
-    }
-
-    /// First check for every file whose check is due, up to `limit`. A failure on one file is logged
-    /// and does not abort the batch. Returns the number verified.
-    pub async fn verify_due_files(
-        &self,
-        cancel: &CancellationToken,
-        now: DateTime<Utc>,
-        limit: i64,
-    ) -> Result<usize> {
-        let due = self.store.list_due_files(now, limit)?;
-        let mut processed = 0;
-        for tf in due {
-            if cancel.is_cancelled() {
-                return Err(VerifyError::Canceled);
-            }
-            match self.verify_file(cancel, &tf).await {
-                Ok(()) => processed += 1,
-                Err(e) => log(&format!(
-                    "verify file failed: transfer={} file={} error={e}",
-                    tf.transfer_id, tf.file_id
-                )),
-            }
-        }
-        Ok(processed)
-    }
-
-    /// STATs every article of a file's manifest in batches and persists only the misses. No misses:
-    /// verified. Otherwise `verifying`, with the misses left for `process_due_failures`.
-    pub async fn verify_file(&self, cancel: &CancellationToken, tf: &TransferFile) -> Result<()> {
-        let mut reader = match Reader::open(std::path::Path::new(&tf.manifest_path)) {
-            Ok(r) => r,
-            Err(ManifestError::Open(e)) if e.kind() == io::ErrorKind::NotFound => {
-                // The manifest will never come back: fail the file instead of retrying forever, or
-                // the completed item stays pending_verification across restarts (issue #168).
-                return self
-                    .fail_file_terminally(tf, &format!("manifest missing: {e}"))
-                    .await;
-            }
-            Err(e) => return self.defer_file_check(tf, &e.to_string()).await,
-        };
-        let live = LiveGuard {
-            live: &self.live,
-            key: (tf.transfer_id.clone(), tf.file_id.clone()),
-        };
-        live.set(0, 0);
-        crate::logx::info(
-            "Verifying upload: checking every article is on the server",
-            &[
-                ("file", file_name(&tf.source_path).into()),
-                ("articles", tf.article_count.into()),
-            ],
-        );
-        let mut checked = 0i64;
-        let mut missing: Vec<ArticleRecord> = Vec::new();
-        let mut chunk: Vec<ArticleRecord> = Vec::with_capacity(self.cfg.stat_batch_size);
-        loop {
-            let rec = match reader.next_record() {
-                Ok(Some(r)) => r,
-                Ok(None) => break,
-                // unreadable or corrupt content: back off (and eventually terminalize)
-                Err(e) => return self.defer_file_check(tf, &e.to_string()).await,
-            };
-            if cancel.is_cancelled() {
-                return Err(VerifyError::Canceled);
-            }
-            chunk.push(rec);
-            if chunk.len() >= self.cfg.stat_batch_size {
-                let n = chunk.len() as i64;
-                if let Err(e) = self.flush(&mut chunk, &mut missing).await {
-                    return if cancel.is_cancelled() {
-                        Err(VerifyError::Canceled)
-                    } else {
-                        self.defer_file_check(tf, &e).await
-                    };
-                }
-                checked += n;
-                live.set(checked, missing.len() as i64);
-            }
-        }
-        if let Err(e) = self.flush(&mut chunk, &mut missing).await {
-            return if cancel.is_cancelled() {
-                Err(VerifyError::Canceled)
-            } else {
-                self.defer_file_check(tf, &e).await
-            };
-        }
-        if cancel.is_cancelled() {
-            return Err(VerifyError::Canceled);
-        }
-        drop(live);
-        if missing.is_empty() {
-            self.store.set_verification_state(
-                &tf.transfer_id,
-                &tf.file_id,
-                ts::STATE_VERIFIED,
-                None,
-                "",
-            )?;
-            crate::logx::info(
-                "File verified: every article is on the server",
-                &[
-                    ("file", file_name(&tf.source_path).into()),
-                    ("articles", tf.article_count.into()),
-                ],
-            );
-            self.finalize_transfer(&tf.transfer_id).await;
-            return Ok(());
-        }
-        // persist the misses for durable re-posting/rechecking
-        let next = self.now() + self.cfg.propagation_delay;
-        let failures: Vec<VerificationFailure> = missing
-            .iter()
-            .map(|rec| VerificationFailure {
-                transfer_id: tf.transfer_id.clone(),
-                file_id: tf.file_id.clone(),
-                article_index: rec.index,
-                message_id: rec.message_id.clone(),
-                groups: rec.groups.clone(),
-                state: ts::FAILURE_PENDING.into(),
-                next_attempt_at: next,
-                ..Default::default()
-            })
-            .collect();
-        // one transaction instead of a commit per missing article, off the async worker thread
-        crate::blocking::in_place(|| self.store.add_failures(&failures))?;
-        crate::logx::warn(
-            "Articles missing after upload; they will be rechecked and re-posted",
-            &[
-                ("file", file_name(&tf.source_path).into()),
-                ("missing", missing.len().into()),
-                ("articles", tf.article_count.into()),
-            ],
-        );
-        self.store.set_verification_state(
-            &tf.transfer_id,
-            &tf.file_id,
-            ts::STATE_VERIFYING,
-            Some(next),
-            "",
-        )?;
-        Ok(())
-    }
-
-    /// STATs a chunk in one batched sweep and moves its misses into `missing`.
-    async fn flush(
-        &self,
-        chunk: &mut Vec<ArticleRecord>,
-        missing: &mut Vec<ArticleRecord>,
-    ) -> std::result::Result<(), String> {
-        if chunk.is_empty() {
-            return Ok(());
-        }
-        let ids: Vec<String> = chunk.iter().map(|r| r.message_id.clone()).collect();
-        let gone = self.stater.stat_batch(&ids).await?;
-        missing.extend(chunk.drain(..).filter(|r| gone.contains(&r.message_id)));
-        Ok(())
     }
 
     async fn fail_file_terminally(&self, tf: &TransferFile, reason: &str) -> Result<()> {

@@ -31,6 +31,7 @@ impl Drop for Tmp {
 struct FakeStater {
     missing: Mutex<HashSet<String>>,
     errored: Mutex<HashSet<String>>,
+    calls: AtomicUsize,
 }
 impl FakeStater {
     fn new(missing: &[&str]) -> Arc<Self> {
@@ -46,6 +47,7 @@ impl FakeStater {
 impl Stater for FakeStater {
     fn stat<'a>(&'a self, id: &'a str) -> BoxFut<'a, std::result::Result<bool, String>> {
         Box::pin(async move {
+            self.calls.fetch_add(1, Ordering::SeqCst);
             if self.errored.lock().unwrap().contains(id) {
                 return Err("stat timeout".into());
             }
@@ -664,4 +666,147 @@ fn activity_reports_live_sweeps_repairs_waits_and_deferrals() {
     assert_eq!(item_activity(&files, &none, true, NOW).phase, "deferred");
     let a = item_activity(&files, &none, false, NOW);
     assert_eq!((a.phase, a.next_check_at), ("queued", None));
+}
+
+#[tokio::test]
+async fn articles_confirmed_during_upload_are_not_stated_again() {
+    let mut e = env(&["m3"]);
+    let ec = Arc::new(EarlyChecker::new(
+        e.stater.clone(),
+        std::time::Duration::ZERO,
+    ));
+    e.svc.set_early_checker(ec.clone());
+    for i in 0..5 {
+        crate::poster::PostObserver::posted(ec.as_ref(), &format!("<m{i}>"));
+    }
+    let cancel = CancellationToken::new();
+    tokio::select! {
+        () = ec.run(&cancel) => {}
+        () = tokio::time::sleep(std::time::Duration::from_millis(50)) => {}
+    }
+    let early_calls = e.stater.calls.load(Ordering::SeqCst);
+    assert_eq!(early_calls, 5);
+    let tf = e.file("t", "f", 10, "");
+    e.svc.verify_file(&Env::cancel(), &tf).await.unwrap();
+    // m3 was missing during upload, so the sweep checks it again, plus m5..m9
+    assert_eq!(e.stater.calls.load(Ordering::SeqCst) - early_calls, 6);
+    assert_eq!(
+        e.store
+            .count_failures("t", "f", ts::FAILURE_PENDING)
+            .unwrap(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn a_sweep_where_every_stat_errors_is_retried_without_budget_or_failures() {
+    let e = env(&[]);
+    e.stater
+        .errored
+        .lock()
+        .unwrap()
+        .extend((0..5).map(|i| format!("m{i}")));
+    let tf = e.file("t", "f", 5, "");
+    e.svc.verify_file(&Env::cancel(), &tf).await.unwrap();
+    let got = e.store.get_file("t", "f").unwrap().unwrap();
+    assert_eq!(got.verification_state, ts::STATE_UPLOADED);
+    assert_eq!(
+        got.check_attempts, 0,
+        "an unanswered sweep spends no budget"
+    );
+    assert!(got.next_check_at.unwrap() > Utc::now());
+    assert!(
+        got.last_error.contains("every STAT check failed"),
+        "{}",
+        got.last_error
+    );
+    assert_eq!(
+        e.store
+            .count_failures("t", "f", ts::FAILURE_PENDING)
+            .unwrap(),
+        0
+    );
+}
+
+#[tokio::test]
+async fn a_partial_stat_error_still_counts_as_a_miss() {
+    let e = env(&[]);
+    e.stater.errored.lock().unwrap().insert("m1".into());
+    let tf = e.file("t", "f", 5, "");
+    e.svc.verify_file(&Env::cancel(), &tf).await.unwrap();
+    assert_eq!(e.state("t", "f"), ts::STATE_VERIFYING);
+    assert_eq!(
+        e.store
+            .count_failures("t", "f", ts::FAILURE_PENDING)
+            .unwrap(),
+        1
+    );
+}
+
+/// Like the real cleaner: removes the transfer's rows, so a later finalize is a no-op. Yields first
+/// so any overlapping finalize would get to run in between.
+struct DeletingCleaner(Store, AtomicUsize);
+impl Cleaner for DeletingCleaner {
+    fn cleanup_transfer<'a>(
+        &'a self,
+        id: &'a str,
+    ) -> BoxFut<'a, std::result::Result<bool, String>> {
+        Box::pin(async move {
+            self.1.fetch_add(1, Ordering::SeqCst);
+            tokio::task::yield_now().await;
+            self.0
+                .delete_files_by_transfer(id)
+                .map_err(|e| e.to_string())?;
+            Ok(true)
+        })
+    }
+}
+
+#[tokio::test]
+async fn files_of_one_transfer_swept_together_clean_it_up_once() {
+    let mut e = env(&[]);
+    let cleaner = Arc::new(DeletingCleaner(e.store.clone(), AtomicUsize::new(0)));
+    e.svc.set_cleaner(cleaner.clone());
+    e.item("ci", "pending_verification");
+    for f in ["a", "b", "c", "d"] {
+        e.file("t", f, 20, "ci");
+    }
+    let n = e
+        .svc
+        .verify_due_files(&Env::cancel(), Utc::now(), 10)
+        .await
+        .unwrap();
+    assert_eq!(n, 4);
+    assert_eq!(e.item_status("ci"), "verified");
+    assert_eq!(cleaner.1.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn the_loop_wakes_when_the_next_file_becomes_due() {
+    let e = env(&[]);
+    assert_eq!(
+        e.svc.next_wait(),
+        std::time::Duration::from_secs(15),
+        "nothing pending"
+    );
+    e.file("t", "f", 1, "");
+    assert_eq!(e.svc.next_wait(), MIN_WAIT, "overdue");
+    e.store
+        .mark_uploaded("t", "f", Utc::now(), Utc::now() + Duration::seconds(4))
+        .unwrap();
+    let w = e.svc.next_wait();
+    assert!(
+        w > std::time::Duration::from_secs(2) && w <= std::time::Duration::from_secs(4),
+        "{w:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_deferred_cycle_waits_the_full_poll_interval_even_with_an_overdue_file() {
+    let mut e = env(&[]);
+    e.file("t", "f", 1, "");
+    e.svc.set_busy_check(Arc::new(|| true));
+    e.svc.run_once(&Env::cancel()).await;
+    assert_eq!(e.state("t", "f"), ts::STATE_UPLOADED, "deferred while busy");
+    assert_eq!(e.svc.next_wait(), std::time::Duration::from_secs(15));
 }

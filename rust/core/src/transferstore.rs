@@ -566,6 +566,17 @@ impl Store {
         )
     }
 
+    /// When the earliest file awaiting its first check becomes due, if any.
+    pub fn next_file_check_at(&self) -> Result<Option<DateTime<Utc>>> {
+        let at: Option<String> = self.db.lock().query_row(
+            "SELECT MIN(next_check_at) FROM transfer_files
+             WHERE verification_state = ?1 AND next_check_at IS NOT NULL",
+            params![STATE_UPLOADED],
+            |r| r.get(0),
+        )?;
+        parse_ptr(at)
+    }
+
     /// Updates a file's upload state and, when given, `posted_at`.
     pub fn set_upload_state(
         &self,

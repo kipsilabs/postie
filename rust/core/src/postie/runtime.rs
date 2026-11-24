@@ -2,7 +2,7 @@
 //! scheduler, the upload engine, the durable transfer store with its verification service, the PAR2
 //! sweeper and the in-use PAR2 registry.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -18,85 +18,19 @@ use crate::par2::existing::work_dir;
 use crate::par2::prefetch::Prefetcher;
 use crate::par2::scheduler::Scheduler;
 use crate::par2::sweep::Sweeper;
-use crate::poster::{ArticleClient, BoxFut, Reposter};
+use crate::poster::{ArticleClient, PostObserver, Reposter};
 use crate::transfercleaner::{ScriptRunner, TransferCleaner};
 use crate::transferstore::{Store, TransferFile};
 use crate::transferwriter::Recorder;
-use crate::verification::{self, Stater};
+use crate::verification::{self, EarlyChecker};
+
+pub use super::stater::{BusyFn, PoolStater, StatLimits, stat_limits};
 
 type ReferencedFn = Arc<dyn Fn() -> Result<Vec<String>, String> + Send + Sync>;
 
 const PAR2_SWEEP_GRACE: Duration = Duration::from_secs(24 * 3600);
 const PAR2_SWEEP_INITIAL_DELAY: Duration = Duration::from_secs(5 * 60);
 const PAR2_SWEEP_INTERVAL: Duration = Duration::from_secs(3600);
-
-/// Adapts a pool client to the verification service's `Stater`: a present article is `Ok(false)`
-/// (not missing), a confirmed absence `Ok(true)`, and an error leaves presence unknown.
-pub struct PoolStater {
-    client: Arc<dyn ArticleClient>,
-    concurrency: usize,
-}
-
-impl PoolStater {
-    pub fn new(client: Arc<dyn ArticleClient>, concurrency: usize) -> Self {
-        Self {
-            client,
-            concurrency: concurrency.max(1),
-        }
-    }
-}
-
-impl Stater for PoolStater {
-    fn stat<'a>(&'a self, id: &'a str) -> BoxFut<'a, Result<bool, String>> {
-        Box::pin(async move {
-            self.client
-                .stat(id)
-                .await
-                .map(|present| !present)
-                .map_err(|e| e.to_string())
-        })
-    }
-
-    /// Ids not confirmed present; a per-id error counts as missing (the per-failure `stat` re-validates
-    /// before any repost budget is spent).
-    fn stat_batch<'a>(&'a self, ids: &'a [String]) -> BoxFut<'a, Result<HashSet<String>, String>> {
-        Box::pin(async move {
-            let sem = Arc::new(tokio::sync::Semaphore::new(self.concurrency));
-            let mut set = tokio::task::JoinSet::new();
-            for id in ids {
-                let (client, sem, id) = (self.client.clone(), sem.clone(), id.clone());
-                set.spawn(async move {
-                    let _p = sem.acquire().await;
-                    let present = matches!(client.stat(&id).await, Ok(true));
-                    (id, present)
-                });
-            }
-            let mut missing = HashSet::new();
-            while let Some(r) = set.join_next().await {
-                if let Ok((id, present)) = r
-                    && !present
-                {
-                    missing.insert(id);
-                }
-            }
-            Ok(missing)
-        })
-    }
-}
-
-/// STAT concurrency: the configured value, else 2 when verification shares the upload pool (so it does
-/// not steal its connections) or 16 with a dedicated pool; capped at the verify pool's capacity.
-pub fn stat_concurrency(configured: i64, shared_pool: bool, verify_capacity: usize) -> usize {
-    let c = usize::try_from(configured)
-        .ok()
-        .filter(|c| *c > 0)
-        .unwrap_or(if shared_pool { 2 } else { 16 });
-    if verify_capacity > 0 {
-        c.min(verify_capacity)
-    } else {
-        c
-    }
-}
 
 pub fn verification_config(pc: &PostCheck) -> verification::Config {
     let nanos = |d: &crate::config::Duration| chrono::Duration::nanoseconds(d.nanos());
@@ -175,6 +109,8 @@ pub struct Runtime {
     store: Option<Store>,
     manifest_dir: PathBuf,
     verify_service: Option<Arc<verification::Service>>,
+    /// STATs articles while their upload still runs (dedicated verify pool only).
+    early_checker: Option<Arc<EarlyChecker>>,
     par2_work_dir: String,
     par2_in_use: Mutex<HashMap<String, u32>>,
     /// The next queued job's PAR2 set, created while the current job uploads.
@@ -213,6 +149,7 @@ impl Runtime {
             ))
         });
         let mut verify_service = None;
+        let mut early_checker = None;
         if let (Some(store), Some(upload)) = (&deps.store, &deps.upload) {
             let shared = deps.verify.is_none();
             let verify = deps.verify.clone().unwrap_or_else(|| upload.clone());
@@ -227,21 +164,49 @@ impl Runtime {
                 }),
                 cfg.posting.throttle_rate,
             );
-            let stater = PoolStater::new(
-                verify.clone(),
-                stat_concurrency(
-                    cfg.post_check.max_concurrent_checks,
-                    shared,
-                    verify.max_connections(),
-                ),
+            // Two predicates on a shared pool: STATs narrow whenever an upload is running (they
+            // queue behind its article bodies), while whole cycles are skipped only once uploads
+            // saturate the pool.
+            let (uploading, saturated): (Option<BusyFn>, Option<BusyFn>) = match &upload_engine {
+                Some(engine) if shared => {
+                    let (a, q) = (engine.clone(), engine.clone());
+                    (
+                        Some(Arc::new(move || {
+                            let m = a.metrics();
+                            m.active_workers > 0 || m.queued_workers > 0
+                        })),
+                        Some(Arc::new(move || q.metrics().queued_workers > 0)),
+                    )
+                }
+                _ => (None, None),
+            };
+            let limits = stat_limits(
+                cfg.post_check.max_concurrent_checks,
+                shared,
+                verify.max_inflight(),
             );
+            let stater: Arc<PoolStater> =
+                Arc::new(PoolStater::new(verify.clone(), limits, uploading));
+            let vcfg = verification_config(&cfg.post_check);
             let mut svc = verification::Service::new(
                 store.clone(),
-                Arc::new(stater),
+                stater.clone(),
                 Arc::new(reposter),
-                verification_config(&cfg.post_check),
+                vcfg.clone(),
                 "postie",
             );
+            // Checking during upload needs its own connections, like nyuu's check connections: on a
+            // shared pool those STATs would queue behind the very uploads they shadow.
+            if !shared {
+                let delay = vcfg
+                    .with_defaults()
+                    .propagation_delay
+                    .to_std()
+                    .unwrap_or_default();
+                let ec = Arc::new(EarlyChecker::new(stater, delay));
+                svc.set_early_checker(ec.clone());
+                early_checker = Some(ec);
+            }
             let maintain = cfg.par2.maintain_par2_files == Some(true);
             let runner = post_verify_script_runner(
                 store.clone(),
@@ -253,8 +218,8 @@ impl Runtime {
                 maintain,
                 runner,
             )));
-            if shared && let Some(engine) = upload_engine.clone() {
-                svc.set_busy_check(Arc::new(move || engine.metrics().queued_workers > 0));
+            if let Some(b) = saturated {
+                svc.set_busy_check(b);
             }
             verify_service = Some(Arc::new(svc));
         }
@@ -276,6 +241,7 @@ impl Runtime {
                 store: deps.store,
                 manifest_dir: deps.manifest_dir,
                 verify_service,
+                early_checker,
                 par2_work_dir,
                 par2_in_use: Mutex::new(HashMap::new()),
                 par2_prefetch: Arc::new(Prefetcher::new(hold)),
@@ -356,8 +322,28 @@ impl Runtime {
 
     /// Runs the durable verification loop until cancelled (no-op without a service).
     pub async fn run_verification(&self, cancel: &CancellationToken) {
+        let Some(s) = &self.verify_service else {
+            return;
+        };
+        match &self.early_checker {
+            Some(ec) => {
+                tokio::join!(s.run(cancel), ec.run(cancel));
+            }
+            None => s.run(cancel).await,
+        }
+    }
+
+    /// The observer jobs hand posted articles to, when checking during upload is on.
+    pub fn post_observer(&self) -> Option<Arc<dyn PostObserver>> {
+        self.early_checker
+            .clone()
+            .map(|e| e as Arc<dyn PostObserver>)
+    }
+
+    /// Tells the verification loop a transfer was just marked uploaded.
+    pub fn wake_verification(&self) {
         if let Some(s) = &self.verify_service {
-            s.run(cancel).await;
+            s.wake();
         }
     }
 

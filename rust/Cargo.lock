@@ -1745,6 +1745,7 @@ dependencies = [
  "chrono",
  "crc32fast",
  "duplicatelookup-rs",
+ "futures-util",
  "hex",
  "jsonwebtoken",
  "libc",

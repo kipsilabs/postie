@@ -264,7 +264,7 @@
 			"stat_batch_size": "Tamaño de Lote de STAT",
 			"stat_batch_size_description": "Número de segmentos verificados por solicitud STAT agrupada. Por defecto 100.",
 			"max_concurrent_checks": "Comprobaciones Concurrentes Máximas",
-			"max_concurrent_checks_description": "Número máximo de comprobaciones STAT ejecutándose a la vez en todo el proceso. 0 = automático (pool de verificación dedicado limitado a 16, o pool de carga compartido limitado a 2).",
+			"max_concurrent_checks_description": "Número máximo de comprobaciones STAT en curso a la vez en todo el proceso. 0 = automático: toda la capacidad en pipeline del pool de verificación (conexiones × inflight); en un pool compartido con las subidas, 2 mientras haya subidas en curso.",
 			"info_title": "Verificación Post:",
 			"info_description": "Verifica la disponibilidad del artículo después de la carga para asegurar una propagación exitosa. Puede aumentar el tiempo de carga pero mejora la confiabilidad.",
 			"save_button": "Guardar Configuración de Verificación",
