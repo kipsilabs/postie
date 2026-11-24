@@ -27,9 +27,8 @@ runs, restart it to pick up the changes.
 ### Defaults
 
 Keys you leave out of the file get their default when the config loads, so a config only needs the keys
-you want to change. **Watchers are the exception:** inside a `watchers` entry, an omitted key means zero
-or empty (no size threshold, no ignore patterns), not the default listed here. See
-[File Watcher](./watcher.md#defaults).
+you want to change. That includes each `watchers` entry (see [File Watcher](./watcher.md#defaults)).
+Postie never writes those defaults back into your file, so a hand-written config stays as you wrote it.
 
 Durations are written like `30s`, `5m` or `1h`. Sizes are in bytes.
 
@@ -212,16 +211,9 @@ until the pending jobs add up to at least that many bytes.
 
 ### Connection pool
 
-![Connection pool configuration](/img/settings/connection-pool.png)
-
-```yaml
-connection_pool:
-  min_connections: 0
-  health_check_interval: 1m
-```
-
-These keys are accepted for compatibility but have **no effect in 0.1.0**: connections open on demand and
-close after `max_connection_idle_time_in_seconds`.
+Connections open on demand and close after the server's `max_connection_idle_time_in_seconds`, so there are
+no pool settings. Older configs may still contain a `connection_pool` section with `min_connections` and
+`health_check_interval`; it is accepted and ignored.
 
 ## File Processing
 

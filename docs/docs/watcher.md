@@ -63,20 +63,21 @@ The single `watcher:` key from v1 configs is still read and migrated to `watcher
 
 ## Defaults {#defaults}
 
-A watcher added in the UI, or the one in a brand-new config, starts with the defaults in the left column.
-A watcher entry written by hand in YAML does **not** get those defaults for keys it leaves out:
+A new watcher, whether added in the UI or written by hand in YAML, starts with these values. Keys you leave
+out of a `watchers` entry get them; keys you write, including `0`, `0s` or `[]`, are kept.
 
-| Key | New watcher (UI) | Key left out of a YAML entry |
-|-----|------------------|------------------------------|
-| `check_interval` | `5m` | `60s` |
-| `min_file_age` | `60s` | `60s` |
-| `size_threshold` | 100 MB | `0` (no threshold) |
-| `min_file_size` | 1 MB | `0` (no minimum) |
-| `ignore_patterns` | `*.tmp`, `*.part`, `*.!ut` | none |
-| `schedule` | `00:00`–`23:59` | always |
-| `min_file_age_to_delete` | `0s` | `0s` |
+| Key | Default |
+|-----|---------|
+| `check_interval` | `5m` |
+| `min_file_age` | `60s` |
+| `size_threshold` | 100 MB |
+| `min_file_size` | 1 MB |
+| `ignore_patterns` | `*.tmp`, `*.part`, `*.!ut` |
+| `schedule` | `00:00`–`23:59` |
+| `min_file_age_to_delete` | `0s` |
 
-Write every key you care about when you edit a watcher by hand.
+An explicitly empty duration (`check_interval: ""`) means 60 seconds for `check_interval` and `min_file_age`,
+and no wait for `min_file_age_to_delete`.
 
 ## What happens to a file
 
