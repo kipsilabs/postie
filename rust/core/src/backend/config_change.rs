@@ -56,6 +56,9 @@ pub fn processor_config_changed(old: Option<&ConfigData>, new: &ConfigData) -> b
         || o.output_dir() != new.output_dir()
         || o.maintain_original_extension() != new.maintain_original_extension()
         || o.queue != new.queue
+        // fixed when the runtime is built: the upload worker count and the early checker
+        || o.post_check.check_during_upload != new.post_check.check_during_upload
+        || o.post_check.check_connections != new.post_check.check_connections
     {
         return true;
     }
@@ -155,6 +158,12 @@ mod tests {
         let mut c = base.clone();
         c.par2.parpar_extra_args = Some(vec!["-x".into()]);
         assert!(par2_config_changed(Some(&base), &c));
+        let mut c = base.clone();
+        c.post_check.check_connections = 3;
+        assert!(processor_config_changed(Some(&base), &c));
+        let mut c = base.clone();
+        c.post_check.check_during_upload = Some(false);
+        assert!(processor_config_changed(Some(&base), &c));
         let mut c = base.clone();
         c.posting.max_retries = 9;
         assert!(

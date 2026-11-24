@@ -59,7 +59,7 @@
     "stat_batch_size": 100,
     "max_concurrent_checks": 0,
     "check_during_upload": true,
-    "check_connections": 2
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -262,7 +262,7 @@
     "stat_batch_size": 100,
     "max_concurrent_checks": 0,
     "check_during_upload": true,
-    "check_connections": 2
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -444,7 +444,7 @@
     "stat_batch_size": 100,
     "max_concurrent_checks": 0,
     "check_during_upload": true,
-    "check_connections": 2
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -621,7 +621,7 @@
     "stat_batch_size": 100,
     "max_concurrent_checks": 0,
     "check_during_upload": true,
-    "check_connections": 2
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -778,7 +778,7 @@
     "stat_batch_size": 100,
     "max_concurrent_checks": 0,
     "check_during_upload": true,
-    "check_connections": 2
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -940,7 +940,7 @@
     "stat_batch_size": 100,
     "max_concurrent_checks": 0,
     "check_during_upload": true,
-    "check_connections": 2
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -1107,7 +1107,7 @@
     "stat_batch_size": 100,
     "max_concurrent_checks": 0,
     "check_during_upload": true,
-    "check_connections": 2
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -1264,7 +1264,7 @@
     "stat_batch_size": 100,
     "max_concurrent_checks": 0,
     "check_during_upload": true,
-    "check_connections": 2
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -1426,7 +1426,7 @@
     "stat_batch_size": 100,
     "max_concurrent_checks": 0,
     "check_during_upload": true,
-    "check_connections": 2
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -1628,7 +1628,7 @@
     "stat_batch_size": 100,
     "max_concurrent_checks": 0,
     "check_during_upload": true,
-    "check_connections": 2
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -1785,7 +1785,7 @@
     "stat_batch_size": 100,
     "max_concurrent_checks": 0,
     "check_during_upload": true,
-    "check_connections": 2
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -1944,7 +1944,7 @@
     "stat_batch_size": 100,
     "max_concurrent_checks": 0,
     "check_during_upload": true,
-    "check_connections": 2
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -2101,7 +2101,7 @@
     "stat_batch_size": 100,
     "max_concurrent_checks": 0,
     "check_during_upload": true,
-    "check_connections": 2
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -2258,7 +2258,7 @@
     "stat_batch_size": 100,
     "max_concurrent_checks": 0,
     "check_during_upload": true,
-    "check_connections": 2
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -2415,7 +2415,7 @@
     "stat_batch_size": 100,
     "max_concurrent_checks": 0,
     "check_during_upload": true,
-    "check_connections": 2
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -2586,7 +2586,7 @@
     "stat_batch_size": 100,
     "max_concurrent_checks": 0,
     "check_during_upload": true,
-    "check_connections": 2
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -2743,7 +2743,7 @@
     "stat_batch_size": 100,
     "max_concurrent_checks": 0,
     "check_during_upload": true,
-    "check_connections": 2
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -2905,7 +2905,7 @@
     "stat_batch_size": 100,
     "max_concurrent_checks": 0,
     "check_during_upload": true,
-    "check_connections": 2
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -3058,7 +3058,7 @@
     "stat_batch_size": 100,
     "max_concurrent_checks": 0,
     "check_during_upload": true,
-    "check_connections": 2
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -3229,7 +3229,7 @@
     "stat_batch_size": 100,
     "max_concurrent_checks": 0,
     "check_during_upload": true,
-    "check_connections": 2
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -3401,7 +3401,7 @@
     "stat_batch_size": 100,
     "max_concurrent_checks": 0,
     "check_during_upload": true,
-    "check_connections": 2
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,
@@ -3578,7 +3578,7 @@
     "stat_batch_size": 100,
     "max_concurrent_checks": 0,
     "check_during_upload": true,
-    "check_connections": 2
+    "check_connections": 0
    },
    "par2": {
     "enabled": true,

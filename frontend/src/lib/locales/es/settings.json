@@ -268,7 +268,7 @@
 			"check_during_upload": "Comprobar Durante la Subida",
 			"check_during_upload_description": "Hace STAT de cada artículo unos segundos después de publicarlo, mientras el resto de la subida continúa, así la verificación está casi terminada cuando acaba la subida.",
 			"check_connections": "Conexiones de Comprobación",
-			"check_connections_description": "Conexiones reservadas de los servidores de subida para esas comprobaciones cuando no hay un servidor con rol de verificación. Las subidas usan el resto (siempre se deja al menos una para subir).",
+			"check_connections_description": "Conexiones reservadas de los servidores de subida para esas comprobaciones cuando no hay un servidor con rol de verificación; las subidas usan el resto (siempre se deja al menos una para subir). 0 = automático: 1, o 2 a partir de 10 conexiones.",
 			"info_title": "Verificación Post:",
 			"info_description": "Verifica la disponibilidad del artículo después de la carga para asegurar una propagación exitosa. Puede aumentar el tiempo de carga pero mejora la confiabilidad.",
 			"save_button": "Guardar Configuración de Verificación",

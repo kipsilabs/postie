@@ -268,7 +268,7 @@
 			"check_during_upload": "Vérifier Pendant l'Upload",
 			"check_during_upload_description": "Envoie un STAT pour chaque article quelques secondes après sa publication, pendant que le reste de l'upload continue : la vérification est presque terminée à la fin de l'upload.",
 			"check_connections": "Connexions de Vérification",
-			"check_connections_description": "Connexions réservées sur les serveurs d'upload pour ces vérifications quand aucun serveur de rôle vérification n'est configuré. Les uploads utilisent le reste (au moins une est toujours gardée pour l'upload).",
+			"check_connections_description": "Connexions réservées sur les serveurs d'upload pour ces vérifications quand aucun serveur de rôle vérification n'est configuré ; les uploads utilisent le reste (au moins une est toujours gardée pour l'upload). 0 = automatique : 1, ou 2 à partir de 10 connexions.",
 			"info_title": "Vérification Post :",
 			"info_description": "Vérifie la disponibilité des articles après téléchargement pour assurer une propagation réussie. Peut augmenter le temps de téléchargement mais améliore la fiabilité.",
 			"save_button": "Sauvegarder les Paramètres de Vérification",

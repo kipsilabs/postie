@@ -10,7 +10,7 @@ use std::sync::Arc;
 use futures_util::stream::{FuturesUnordered, StreamExt};
 use tokio::sync::Semaphore;
 
-use crate::config::{DEFAULT_CHECK_CONNECTIONS, PostCheck};
+use crate::config::PostCheck;
 use crate::poster::{ArticleClient, BoxFut};
 use crate::verification::Stater;
 
@@ -64,16 +64,26 @@ pub fn stat_limits(
     StatLimits { wide, narrow }
 }
 
+/// Pools at least this large set aside a second check connection in auto mode.
+const SECOND_CHECK_CONNECTION_AT: usize = 10;
+
 /// Upload connections set aside for checking during upload when verification shares the upload
-/// pool: the configured count, always leaving one for uploads; none when that checking is off.
+/// pool, always leaving one for uploads; none when that checking is off. Auto (0) takes 1, or 2
+/// from [`SECOND_CHECK_CONNECTION_AT`] connections: pipelined STATs need little of a connection,
+/// and every connection set aside is an upload slot lost.
 pub fn reserved_check_connections(pc: &PostCheck, connections: usize) -> usize {
     if pc.check_during_upload == Some(false) {
         return 0;
     }
+    let auto = if connections >= SECOND_CHECK_CONNECTION_AT {
+        2
+    } else {
+        1
+    };
     let want = usize::try_from(pc.check_connections)
         .ok()
         .filter(|n| *n > 0)
-        .unwrap_or(DEFAULT_CHECK_CONNECTIONS as usize);
+        .unwrap_or(auto);
     want.min(connections.saturating_sub(1))
 }
 
@@ -218,7 +228,21 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(reserved_check_connections(&pc(Some(true), 3), 10), 3);
-        assert_eq!(reserved_check_connections(&pc(None, 0), 10), 2, "defaults");
+        assert_eq!(
+            reserved_check_connections(&pc(None, 0), 10),
+            2,
+            "auto, large pool"
+        );
+        assert_eq!(
+            reserved_check_connections(&pc(None, 0), 4),
+            1,
+            "auto, small pool"
+        );
+        assert_eq!(
+            reserved_check_connections(&pc(None, 0), 1),
+            0,
+            "uploads keep one"
+        );
         assert_eq!(reserved_check_connections(&pc(Some(true), 8), 4), 3);
         assert_eq!(reserved_check_connections(&pc(Some(true), 2), 1), 0);
         assert_eq!(reserved_check_connections(&pc(Some(false), 3), 10), 0);

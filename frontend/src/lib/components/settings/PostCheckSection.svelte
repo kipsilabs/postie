@@ -52,7 +52,7 @@ let deferredBatchSize = $state(config.post_check?.deferred_batch_size || 10000);
 let statBatchSize = $state(config.post_check?.stat_batch_size || 100);
 let maxConcurrentChecks = $state(config.post_check?.max_concurrent_checks ?? 0);
 let checkDuringUpload = $state(config.post_check?.check_during_upload ?? true);
-let checkConnections = $state(config.post_check?.check_connections || 2);
+let checkConnections = $state(config.post_check?.check_connections ?? 0);
 
 // Ensure post_check exists with defaults
 if (!config.post_check) {
@@ -68,7 +68,7 @@ if (!config.post_check) {
 		stat_batch_size: 100,
 		max_concurrent_checks: 0,
 		check_during_upload: true,
-		check_connections: 2,
+		check_connections: 0,
 	};
 }
 
@@ -166,7 +166,7 @@ $effect(() => {
 					bind:value={checkConnections}
 					label={$t('settings.post_check.check_connections')}
 					description={$t('settings.post_check.check_connections_description')}
-					minValue={1}
+					minValue={0}
 					maxValue={20}
 				/>
 			{/if}

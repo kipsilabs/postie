@@ -268,7 +268,7 @@
 			"check_during_upload": "Check While Uploading",
 			"check_during_upload_description": "STAT each article a few seconds after it is posted, while the rest of the upload continues, so verification is nearly done when the upload ends.",
 			"check_connections": "Check Connections",
-			"check_connections_description": "Connections set aside from the upload servers for those checks when no verify-role server is configured. Uploads use the rest (at least one is always kept for uploading).",
+			"check_connections_description": "Connections set aside from the upload servers for those checks when no verify-role server is configured; uploads use the rest (at least one is always kept for uploading). 0 = auto: 1, or 2 from 10 connections.",
 			"info_title": "Post Check:",
 			"info_description": "Verifies article availability after upload to ensure successful propagation. May increase upload time but improves reliability.",
 			"save_button": "Save Post Check Settings",

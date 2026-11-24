@@ -204,7 +204,7 @@ pub struct PostCheck {
     #[serde(deserialize_with = "lenient_opt_bool")]
     pub check_during_upload: Option<bool>,
     /// Upload connections set aside for those checks when verification shares the upload servers
-    /// (no verify-role server). 0 means the default.
+    /// (no verify-role server). 0 = auto (see `postie::stater::reserved_check_connections`).
     pub check_connections: i64,
 }
 
@@ -457,10 +457,6 @@ impl ConfigData {
     }
 }
 
-/// Upload connections set aside for checking during upload on a shared pool (nyuu suggests a
-/// couple of check connections).
-pub const DEFAULT_CHECK_CONNECTIONS: i64 = 2;
-
 fn some_bool(v: bool) -> Option<bool> {
     Some(v)
 }
@@ -528,7 +524,7 @@ pub fn default_config() -> ConfigData {
             stat_batch_size: 100,
             max_concurrent_checks: 0,
             check_during_upload: some_bool(true),
-            check_connections: DEFAULT_CHECK_CONNECTIONS,
+            check_connections: 0,
         },
         par2: Par2Config {
             enabled: some_bool(true),
@@ -784,7 +780,7 @@ impl ConfigData {
             return Err("post_check max_concurrent_checks must be >= 0 (0 = auto)".into());
         }
         if self.post_check.check_connections < 0 {
-            return Err("post_check check_connections must be >= 0 (0 = default)".into());
+            return Err("post_check check_connections must be >= 0 (0 = auto)".into());
         }
         let from = &self.posting.post_headers.default_from;
         if !from.is_empty() {
@@ -859,9 +855,6 @@ impl ConfigData {
         }
         if cfg.post_check.check_during_upload.is_none() {
             cfg.post_check.check_during_upload = Some(true);
-        }
-        if cfg.post_check.check_connections <= 0 {
-            cfg.post_check.check_connections = DEFAULT_CHECK_CONNECTIONS;
         }
         if cfg.par2.redundancy.is_empty() {
             cfg.par2.redundancy = DEFAULT_REDUNDANCY.into();
