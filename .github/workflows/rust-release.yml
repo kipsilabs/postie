@@ -1,9 +1,10 @@
-name: Rust release candidate
+name: Rust release
 
 on:
   push:
     tags:
-      - "v*.*.*-rc*"
+      # v1.2.3 publishes a stable release; v1.2.3-rc.N a pre-release
+      - "v*.*.*"
 
 permissions:
   contents: write
@@ -145,7 +146,7 @@ jobs:
           if-no-files-found: error
 
   docker:
-    name: docker image (ghcr.io, release-candidate tag only)
+    name: docker image (ghcr.io)
     # pushes to the registry, so it waits for the test gate
     needs: [test]
     runs-on: ubuntu-latest
@@ -176,8 +177,14 @@ jobs:
           skip-extraction: ${{ steps.cargo-cache.outputs.cache-hit }}
       - id: tag
         shell: bash
-        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-      # never tags `latest`: a release candidate must not replace the stable image
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          tags="$image:${GITHUB_REF_NAME}"
+          # only a stable tag moves `latest`: a release candidate must not replace the stable image
+          if [[ "$GITHUB_REF_NAME" != *-* ]]; then
+            tags="$tags,$image:latest"
+          fi
+          echo "image=$tags" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
         env:
           DOCKER_BUILD_RECORD_UPLOAD: false
@@ -193,7 +200,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   publish:
-    name: GitHub pre-release
+    name: GitHub release
     needs: [test, binaries, desktop, docker]
     runs-on: ubuntu-latest
     steps:
@@ -209,11 +216,21 @@ jobs:
           pattern: desktop-*
           path: artifacts
           merge-multiple: true
-      - name: Create pre-release
+      - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          unsigned="Bundles are not signed with a developer certificate (macOS: ad-hoc signed). On first launch macOS says it cannot verify the app: open System Settings > Privacy & Security and click Open Anyway (or run \`xattr -dr com.apple.quarantine /Applications/Postie.app\`). Windows SmartScreen: More info > Run anyway."
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            kind=(--prerelease)
+            title="$GITHUB_REF_NAME (Rust port, release candidate)"
+            notes="Release candidate of the Rust port (see rust/DECISIONS.md). Headless binaries (\`postie\` CLI and \`postie-web\` with its \`frontend/\` directory) and desktop bundles for Linux, macOS and Windows. $unsigned"
+          else
+            kind=(--latest --generate-notes)
+            title="$GITHUB_REF_NAME"
+            notes="Headless binaries (\`postie\` CLI and \`postie-web\` with its \`frontend/\` directory), desktop bundles for Linux, macOS and Windows, and the \`ghcr.io/${GITHUB_REPOSITORY,,}:$GITHUB_REF_NAME\` Docker image. $unsigned"
+          fi
           find artifacts -type f | sort
           mapfile -t files < <(find artifacts -type f | sort)
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
@@ -221,7 +238,7 @@ jobs:
           else
             gh release create "$GITHUB_REF_NAME" "${files[@]}" \
               --repo "$GITHUB_REPOSITORY" \
-              --prerelease \
-              --title "$GITHUB_REF_NAME (Rust port, release candidate)" \
-              --notes "Release candidate of the Rust port (see rust/DECISIONS.md). Headless binaries (\`postie\` CLI and \`postie-web\` with its \`frontend/\` directory) and desktop bundles for Linux, macOS and Windows. Bundles are not signed with a developer certificate (macOS: ad-hoc signed). On first launch macOS says it cannot verify the app: open System Settings > Privacy & Security and click Open Anyway (or run \`xattr -dr com.apple.quarantine /Applications/Postie.app\`). Windows SmartScreen: More info > Run anyway."
+              "${kind[@]}" \
+              --title "$title" \
+              --notes "$notes"
           fi
