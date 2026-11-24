@@ -270,7 +270,7 @@
 			"stat_batch_size": "STAT Toplu İşlem Boyutu",
 			"stat_batch_size_description": "Toplu STAT isteği başına kontrol edilen segment sayısı. Varsayılan 100.",
 			"max_concurrent_checks": "Maksimum Eşzamanlı Kontrol",
-			"max_concurrent_checks_description": "Tüm süreç genelinde aynı anda çalışan maksimum STAT doğrulama kontrolü sayısı. 0 = otomatik (16 ile sınırlı özel doğrulama havuzu veya 2 ile sınırlı paylaşılan yükleme havuzu)."
+			"max_concurrent_checks_description": "Tüm süreç genelinde aynı anda işlemde olan maksimum STAT doğrulama kontrolü sayısı. 0 = otomatik: doğrulama havuzunun tüm ardışık (pipeline) kapasitesi (bağlantılar × inflight); yüklemelerle paylaşılan bir havuzda, yüklemeler sürerken 2."
 		},
 		"posting": {
 			"title": "Gönderim Yapılandırması",

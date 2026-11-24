@@ -164,12 +164,21 @@ impl Runtime {
                 }),
                 cfg.posting.throttle_rate,
             );
-            let busy: Option<BusyFn> = if shared {
-                upload_engine
-                    .clone()
-                    .map(|engine| Arc::new(move || engine.metrics().queued_workers > 0) as BusyFn)
-            } else {
-                None
+            // Two predicates on a shared pool: STATs narrow whenever an upload is running (they
+            // queue behind its article bodies), while whole cycles are skipped only once uploads
+            // saturate the pool.
+            let (uploading, saturated): (Option<BusyFn>, Option<BusyFn>) = match &upload_engine {
+                Some(engine) if shared => {
+                    let (a, q) = (engine.clone(), engine.clone());
+                    (
+                        Some(Arc::new(move || {
+                            let m = a.metrics();
+                            m.active_workers > 0 || m.queued_workers > 0
+                        })),
+                        Some(Arc::new(move || q.metrics().queued_workers > 0)),
+                    )
+                }
+                _ => (None, None),
             };
             let limits = stat_limits(
                 cfg.post_check.max_concurrent_checks,
@@ -177,7 +186,7 @@ impl Runtime {
                 verify.max_inflight(),
             );
             let stater: Arc<PoolStater> =
-                Arc::new(PoolStater::new(verify.clone(), limits, busy.clone()));
+                Arc::new(PoolStater::new(verify.clone(), limits, uploading));
             let vcfg = verification_config(&cfg.post_check);
             let mut svc = verification::Service::new(
                 store.clone(),
@@ -209,7 +218,7 @@ impl Runtime {
                 maintain,
                 runner,
             )));
-            if let Some(b) = busy {
+            if let Some(b) = saturated {
                 svc.set_busy_check(b);
             }
             verify_service = Some(Arc::new(svc));

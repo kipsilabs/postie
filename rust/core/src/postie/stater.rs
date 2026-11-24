@@ -13,10 +13,10 @@ use tokio::sync::Semaphore;
 use crate::poster::{ArticleClient, BoxFut};
 use crate::verification::Stater;
 
-/// Reports whether the upload engine is saturated (verification then yields its connections).
+/// Reports whether uploads are using the pool (verification then yields its connections).
 pub type BusyFn = Arc<dyn Fn() -> bool + Send + Sync>;
 
-/// STATs in flight while uploads saturate a pool that verification shares with them: STATs queue
+/// STATs in flight while uploads run on a pool that verification shares with them: STATs queue
 /// behind article bodies on those connections, so more would only steal upload slots (issue #168).
 const SHARED_POOL_BUSY_STATS: usize = 2;
 /// In-flight STATs when the pool cannot report its capacity.

@@ -800,3 +800,13 @@ async fn the_loop_wakes_when_the_next_file_becomes_due() {
         "{w:?}"
     );
 }
+
+#[tokio::test]
+async fn a_deferred_cycle_waits_the_full_poll_interval_even_with_an_overdue_file() {
+    let mut e = env(&[]);
+    e.file("t", "f", 1, "");
+    e.svc.set_busy_check(Arc::new(|| true));
+    e.svc.run_once(&Env::cancel()).await;
+    assert_eq!(e.state("t", "f"), ts::STATE_UPLOADED, "deferred while busy");
+    assert_eq!(e.svc.next_wait(), std::time::Duration::from_secs(15));
+}

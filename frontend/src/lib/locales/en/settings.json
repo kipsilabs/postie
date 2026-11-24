@@ -264,7 +264,7 @@
 			"stat_batch_size": "Stat Batch Size",
 			"stat_batch_size_description": "Number of segments checked per batched STAT request. Default 100.",
 			"max_concurrent_checks": "Max Concurrent Checks",
-			"max_concurrent_checks_description": "Maximum number of STAT verification checks running at once across the whole process. 0 = auto (dedicated verification pool capped at 16, or shared upload pool capped at 2).",
+			"max_concurrent_checks_description": "Maximum number of STAT verification checks in flight at once across the whole process. 0 = auto: the verification pool's full pipelined capacity (connections × inflight); on a pool shared with uploads, 2 while uploads are running.",
 			"info_title": "Post Check:",
 			"info_description": "Verifies article availability after upload to ensure successful propagation. May increase upload time but improves reliability.",
 			"save_button": "Save Post Check Settings",

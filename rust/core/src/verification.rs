@@ -486,13 +486,19 @@ impl Service {
     }
 
     /// The poll interval, shortened to when the next file's first check is due so a finished
-    /// upload is swept right after its propagation delay rather than on the next poll tick.
+    /// upload is swept right after its propagation delay rather than on the next poll tick. Never
+    /// shortened after a cycle the busy gate deferred.
     fn next_wait(&self) -> std::time::Duration {
         let poll = self
             .cfg
             .poll_interval
             .to_std()
             .unwrap_or(std::time::Duration::from_secs(15));
+        // A cycle the busy gate held back leaves due files overdue; waking early for them would
+        // burn through MAX_BUSY_SKIPS (and the reconcile cadence) in seconds instead of minutes.
+        if self.deferred.load(Ordering::Relaxed) {
+            return poll;
+        }
         let until_due = match self.store.next_file_check_at() {
             Ok(Some(at)) => (at - self.now())
                 .to_std()
