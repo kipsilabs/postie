@@ -98,6 +98,8 @@ impl<'de> Deserialize<'de> for Duration {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(default)]
+/// Accepted so older configs still load, but unused: connections open on demand and close after the
+/// server's `max_connection_idle_time_in_seconds`.
 pub struct ConnectionPoolConfig {
     pub min_connections: i64,
     pub health_check_interval: Duration,
@@ -345,6 +347,7 @@ pub struct ConfigData {
     pub par2: Par2Config,
     /// Deprecated: use `watchers`.
     pub watcher: WatcherConfig,
+    #[serde(deserialize_with = "watchers_with_defaults")]
     pub watchers: Option<Vec<WatcherConfig>>,
     pub nzb_compression: NzbCompressionConfig,
     pub database: DatabaseConfig,
@@ -459,6 +462,31 @@ impl ConfigData {
 
 fn some_bool(v: bool) -> Option<bool> {
     Some(v)
+}
+
+/// Each `watchers` entry starts from a new watcher's values (`default_watcher`), so keys left out of
+/// a hand-written entry get those defaults instead of zero. Keys that are present, including an
+/// explicit `0`, `0s` or `[]`, win. The legacy `watcher` key keeps zero defaults: zero means unset.
+fn watchers_with_defaults<'de, D>(d: D) -> Result<Option<Vec<WatcherConfig>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error;
+    let Some(entries) = Option::<Vec<Value>>::deserialize(d)? else {
+        return Ok(None);
+    };
+    let base = serde_json::to_value(default_watcher()).map_err(D::Error::custom)?;
+    entries
+        .into_iter()
+        .map(|entry| {
+            let mut merged = base.clone();
+            if let (Value::Object(m), Value::Object(e)) = (&mut merged, entry) {
+                m.extend(e);
+            }
+            serde_json::from_value(merged).map_err(D::Error::custom)
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(Some)
 }
 
 fn default_watcher() -> WatcherConfig {
@@ -952,13 +980,37 @@ pub fn load(path: &Path) -> Result<ConfigData, ConfigError> {
     }
     if cfg.migrate_v1() {
         // persist so later loads do not migrate again; a failed save is only a warning in Go
-        if let Err(e) = save_config(&cfg, path) {
+        if let Err(e) = save_migrated_v1(&data, &cfg, path) {
             crate::logx::warn(&format!("Failed to save migrated config to disk: {e}"), &[]);
         }
     }
     cfg.apply_load_defaults();
     cfg.validate().map_err(ConfigError::Invalid)?;
     Ok(cfg)
+}
+
+/// Writes the v1 migration back into the user's own YAML: sets `version` and each server's `role`
+/// and drops `check_only`. Unlike Go, it does not write every omitted key back as a zero or null,
+/// which would hide the defaults those keys get on every load.
+fn save_migrated_v1(original: &str, cfg: &ConfigData, path: &Path) -> Result<(), ConfigError> {
+    use serde_yaml_ng::Value as Y;
+    let mut doc: Y =
+        serde_yaml_ng::from_str(original).map_err(|e| ConfigError::Format(e.to_string()))?;
+    let Y::Mapping(top) = &mut doc else {
+        return save_config(cfg, path);
+    };
+    top.insert(Y::from("version"), Y::from(cfg.version));
+    if let Some(Y::Sequence(servers)) = top.get_mut("servers") {
+        let migrated = cfg.servers.as_deref().unwrap_or(&[]);
+        for (entry, server) in servers.iter_mut().zip(migrated) {
+            if let Y::Mapping(m) = entry {
+                m.remove("check_only");
+                m.insert(Y::from("role"), Y::from(server.role.as_str()));
+            }
+        }
+    }
+    let text = serde_yaml_ng::to_string(&doc).map_err(|e| ConfigError::Format(e.to_string()))?;
+    std::fs::write(path, text).map_err(ConfigError::Write)
 }
 
 /// Loads from a YAML string (same pipeline as [`load`], minus the file and the v1 re-save).
@@ -1056,6 +1108,86 @@ mod tests {
         );
     }
 
+    const MINIMAL: &str = "servers:\n  - host: news.example.com\n    port: 563\n    max_connections: 10\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\n";
+
+    /// Postie departs from Go here on purpose: keys left out of a hand-written watcher entry get the
+    /// same defaults as a new watcher, instead of zero values (no threshold, no ignore patterns).
+    #[test]
+    fn a_hand_written_watcher_entry_gets_defaults_for_omitted_keys() {
+        let yaml =
+            format!("{MINIMAL}watchers:\n  - name: tv\n    watch_directory: /downloads/tv\n");
+        let w = load_str(&yaml).unwrap().watchers.unwrap().remove(0);
+        let d = default_watcher();
+        assert_eq!(
+            (w.name.as_str(), w.watch_directory.as_str()),
+            ("tv", "/downloads/tv")
+        );
+        assert_eq!(w.size_threshold, d.size_threshold);
+        assert_eq!(w.min_file_size, d.min_file_size);
+        assert_eq!(w.check_interval.nanos(), d.check_interval.nanos());
+        assert_eq!(w.min_file_age.nanos(), d.min_file_age.nanos());
+        assert_eq!(w.ignore_patterns, d.ignore_patterns);
+        assert_eq!(w.schedule, d.schedule);
+    }
+
+    #[test]
+    fn explicit_zero_and_empty_watcher_values_are_kept() {
+        let yaml = format!(
+            "{MINIMAL}watchers:\n  - watch_directory: /w\n    size_threshold: 0\n    min_file_size: 0\n    ignore_patterns: []\n    min_file_age: 0s\n"
+        );
+        let w = load_str(&yaml).unwrap().watchers.unwrap().remove(0);
+        assert_eq!((w.size_threshold, w.min_file_size), (0, 0));
+        assert_eq!(w.ignore_patterns, Some(vec![]));
+        assert_eq!(w.min_file_age.nanos(), 0);
+    }
+
+    /// Migrating an unversioned file must not write every omitted key back as a zero or null.
+    #[test]
+    fn migrating_an_old_config_only_adds_the_version_and_server_roles() {
+        let dir =
+            std::env::temp_dir().join(format!("postie-config-migrate-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("config.yaml");
+        std::fs::write(
+            &path,
+            "servers:\n  - host: news.example.com\n    port: 563\n    max_connections: 10\n  - host: check.example.com\n    port: 563\n    max_connections: 2\n    check_only: true\nposting:\n  groups:\n    - name: alt.binaries.test\n      enabled: true\n",
+        )
+        .unwrap();
+        let cfg = load(&path).unwrap();
+        assert_eq!(cfg.posting.max_retries, 3, "defaults still apply in memory");
+        let saved: serde_yaml_ng::Value =
+            serde_yaml_ng::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        let top: Vec<&str> = saved
+            .as_mapping()
+            .unwrap()
+            .keys()
+            .filter_map(|k| k.as_str())
+            .collect();
+        assert_eq!(top, ["servers", "posting", "version"]);
+        assert_eq!(
+            saved["version"],
+            serde_yaml_ng::Value::from(CURRENT_CONFIG_VERSION)
+        );
+        assert_eq!(
+            saved["servers"][0]["role"],
+            serde_yaml_ng::Value::from("upload")
+        );
+        assert_eq!(
+            saved["servers"][1]["role"],
+            serde_yaml_ng::Value::from("verify")
+        );
+        assert!(saved["servers"][1].get("check_only").is_none());
+        assert!(saved["servers"][0].get("inflight").is_none());
+        assert!(saved["posting"].get("max_retries").is_none());
+        // loading the migrated file again gives the same configuration
+        assert_eq!(load(&path).unwrap(), cfg);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// (oracle case, config path) pairs where Rust intentionally differs from the recorded Go output.
+    /// `watchers`: omitted keys of a watcher entry get `default_watcher` values instead of zero.
+    const GO_DEPARTURES: &[(&str, &str)] = &[("watchers_list", ".watchers")];
+
     /// Every case recorded from Go's `config.Load` (YAML in, JSON config or error text out).
     #[test]
     fn load_matches_go_oracle() {
@@ -1071,7 +1203,18 @@ mod tests {
                 (Ok(cfg), true) => {
                     let got = serde_json::to_value(&cfg).unwrap();
                     if got != c.config {
-                        let diff: Vec<String> = diff_values("", &c.config, &got);
+                        // deliberate departures from Go, each covered by its own test above
+                        let diff: Vec<String> = diff_values("", &c.config, &got)
+                            .into_iter()
+                            .filter(|d| {
+                                !GO_DEPARTURES
+                                    .iter()
+                                    .any(|(case, path)| case == name && d.starts_with(path))
+                            })
+                            .collect();
+                        if diff.is_empty() {
+                            continue;
+                        }
                         bad.push(format!("{name}: config differs: {}", diff.join("; ")));
                     }
                 }
