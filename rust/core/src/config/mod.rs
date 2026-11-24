@@ -200,6 +200,12 @@ pub struct PostCheck {
     pub stat_batch_size: i64,
     /// 0 enables automatic sizing.
     pub max_concurrent_checks: i64,
+    /// STAT each article shortly after it is posted, while the rest of the upload runs.
+    #[serde(deserialize_with = "lenient_opt_bool")]
+    pub check_during_upload: Option<bool>,
+    /// Upload connections set aside for those checks when verification shares the upload servers
+    /// (no verify-role server). 0 means the default.
+    pub check_connections: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -451,6 +457,10 @@ impl ConfigData {
     }
 }
 
+/// Upload connections set aside for checking during upload on a shared pool (nyuu suggests a
+/// couple of check connections).
+pub const DEFAULT_CHECK_CONNECTIONS: i64 = 2;
+
 fn some_bool(v: bool) -> Option<bool> {
     Some(v)
 }
@@ -517,6 +527,8 @@ pub fn default_config() -> ConfigData {
             deferred_batch_size: 10_000,
             stat_batch_size: 100,
             max_concurrent_checks: 0,
+            check_during_upload: some_bool(true),
+            check_connections: DEFAULT_CHECK_CONNECTIONS,
         },
         par2: Par2Config {
             enabled: some_bool(true),
@@ -771,6 +783,9 @@ impl ConfigData {
         if self.post_check.max_concurrent_checks < 0 {
             return Err("post_check max_concurrent_checks must be >= 0 (0 = auto)".into());
         }
+        if self.post_check.check_connections < 0 {
+            return Err("post_check check_connections must be >= 0 (0 = default)".into());
+        }
         let from = &self.posting.post_headers.default_from;
         if !from.is_empty() {
             address::validate_address(from).map_err(|e| {
@@ -841,6 +856,12 @@ impl ConfigData {
         }
         if cfg.post_check.stat_batch_size <= 0 {
             cfg.post_check.stat_batch_size = 100;
+        }
+        if cfg.post_check.check_during_upload.is_none() {
+            cfg.post_check.check_during_upload = Some(true);
+        }
+        if cfg.post_check.check_connections <= 0 {
+            cfg.post_check.check_connections = DEFAULT_CHECK_CONNECTIONS;
         }
         if cfg.par2.redundancy.is_empty() {
             cfg.par2.redundancy = DEFAULT_REDUNDANCY.into();

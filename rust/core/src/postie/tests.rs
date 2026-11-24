@@ -459,6 +459,29 @@ fn runtime_with_store(c: &ConfigData, mock: &Arc<Mock>) -> (Arc<Runtime>, Store,
     (rt, store, dir)
 }
 
+#[test]
+fn a_shared_pool_sets_connections_aside_for_checking_during_upload() {
+    let mock = Arc::new(Mock::default()); // 4 connections, no verify-role server
+    let mut c = cfg(true, true);
+    c.post_check.check_connections = 1;
+    let (rt, _, _) = runtime_with_store(&c, &mock);
+    assert!(rt.post_observer().is_some(), "checks during upload");
+    assert_eq!(
+        rt.metrics().upload_worker_count,
+        3,
+        "one connection set aside"
+    );
+
+    c.post_check.check_during_upload = Some(false);
+    let (rt, _, _) = runtime_with_store(&c, &mock);
+    assert!(rt.post_observer().is_none());
+    assert_eq!(
+        rt.metrics().upload_worker_count,
+        4,
+        "uploads keep every connection"
+    );
+}
+
 #[tokio::test]
 async fn durable_mode_records_manifests_marks_files_uploaded_and_keeps_generated_par2() {
     let (src, out) = (tmp(), tmp());

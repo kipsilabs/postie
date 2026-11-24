@@ -10,6 +10,7 @@ use std::sync::Arc;
 use futures_util::stream::{FuturesUnordered, StreamExt};
 use tokio::sync::Semaphore;
 
+use crate::config::{DEFAULT_CHECK_CONNECTIONS, PostCheck};
 use crate::poster::{ArticleClient, BoxFut};
 use crate::verification::Stater;
 
@@ -30,10 +31,16 @@ pub struct StatLimits {
 }
 
 /// Limits from `post_check.max_concurrent_checks` (0 = auto) and the pool's pipelined capacity
-/// (connections × inflight, 0 = unknown). Auto uses the full capacity, dropping to
-/// [`SHARED_POOL_BUSY_STATS`] on a shared pool while uploads are busy. An explicit value is used
-/// as-is (capped at capacity) in both states.
-pub fn stat_limits(configured: i64, shared_pool: bool, capacity: usize) -> StatLimits {
+/// (connections × inflight, 0 = unknown). Auto uses the full capacity; on a shared pool, while
+/// uploads are busy, it drops to `reserved` (the pipelined capacity of the connections set aside
+/// for checks), or to [`SHARED_POOL_BUSY_STATS`] when none are. An explicit value is used as-is
+/// (capped at capacity) in both states.
+pub fn stat_limits(
+    configured: i64,
+    shared_pool: bool,
+    capacity: usize,
+    reserved: usize,
+) -> StatLimits {
     let cap = |n: usize| if capacity > 0 { n.min(capacity) } else { n }.max(1);
     if let Some(c) = usize::try_from(configured).ok().filter(|c| *c > 0) {
         let n = cap(c);
@@ -45,11 +52,29 @@ pub fn stat_limits(configured: i64, shared_pool: bool, capacity: usize) -> StatL
         FALLBACK_STATS
     };
     let narrow = if shared_pool {
-        SHARED_POOL_BUSY_STATS.min(wide)
+        let busy = if reserved > 0 {
+            reserved
+        } else {
+            SHARED_POOL_BUSY_STATS
+        };
+        busy.min(wide)
     } else {
         wide
     };
     StatLimits { wide, narrow }
+}
+
+/// Upload connections set aside for checking during upload when verification shares the upload
+/// pool: the configured count, always leaving one for uploads; none when that checking is off.
+pub fn reserved_check_connections(pc: &PostCheck, connections: usize) -> usize {
+    if pc.check_during_upload == Some(false) {
+        return 0;
+    }
+    let want = usize::try_from(pc.check_connections)
+        .ok()
+        .filter(|n| *n > 0)
+        .unwrap_or(DEFAULT_CHECK_CONNECTIONS as usize);
+    want.min(connections.saturating_sub(1))
 }
 
 /// Adapts a pool client to the verification service's `Stater`: a present article is `Ok(false)`
@@ -140,22 +165,25 @@ mod tests {
     #[test]
     fn auto_limits_use_the_pipelined_capacity_and_narrow_only_on_a_shared_pool() {
         assert_eq!(
-            stat_limits(0, false, 100),
+            stat_limits(0, false, 100, 0),
             StatLimits {
                 wide: 100,
                 narrow: 100
             }
         );
         assert_eq!(
-            stat_limits(0, true, 100),
+            stat_limits(0, true, 100, 0),
             StatLimits {
                 wide: 100,
                 narrow: 2
             }
         );
-        assert_eq!(stat_limits(0, true, 1), StatLimits { wide: 1, narrow: 1 });
         assert_eq!(
-            stat_limits(0, false, 0),
+            stat_limits(0, true, 1, 0),
+            StatLimits { wide: 1, narrow: 1 }
+        );
+        assert_eq!(
+            stat_limits(0, false, 0, 0),
             StatLimits {
                 wide: 16,
                 narrow: 16
@@ -164,16 +192,55 @@ mod tests {
     }
 
     #[test]
-    fn an_explicit_limit_is_capped_at_capacity_and_applies_when_busy_too() {
-        assert_eq!(stat_limits(5, true, 100), StatLimits { wide: 5, narrow: 5 });
+    fn reserved_check_connections_widen_the_busy_limit_on_a_shared_pool() {
         assert_eq!(
-            stat_limits(500, false, 100),
+            stat_limits(0, true, 100, 20),
+            StatLimits {
+                wide: 100,
+                narrow: 20
+            }
+        );
+        assert_eq!(
+            stat_limits(0, false, 100, 20),
+            StatLimits {
+                wide: 100,
+                narrow: 100
+            },
+            "a dedicated pool never narrows"
+        );
+    }
+
+    #[test]
+    fn check_connections_leave_at_least_one_for_uploads() {
+        let pc = |during: Option<bool>, n: i64| PostCheck {
+            check_during_upload: during,
+            check_connections: n,
+            ..Default::default()
+        };
+        assert_eq!(reserved_check_connections(&pc(Some(true), 3), 10), 3);
+        assert_eq!(reserved_check_connections(&pc(None, 0), 10), 2, "defaults");
+        assert_eq!(reserved_check_connections(&pc(Some(true), 8), 4), 3);
+        assert_eq!(reserved_check_connections(&pc(Some(true), 2), 1), 0);
+        assert_eq!(reserved_check_connections(&pc(Some(false), 3), 10), 0);
+    }
+
+    #[test]
+    fn an_explicit_limit_is_capped_at_capacity_and_applies_when_busy_too() {
+        assert_eq!(
+            stat_limits(5, true, 100, 0),
+            StatLimits { wide: 5, narrow: 5 }
+        );
+        assert_eq!(
+            stat_limits(500, false, 100, 0),
             StatLimits {
                 wide: 100,
                 narrow: 100
             }
         );
-        assert_eq!(stat_limits(7, false, 0), StatLimits { wide: 7, narrow: 7 });
+        assert_eq!(
+            stat_limits(7, false, 0, 0),
+            StatLimits { wide: 7, narrow: 7 }
+        );
     }
 
     /// Counts concurrent STATs; ids starting with `x` are missing.

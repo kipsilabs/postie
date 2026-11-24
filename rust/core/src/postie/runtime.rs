@@ -24,7 +24,7 @@ use crate::transferstore::{Store, TransferFile};
 use crate::transferwriter::Recorder;
 use crate::verification::{self, EarlyChecker};
 
-pub use super::stater::{BusyFn, PoolStater, StatLimits, stat_limits};
+pub use super::stater::{BusyFn, PoolStater, StatLimits, reserved_check_connections, stat_limits};
 
 type ReferencedFn = Arc<dyn Fn() -> Result<Vec<String>, String> + Send + Sync>;
 
@@ -109,7 +109,8 @@ pub struct Runtime {
     store: Option<Store>,
     manifest_dir: PathBuf,
     verify_service: Option<Arc<verification::Service>>,
-    /// STATs articles while their upload still runs (dedicated verify pool only).
+    /// STATs articles while their upload still runs (a dedicated verify pool, or connections set
+    /// aside from a shared one).
     early_checker: Option<Arc<EarlyChecker>>,
     par2_work_dir: String,
     par2_in_use: Mutex<HashMap<String, u32>>,
@@ -141,17 +142,34 @@ impl Runtime {
         let par2_work_dir = work_dir(&cfg.par2);
         let max_jobs = cfg.par2.max_concurrent_jobs.max(1);
         let capacity = deps.upload.as_ref().map_or(0, |u| u.max_connections());
+        let shared = deps.verify.is_none();
+        let check_during_upload = cfg.post_check.check_during_upload != Some(false);
+        // Checking during upload on a shared pool runs on connections the uploads give up, the way
+        // nyuu's check connections do; a dedicated verify pool already has its own.
+        let reserved = if shared && deps.store.is_some() {
+            reserved_check_connections(&cfg.post_check, capacity)
+        } else {
+            0
+        };
+        if reserved > 0 {
+            crate::logx::info(
+                "Checking articles during upload on connections set aside from the upload pool",
+                &[
+                    ("check_connections", reserved.into()),
+                    ("upload_connections", (capacity - reserved).into()),
+                ],
+            );
+        }
         let upload_engine = (capacity > 0).then(|| {
             Arc::new(Engine::new(
                 cfg.posting.article_size_in_bytes,
                 cfg.posting.upload_buffer_memory_limit,
-                capacity as i64,
+                (capacity - reserved) as i64,
             ))
         });
         let mut verify_service = None;
         let mut early_checker = None;
         if let (Some(store), Some(upload)) = (&deps.store, &deps.upload) {
-            let shared = deps.verify.is_none();
             let verify = deps.verify.clone().unwrap_or_else(|| upload.clone());
             let reposter = Reposter::new(
                 Some(upload.clone()),
@@ -164,9 +182,9 @@ impl Runtime {
                 }),
                 cfg.posting.throttle_rate,
             );
-            // Two predicates on a shared pool: STATs narrow whenever an upload is running (they
-            // queue behind its article bodies), while whole cycles are skipped only once uploads
-            // saturate the pool.
+            // Two predicates on a shared pool: STATs narrow to the reserved check connections (or a
+            // token few) whenever an upload is running, while whole cycles are skipped only once
+            // uploads saturate a pool with nothing reserved.
             let (uploading, saturated): (Option<BusyFn>, Option<BusyFn>) = match &upload_engine {
                 Some(engine) if shared => {
                     let (a, q) = (engine.clone(), engine.clone());
@@ -175,15 +193,19 @@ impl Runtime {
                             let m = a.metrics();
                             m.active_workers > 0 || m.queued_workers > 0
                         })),
-                        Some(Arc::new(move || q.metrics().queued_workers > 0)),
+                        (reserved == 0).then(|| -> BusyFn {
+                            Arc::new(move || q.metrics().queued_workers > 0)
+                        }),
                     )
                 }
                 _ => (None, None),
             };
+            let per_connection = verify.max_inflight() / verify.max_connections().max(1);
             let limits = stat_limits(
                 cfg.post_check.max_concurrent_checks,
                 shared,
                 verify.max_inflight(),
+                reserved * per_connection.max(1),
             );
             let stater: Arc<PoolStater> =
                 Arc::new(PoolStater::new(verify.clone(), limits, uploading));
@@ -195,9 +217,9 @@ impl Runtime {
                 vcfg.clone(),
                 "postie",
             );
-            // Checking during upload needs its own connections, like nyuu's check connections: on a
-            // shared pool those STATs would queue behind the very uploads they shadow.
-            if !shared {
+            // Checking during upload needs connections of its own (a dedicated verify pool, or the
+            // ones reserved above): otherwise its STATs would compete with the uploads they shadow.
+            if check_during_upload && (!shared || reserved > 0) {
                 let delay = vcfg
                     .with_defaults()
                     .propagation_delay

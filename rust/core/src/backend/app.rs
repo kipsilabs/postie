@@ -718,6 +718,7 @@ impl App {
                     cfg.post_check.max_concurrent_checks,
                     false,
                     verify.max_inflight(),
+                    0,
                 ),
                 None,
             )),
