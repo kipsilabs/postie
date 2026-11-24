@@ -66,8 +66,7 @@
 			"compression": "Compresión NZB",
 			"par2": "PAR2",
 			"post_check": "Verificación Post",
-			"post_upload_script": "Script Post-Carga",
-			"connection_pool": "Pool de Conexiones"
+			"post_upload_script": "Script Post-Carga"
 		},
 		"general": {
 			"config_file": "Archivo de configuración",
@@ -137,26 +136,14 @@
 				"disabled_description": "Los archivos NZB se guardarán sin comprimir. Habilite la compresión para reducir los tamaños de archivo."
 			}
 		},
-		"connection_pool": {
-			"save_button": "Guardar Configuración del Pool de Conexiones",
-			"title": "Configuración del Pool de Conexiones",
-			"min_connections": "Conexiones Mínimas",
-			"min_connections_description": "Número mínimo de conexiones a mantener en el pool",
-			"health_check_interval": "Intervalo de Verificación de Salud",
-			"health_check_interval_description": "Intervalo entre verificaciones de salud de conexión",
-			"skip_providers_verification_on_creation": "Omitir Verificación de Proveedores en Creación",
-			"skip_providers_verification_on_creation_description": "Omitir la verificación de conectividad del servidor al crear el pool de conexiones. Útil para tiempos de inicio más rápidos.",
-			"info_title": "Pool de Conexiones:",
-			"info_description": "Gestiona las conexiones a sus servidores NNTP. Un mayor número mínimo de conexiones proporciona mejor rendimiento pero usa más recursos."
-		},
 		"watcher": {
 			"title": "Monitor de Archivos",
 			"enable": "Habilitar Monitor de Archivos",
-			"description": "Monitorea automáticamente un directorio para nuevos archivos y los sube cuando cumplen los criterios configurados. Los archivos se ponen en cola para procesamiento y se mueven al directorio de salida global después de una carga exitosa.",
+			"description": "Monitorea automáticamente un directorio para nuevos archivos y los sube cuando cumplen los criterios configurados. Cada NZB se guarda en el directorio de salida global; los archivos originales se quedan donde están salvo que actives 'Eliminar archivos originales después de la carga'.",
 			"directories": "Directorios",
 			"directories_description": "Configure dónde el monitor supervisa archivos para cargas automáticas",
 			"watch_directory": "Directorio de Monitoreo",
-			"watch_directory_description": "Directorio donde se monitorearán nuevos archivos para carga automática. Los archivos procesados se moverán al directorio de salida global.",
+			"watch_directory_description": "Directorio donde se monitorearán nuevos archivos para carga automática. Los archivos originales se quedan donde están salvo que actives 'Eliminar archivos originales después de la carga'.",
 			"check_interval": "Intervalo de Verificación",
 			"check_interval_description": "Frecuencia para buscar nuevos archivos",
 			"min_file_age": "Antigüedad Mínima del Archivo",
