@@ -2,24 +2,24 @@
 class Postie < Formula
   desc "High-performance Usenet binary poster"
   homepage "https://github.com/kipsilabs/postie"
-  version "0.1.0"
+  version "0.1.1"
   license "MIT"
 
   on_macos do
     depends_on arch: :arm64
     on_arm do
-      url "https://github.com/kipsilabs/postie/releases/download/v0.1.0/postie-rust-v0.1.0-macos-arm64.tar.gz"
-      sha256 "497480ec1eba635316b20bf63f275fd6a7353818a4dd6283b128298ccd68b7c5"
+      url "https://github.com/kipsilabs/postie/releases/download/v0.1.1/postie-rust-v0.1.1-macos-arm64.tar.gz"
+      sha256 "c267d06efdb6bd2e75e02611567d02907ac07e2cbda96dd5e80d67918abd19ad"
     end
   end
   on_linux do
     on_intel do
-      url "https://github.com/kipsilabs/postie/releases/download/v0.1.0/postie-rust-v0.1.0-linux-x86_64.tar.gz"
-      sha256 "65d39e54409ebd0dbbe442ce7041ed08fcc0d5fcd55c04107b24604d46c4c0cd"
+      url "https://github.com/kipsilabs/postie/releases/download/v0.1.1/postie-rust-v0.1.1-linux-x86_64.tar.gz"
+      sha256 "a5218a9c29376c979b7ee4632c105042c6d079cd05052fd4a495f94b87935c52"
     end
     on_arm do
-      url "https://github.com/kipsilabs/postie/releases/download/v0.1.0/postie-rust-v0.1.0-linux-arm64.tar.gz"
-      sha256 "09e76020fa212ac7e34b559325d611a993e2f42b24959ed2a6b013843fe5281e"
+      url "https://github.com/kipsilabs/postie/releases/download/v0.1.1/postie-rust-v0.1.1-linux-arm64.tar.gz"
+      sha256 "7ea3b644162cd592425e0ff3995fb75e00ba75d5da2e4a9223ed93d4917c3d4b"
     end
   end
 
@@ -29,7 +29,7 @@ class Postie < Formula
 
   test do
     assert_match "Path to configuration file", shell_output("#{bin}/postie --help")
-    assert_match "postie 0.1.0", shell_output("#{bin}/postie --version")
+    assert_match "postie 0.1.1", shell_output("#{bin}/postie --version")
     (testpath/"input.bin").write "x"
     assert_match "error reading config file",
                  shell_output("#{bin}/postie -c missing-config.yaml -i input.bin 2>&1", 1)
