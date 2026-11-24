@@ -39,7 +39,7 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest
-      - run: cargo nextest run --workspace --no-fail-fast
+      - run: cargo nextest run --workspace --profile ci
         working-directory: rust
 
   binaries:

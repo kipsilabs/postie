@@ -1,0 +1,13 @@
+# CI profile (`cargo nextest run --profile ci`).
+[profile.ci]
+fail-fast = false
+# The stuck-connection tests (server/tests/stuck.rs) spend ~80 s each mostly asleep on network
+# timeouts, so run more tests than the runners' 3-4 cores: otherwise those tests queue behind each
+# other and set the length of the whole run.
+test-threads = 8
+
+# Start the slow stuck-connection tests first so they overlap the rest of the suite instead of
+# trailing it.
+[[profile.ci.overrides]]
+filter = 'binary(stuck)'
+priority = 100
