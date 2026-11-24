@@ -41,17 +41,27 @@ Postie comes with a modern web interface that makes it easy to manage your uploa
 ### Dashboard
 
 ![Dashboard](/img/examples/dashboard.png)
-*Main dashboard showing upload queue and progress with real-time updates*
+*Queue statistics, live upload progress and background verification, updated in real time*
 
-### Queue Management
+### Upload Queue
 
 ![Queue](/img/examples/queue.png)
-*Queue management interface for monitoring and controlling uploads with detailed progress tracking*
+*The upload queue on the dashboard: filter by status, search, reprioritize, retry failed items and download finished NZBs*
 
 ### Settings
 
 ![Settings](/img/examples/settings.png)
-*Comprehensive configuration interface with organized tabs and real-time validation*
+*Settings grouped into Core Configuration, Upload Settings, File Processing and Automation tabs; changes save automatically*
+
+### Metrics
+
+![Metrics](/img/examples/metrics.png)
+*Live transfer metrics: upload workers, buffer memory, PAR2 jobs, speed and per-server connection stats*
+
+### Logs
+
+![Logs](/img/examples/logs.png)
+*Live log viewer with filtering by text and level, plus copy and download*
 
 ## Why Use Postie?
 
