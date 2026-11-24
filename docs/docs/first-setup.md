@@ -32,7 +32,7 @@ Before starting, install Postie using one of the available methods — see the [
 On the first screen you can choose:
 
 - **Language** — English, Spanish, French, Turkish
-- **Theme** — System Default, Light, Dark, or one of the many colour themes (Cupcake, Dracula, Nord, etc.)
+- **Theme** — System (follows your OS), Light, or Dark
 
 Click **Next** when ready.
 
@@ -52,16 +52,20 @@ The Upload Pool is required. Add your Usenet provider's credentials here. You ca
 
 | Field | Description | Example |
 |-------|-------------|---------|
+| **Name** | Optional label shown in the server list and metrics | `Primary Provider` |
 | **Host** | Your provider's hostname | `news.example.com` |
 | **Port** | Connection port | `119` (plain) or `563` (SSL) |
-| **Use SSL/TLS** | Enable encrypted connection | leave unchecked for local |
-| **Username** | Your account username | leave blank for local |
-| **Password** | Your account password | leave blank for local |
+| **Use SSL/TLS** | Enable encrypted connection | on for port `563` |
+| **Username** | Your account username | |
+| **Password** | Your account password | |
 | **Max Connections** | Parallel connections to open | `10` |
+| **Proxy URL** | Optional SOCKS5 proxy | `socks5://user:pass@proxy.example.com:1080` |
+
+Click **Add Provider** to add more accounts to the pool.
 
 ### Testing the connection
 
-After entering credentials, click **Test Connection**. A green **✓ Valid** badge appears if the server is reachable.
+After entering credentials, click **Test Connection**. A green **✓ Valid** badge appears next to the provider if the server is reachable, and the provider card shows its host, port and username.
 
 ![Step 2 - Valid connection](/img/setup/step2-servers-valid.png)
 
@@ -69,7 +73,7 @@ After entering credentials, click **Test Connection**. A green **✓ Valid** bad
 
 ### Verify Pool *(optional)*
 
-The Verify Pool uses servers from other providers to confirm that articles have propagated across the Usenet backbone. Leave it empty to use the Upload Pool for verification.
+The Verify Pool uses servers from other providers to confirm that articles have propagated across the Usenet backbone. Click **Add Verify Server** to add one, or leave it empty to use the Upload Pool for verification.
 
 Click **Next** once the Upload Pool shows a valid connection.
 
@@ -79,7 +83,7 @@ Click **Next** once the Upload Pool shows a valid connection.
 
 ![Step 3 - Directories](/img/setup/step3-directories.png)
 
-Set where Postie saves the generated NZB files.
+Set where Postie saves the generated NZB files. The output path is required.
 
 | Field | Description | Default |
 |-------|-------------|---------|
@@ -91,7 +95,7 @@ The default `./output` creates a folder next to the Postie binary. Click **Finis
 
 ## You're Ready!
 
-Postie is now configured. You'll be redirected to the dashboard where you can start uploading files.
+Postie is now configured. You'll be redirected to the dashboard, where you can add files or folders and watch them upload. Every setting from the wizard can be changed later under **Settings**.
 
 ## Next Steps
 

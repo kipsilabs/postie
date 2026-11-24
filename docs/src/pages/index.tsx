@@ -92,8 +92,8 @@ export default function Home(): ReactNode {
               </div>
               <div className="col col--4">
                 <div style={{ textAlign: 'center' }}>
-                  <img src="/img/examples/queue.png" alt="Queue Management" style={{ width: '100%', borderRadius: '8px', boxShadow: '0 4px 8px rgba(0,0,0,0.1)' }} />
-                  <h4>Queue Management</h4>
+                  <img src="/img/examples/queue.png" alt="Upload Queue" style={{ width: '100%', borderRadius: '8px', boxShadow: '0 4px 8px rgba(0,0,0,0.1)' }} />
+                  <h4>Upload Queue</h4>
                   <p>Control and prioritize your uploads</p>
                 </div>
               </div>
