@@ -47,7 +47,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest, target: linux-x86_64, exe: "" }
+          # 22.04 (glibc 2.35) so the binaries also run on older distros such as Debian 12
+          - { os: ubuntu-22.04, target: linux-x86_64, exe: "" }
+          - { os: ubuntu-22.04-arm, target: linux-arm64, exe: "" }
           - { os: macos-latest, target: macos-arm64, exe: "" }
           - { os: windows-latest, target: windows-x86_64, exe: ".exe" }
     steps:
@@ -146,10 +148,17 @@ jobs:
           if-no-files-found: error
 
   docker:
-    name: docker image (ghcr.io)
-    # pushes to the registry, so it waits for the test gate
+    name: docker image (${{ matrix.platform }})
+    # pushes to the registry, so it waits for the test gate; each arch builds natively and is
+    # pushed by digest, then docker-manifest tags the multi-arch index
     needs: [test]
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { platform: linux/amd64, arch: amd64, runner: ubuntu-latest }
+          - { platform: linux/arm64, arch: arm64, runner: ubuntu-24.04-arm }
     permissions:
       contents: read
       packages: write
@@ -165,8 +174,8 @@ jobs:
         id: cargo-cache
         with:
           path: docker-cargo-cache
-          key: docker-cargo-${{ hashFiles('rust/Cargo.lock') }}-${{ github.sha }}
-          restore-keys: docker-cargo-${{ hashFiles('rust/Cargo.lock') }}-
+          key: docker-cargo-${{ matrix.arch }}-${{ hashFiles('rust/Cargo.lock') }}-${{ github.sha }}
+          restore-keys: docker-cargo-${{ matrix.arch }}-${{ hashFiles('rust/Cargo.lock') }}-
       - uses: reproducible-containers/buildkit-cache-dance@v3
         with:
           cache-map: |
@@ -175,33 +184,70 @@ jobs:
               "docker-cargo-cache/target": "/app/rust/target"
             }
           skip-extraction: ${{ steps.cargo-cache.outputs.cache-hit }}
-      - id: tag
+      - id: image
         shell: bash
-        run: |
-          image="ghcr.io/${GITHUB_REPOSITORY,,}"
-          tags="$image:${GITHUB_REF_NAME}"
-          # only a stable tag moves `latest`: a release candidate must not replace the stable image
-          if [[ "$GITHUB_REF_NAME" != *-* ]]; then
-            tags="$tags,$image:latest"
-          fi
-          echo "image=$tags" >> "$GITHUB_OUTPUT"
-      - uses: docker/build-push-action@v6
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - id: build
+        uses: docker/build-push-action@v6
         env:
           DOCKER_BUILD_RECORD_UPLOAD: false
         with:
           context: .
           file: docker/Dockerfile
-          platforms: linux/amd64
-          push: true
-          tags: ${{ steps.tag.outputs.image }}
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=${{ steps.image.outputs.name }},push-by-digest=true,name-canonical=true,push=true
           build-args: |
             VERSION=${{ github.ref_name }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=docker-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=docker-${{ matrix.arch }}
+      - shell: bash
+        run: |
+          mkdir -p digests
+          touch "digests/${DIGEST#sha256:}"
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docker-digest-${{ matrix.arch }}
+          path: digests/*
+          if-no-files-found: error
+
+  docker-manifest:
+    name: docker multi-arch tags
+    needs: [docker]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: docker-digest-*
+          path: digests
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Tag the multi-arch image
+        shell: bash
+        working-directory: digests
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          tags=(-t "$image:${GITHUB_REF_NAME}")
+          # only a stable tag moves `latest`: a release candidate must not replace the stable image
+          if [[ "$GITHUB_REF_NAME" != *-* ]]; then
+            tags+=(-t "$image:latest")
+          fi
+          docker buildx imagetools create "${tags[@]}" $(printf "$image@sha256:%s " *)
+          docker buildx imagetools inspect "$image:${GITHUB_REF_NAME}"
 
   publish:
     name: GitHub release
-    needs: [test, binaries, desktop, docker]
+    needs: [test, binaries, desktop, docker-manifest]
     runs-on: ubuntu-latest
     steps:
       # only the release assets: the run also holds docker's build record (*.dockerbuild),
@@ -230,6 +276,20 @@ jobs:
             kind=(--latest --generate-notes)
             title="$GITHUB_REF_NAME"
             notes="Headless binaries (\`postie\` CLI and \`postie-web\` with its \`frontend/\` directory), desktop bundles for Linux, macOS and Windows, and the \`ghcr.io/${GITHUB_REPOSITORY,,}:$GITHUB_REF_NAME\` Docker image. $unsigned"
+            # version-free copies of the desktop installers, so docs can link
+            # releases/latest/download/<name> and keep working across releases
+            alias_asset() {
+              local src
+              src="$(find artifacts -type f -name "$1" | head -n 1)"
+              if [[ -z "$src" ]]; then
+                echo "::error::no release asset matches $1"
+                exit 1
+              fi
+              cp "$src" "artifacts/$2"
+            }
+            alias_asset 'Postie_*_aarch64.dmg' Postie-macos-arm64.dmg
+            alias_asset 'Postie_*_x64-setup.exe' Postie-windows-x64-setup.exe
+            alias_asset 'Postie_*_amd64.AppImage' Postie-linux-x86_64.AppImage
           fi
           find artifacts -type f | sort
           mapfile -t files < <(find artifacts -type f | sort)
