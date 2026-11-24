@@ -76,6 +76,8 @@ pub struct StatsSnapshot {
 pub struct ProviderPool {
     name: String,
     max_connections: usize,
+    /// Requests each connection keeps on the wire at once.
+    inflight: usize,
     queue: async_channel::Sender<Request>,
     stats: Arc<ProviderStats>,
     scaler: Arc<Scaler>,
@@ -114,6 +116,7 @@ impl ProviderPool {
         Arc::new(Self {
             name: cfg.endpoint.key(),
             max_connections: cfg.connections.max(1),
+            inflight: cfg.inflight.max(1),
             queue: tx,
             stats,
             scaler,
@@ -139,6 +142,12 @@ impl ProviderPool {
     /// The configured connection limit.
     pub fn max_connections(&self) -> usize {
         self.max_connections
+    }
+
+    /// Requests the pool can have on the wire at once (connections × pipelining window): the real
+    /// ceiling for pipelinable commands such as `STAT`.
+    pub fn max_inflight(&self) -> usize {
+        self.max_connections * self.inflight
     }
 
     async fn submit(&self, kind: Kind) -> Result<Answer, NntpError> {
@@ -475,6 +484,11 @@ impl Client {
     /// Total configured connections across providers.
     pub fn max_connections(&self) -> usize {
         self.snapshot().iter().map(|p| p.max_connections()).sum()
+    }
+
+    /// Total pipelined request capacity across providers (see [`ProviderPool::max_inflight`]).
+    pub fn max_inflight(&self) -> usize {
+        self.snapshot().iter().map(|p| p.max_inflight()).sum()
     }
 
     pub fn close(&self) {

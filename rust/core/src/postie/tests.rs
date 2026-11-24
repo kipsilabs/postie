@@ -572,23 +572,3 @@ fn runtime_reservations_are_reference_counted_and_metrics_serialise_like_go() {
         "{m}"
     );
 }
-
-#[test]
-fn stat_concurrency_defaults_depend_on_pool_sharing_and_are_capped() {
-    use super::runtime::stat_concurrency;
-    assert_eq!(
-        (
-            stat_concurrency(0, true, 0),
-            stat_concurrency(0, false, 0),
-            stat_concurrency(5, false, 0)
-        ),
-        (2, 16, 5)
-    );
-    assert_eq!(
-        (
-            stat_concurrency(0, false, 4),
-            stat_concurrency(50, true, 10)
-        ),
-        (4, 10)
-    );
-}

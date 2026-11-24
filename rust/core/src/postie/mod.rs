@@ -37,6 +37,7 @@ use paths::{additional_par2_paths, derive_folder_name, relative_path_from};
 use script::{ScriptQueue, run_post_upload_script};
 
 pub mod runtime;
+mod stater;
 pub use runtime::Runtime;
 
 #[derive(Debug, thiserror::Error)]
@@ -261,8 +262,9 @@ impl Postie {
             verify,
             progress.clone(),
             engine,
-            sink,
-        );
+            sink.clone(),
+        )
+        .with_post_observer(sink.and_then(|_| rt.as_ref().and_then(|r| r.post_observer())));
         Self {
             duplicate_cfg: cfg.duplicate_lookup.clone(),
             par2_cfg,
@@ -355,6 +357,9 @@ impl Postie {
                 &format!("Failed to mark transfer uploaded for verification: {e}"),
                 &[("component", "postie".into())],
             );
+        }
+        if let Some(rt) = &self.runtime {
+            rt.wake_verification();
         }
     }
 
