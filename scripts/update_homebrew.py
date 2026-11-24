@@ -6,6 +6,27 @@ from pathlib import Path
 import re
 import sys
 
+# (Homebrew OS block, Homebrew arch block, release archive target)
+TARGETS = (
+    ("macos", "arm", "macos-arm64"),
+    ("linux", "intel", "linux-x86_64"),
+    ("linux", "arm", "linux-arm64"),
+)
+
+
+def archive(release, assets, tag, target):
+    name = f"postie-rust-{tag}-{target}.tar.gz"
+    if name not in assets:
+        raise ValueError(f"Missing release asset: {name}")
+    asset = assets[name]
+    url = f"https://github.com/kipsilabs/postie/releases/download/{tag}/{name}"
+    if asset.get("browser_download_url") != url:
+        raise ValueError(f"Unexpected asset URL: {name}")
+    digest = asset.get("digest") or ""
+    if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+        raise ValueError(f"Missing or invalid SHA256 digest: {name}")
+    return url, digest[7:]
+
 
 def render_formula(release):
     if not isinstance(release, dict):
@@ -15,22 +36,18 @@ def render_formula(release):
         raise ValueError("Expected a published stable vX.Y.Z release")
     assets = {asset["name"]: asset for asset in release.get("assets", [])}
     blocks = []
-    for platform, brew_platform in (("darwin", "macos"), ("linux", "linux")):
-        blocks.append(f"  on_{brew_platform} do")
-        for arch, brew_arch in (("arm64", "arm"), ("amd64", "intel")):
-            name = f"postie-cli_{tag}_{platform}_{arch}.tar.gz"
-            if name not in assets:
-                raise ValueError(f"Missing release asset: {name}")
-            asset = assets[name]
-            url = f"https://github.com/kipsilabs/postie/releases/download/{tag}/{name}"
-            if asset.get("browser_download_url") != url:
-                raise ValueError(f"Unexpected asset URL: {name}")
-            digest = asset.get("digest") or ""
-            if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
-                raise ValueError(f"Missing or invalid SHA256 digest: {name}")
+    for brew_os in ("macos", "linux"):
+        blocks.append(f"  on_{brew_os} do")
+        if brew_os == "macos":
+            # the release has no Intel macOS build
+            blocks.append("    depends_on arch: :arm64")
+        for os_name, brew_arch, target in TARGETS:
+            if os_name != brew_os:
+                continue
+            url, sha = archive(release, assets, tag, target)
             blocks.extend([
                 f"    on_{brew_arch} do", f'      url "{url}"',
-                f'      sha256 "{digest[7:]}"', "    end",
+                f'      sha256 "{sha}"', "    end",
             ])
         blocks.append("  end")
     platforms = "\n".join(blocks)
@@ -44,14 +61,15 @@ class Postie < Formula
 {platforms}
 
   def install
-    os = OS.mac? ? "darwin" : "linux"
-    arch = Hardware::CPU.arm? ? "arm64" : "amd64"
-    bin.install "postie-cli-#{{os}}-#{{arch}}" => "postie"
+    bin.install "postie"
   end
 
   test do
     assert_match "Path to configuration file", shell_output("#{{bin}}/postie --help")
-    assert_match "error reading config file", shell_output("#{{bin}}/postie -c missing-config.yaml 2>&1", 1)
+    assert_match "postie {tag[1:]}", shell_output("#{{bin}}/postie --version")
+    (testpath/"input.bin").write "x"
+    assert_match "error reading config file",
+                 shell_output("#{{bin}}/postie -c missing-config.yaml -i input.bin 2>&1", 1)
   end
 end
 '''

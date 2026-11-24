@@ -2,38 +2,36 @@
 class Postie < Formula
   desc "High-performance Usenet binary poster"
   homepage "https://github.com/kipsilabs/postie"
-  version "0.0.34"
+  version "0.1.0"
   license "MIT"
 
   on_macos do
+    depends_on arch: :arm64
     on_arm do
-      url "https://github.com/kipsilabs/postie/releases/download/v0.0.34/postie-cli_v0.0.34_darwin_arm64.tar.gz"
-      sha256 "cd524dc9882d507de3e54d6b7adfee25d4268cb73a831bdee5c21ae9d0aff7b2"
-    end
-    on_intel do
-      url "https://github.com/kipsilabs/postie/releases/download/v0.0.34/postie-cli_v0.0.34_darwin_amd64.tar.gz"
-      sha256 "d9eaf73de0e952b949b457059060e23623f3fc9abbfd5643ce83553bdf3eda2e"
+      url "https://github.com/kipsilabs/postie/releases/download/v0.1.0/postie-rust-v0.1.0-macos-arm64.tar.gz"
+      sha256 "497480ec1eba635316b20bf63f275fd6a7353818a4dd6283b128298ccd68b7c5"
     end
   end
   on_linux do
-    on_arm do
-      url "https://github.com/kipsilabs/postie/releases/download/v0.0.34/postie-cli_v0.0.34_linux_arm64.tar.gz"
-      sha256 "7b8055a4a6c73b6370a0306ca88dcfd70c6c141611de8cab50e10a12d0cbdee1"
-    end
     on_intel do
-      url "https://github.com/kipsilabs/postie/releases/download/v0.0.34/postie-cli_v0.0.34_linux_amd64.tar.gz"
-      sha256 "6a720cfb7585c74e4a5c7d5b5d176e077fea9de8651a23a243f0d4df0b53fd3d"
+      url "https://github.com/kipsilabs/postie/releases/download/v0.1.0/postie-rust-v0.1.0-linux-x86_64.tar.gz"
+      sha256 "65d39e54409ebd0dbbe442ce7041ed08fcc0d5fcd55c04107b24604d46c4c0cd"
+    end
+    on_arm do
+      url "https://github.com/kipsilabs/postie/releases/download/v0.1.0/postie-rust-v0.1.0-linux-arm64.tar.gz"
+      sha256 "09e76020fa212ac7e34b559325d611a993e2f42b24959ed2a6b013843fe5281e"
     end
   end
 
   def install
-    os = OS.mac? ? "darwin" : "linux"
-    arch = Hardware::CPU.arm? ? "arm64" : "amd64"
-    bin.install "postie-cli-#{os}-#{arch}" => "postie"
+    bin.install "postie"
   end
 
   test do
     assert_match "Path to configuration file", shell_output("#{bin}/postie --help")
-    assert_match "error reading config file", shell_output("#{bin}/postie -c missing-config.yaml 2>&1", 1)
+    assert_match "postie 0.1.0", shell_output("#{bin}/postie --version")
+    (testpath/"input.bin").write "x"
+    assert_match "error reading config file",
+                 shell_output("#{bin}/postie -c missing-config.yaml -i input.bin 2>&1", 1)
   end
 end

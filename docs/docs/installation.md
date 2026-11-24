@@ -129,7 +129,7 @@ Each release has an archive per platform:
 | Windows x64 | `postie-rust-<tag>-windows-x86_64.zip` |
 
 Download it from the [releases page](https://github.com/kipsilabs/postie/releases/latest) and extract it.
-The Linux binaries need glibc 2.35 or newer (Ubuntu 22.04, Debian 12 or later).
+The Linux binaries need glibc 2.34 or newer (Ubuntu 22.04, Debian 12, RHEL 9 or later).
 It contains:
 
 - `postie-web`: the web server and UI.
