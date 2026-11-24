@@ -72,6 +72,14 @@ async fn upload(a: &args::Args) -> Result<(), String> {
 #[tokio::main]
 async fn main() {
     let a = args::parse(std::env::args().skip(1)).unwrap_or_else(|e| fail(e));
+    if a.help {
+        print!("{}", args::USAGE);
+        return;
+    }
+    if a.version {
+        println!("postie {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
     let res = if a.watch {
         watch::run(&a).await
     } else {

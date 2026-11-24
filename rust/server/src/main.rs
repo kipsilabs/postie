@@ -20,6 +20,25 @@ fn parse_bool(s: &str) -> Result<bool, String> {
     }
 }
 
+const USAGE: &str = "\
+Postie web server: the web UI and HTTP API.
+
+Usage:
+  postie-web [flags]
+
+Flags:
+  -p, --port <port>      Port to listen on (env PORT, default 8080)
+      --host <addr>      Address to listen on (env HOST, default 0.0.0.0)
+      --auth[=bool]      Require an administrator login (env POSTIE_AUTH_ENABLED, default false)
+  -h, --help             Show this help
+      --version          Show the version
+
+Environment:
+  POSTIE_FRONTEND_DIR    Frontend build directory (default: frontend/ next to the binary)
+  POSTIE_ALLOWED_HOSTS   Extra Host names accepted when authentication is off
+  POSTIE_COOKIE_SECURE   Mark the session cookie Secure (behind an HTTPS reverse proxy)
+";
+
 struct Args {
     auth: Option<bool>,
     port: String,
@@ -47,6 +66,14 @@ fn parse_args() -> Result<Args, String> {
             s if s.starts_with("--port=") => a.port = s["--port=".len()..].into(),
             s if s.starts_with("--host=") => a.host = s["--host=".len()..].into(),
             s if s.starts_with("--auth=") => a.auth = Some(parse_bool(&s["--auth=".len()..])?),
+            "-h" | "--help" => {
+                print!("{USAGE}");
+                std::process::exit(0);
+            }
+            "--version" => {
+                println!("postie-web {}", env!("CARGO_PKG_VERSION"));
+                std::process::exit(0);
+            }
             other => return Err(format!("unknown flag: {other}")),
         }
     }

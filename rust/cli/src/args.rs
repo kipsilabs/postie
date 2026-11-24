@@ -1,5 +1,23 @@
 //! Flag parsing for `postie [watch]` (cobra flags of the Go CLI).
 
+pub const USAGE: &str = "\
+Upload files to Usenet once, or watch a directory and upload what appears in it.
+
+Usage:
+  postie [flags]          upload the files in --dir (or the single --input-file), then exit
+  postie watch [flags]    keep watching --dir and upload new files
+
+Flags:
+  -c, --config <path>        Path to configuration file (default \"config.yaml\")
+  -d, --dir <path>           Directory to upload or watch (default \".\")
+  -i, --input-file <path>    Upload this single file instead of --dir
+  -o, --output-dir <path>    Directory for the NZB files (default \".\")
+      --ignore-pattern <glob>  Skip files whose name matches (repeatable; not with watch)
+  -v, --verbose              Verbose logging
+  -h, --help                 Show this help
+      --version              Show the version
+";
+
 #[derive(Debug, Default, PartialEq)]
 pub struct Args {
     pub watch: bool,
@@ -9,6 +27,8 @@ pub struct Args {
     pub output_dir: String,
     pub input_file: String,
     pub ignore_patterns: Vec<String>,
+    pub help: bool,
+    pub version: bool,
 }
 
 pub fn parse(argv: impl IntoIterator<Item = String>) -> Result<Args, String> {
@@ -46,6 +66,8 @@ pub fn parse(argv: impl IntoIterator<Item = String>) -> Result<Args, String> {
                 a.ignore_patterns.push(value("--ignore-pattern")?);
             }
             "-v" | "--verbose" => a.verbose = true,
+            "-h" | "--help" => a.help = true,
+            "--version" => a.version = true,
             other => return Err(format!("unknown flag: {other}")),
         }
     }
@@ -79,6 +101,14 @@ mod tests {
         let a = p(&["--ignore-pattern", "*.tmp", "--ignore-pattern=a?"]).unwrap();
         assert_eq!(a.ignore_patterns, ["*.tmp", "a?"]);
         assert!(p(&["watch", "--ignore-pattern", "x"]).is_err());
+    }
+
+    #[test]
+    fn help_and_version_flags() {
+        assert!(p(&["-h"]).unwrap().help);
+        assert!(p(&["watch", "--help"]).unwrap().help);
+        assert!(p(&["--version"]).unwrap().version);
+        assert!(USAGE.contains("Path to configuration file"));
     }
 
     #[test]
