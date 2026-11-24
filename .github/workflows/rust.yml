@@ -99,16 +99,23 @@ jobs:
             brew install par2
           fi
           echo "POSTIE_REQUIRE_PAR2=1" >> "$GITHUB_ENV"
-      - run: cargo test --workspace --no-fail-fast
+      # nextest runs the test binaries concurrently (cargo test runs them one after another, and
+      # stuck.rs alone takes ~2.5 min), so the step lasts about as long as the slowest test
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      - run: cargo nextest run --workspace --no-fail-fast
 
   # Compile checks run alongside the tests (no `needs`) and use the fast `ci` profile; the
   # LTO release binaries and desktop bundles are produced by rust-release.yml.
+  # PRs build on Linux only: the test and desktop jobs already compile on every OS, and macOS runners
+  # are the ones that queue. Pushes to main/release build (and upload) all three.
   binaries:
     name: build postie + postie-web (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest"]') || fromJSON('["ubuntu-latest", "macos-latest", "windows-latest"]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
