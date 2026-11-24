@@ -483,6 +483,31 @@ fn a_shared_pool_sets_connections_aside_for_checking_during_upload() {
 }
 
 #[tokio::test]
+async fn without_checking_during_upload_the_first_check_waits_the_propagation_delay() {
+    let (src, out) = (tmp(), tmp());
+    let f = file(&src, "movie.bin", 12_000);
+    let mut c = cfg(true, true);
+    c.post_check.retry_delay = D::new("30s");
+    c.post_check.check_during_upload = Some(false);
+    let mock = Arc::new(Mock::default());
+    let (rt, store, _) = runtime_with_store(&c, &mock);
+    let p = postie(&c, &mock, Some(rt), "t-1");
+    p.post(
+        &CancellationToken::new(),
+        std::slice::from_ref(&f),
+        src.to_str().unwrap(),
+        out.to_str().unwrap(),
+        false,
+    )
+    .await
+    .unwrap();
+    let soonest = chrono::Utc::now() + chrono::Duration::seconds(20);
+    let files = store.list_files_by_transfer("t-1").unwrap();
+    assert!(!files.is_empty());
+    assert!(files.iter().all(|x| x.next_check_at.unwrap() > soonest));
+}
+
+#[tokio::test]
 async fn durable_mode_records_manifests_marks_files_uploaded_and_keeps_generated_par2() {
     let (src, out) = (tmp(), tmp());
     let f = file(&src, "movie.bin", 12_000);
@@ -512,6 +537,12 @@ async fn durable_mode_records_manifests_marks_files_uploaded_and_keeps_generated
         files
             .iter()
             .all(|x| x.upload_state == "uploaded" && x.next_check_at.is_some())
+    );
+    assert!(
+        files
+            .iter()
+            .all(|x| x.next_check_at.unwrap() <= chrono::Utc::now()),
+        "checked during upload: the first check does not wait out the 30s delay"
     );
     let orig = files.iter().find(|x| x.file_role == "original").unwrap();
     assert_eq!(

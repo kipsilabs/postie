@@ -129,6 +129,7 @@ impl Service {
         let mut missing: Vec<ArticleRecord> = Vec::new();
         let (mut checked, mut answered, mut errored) = (0i64, 0i64, 0i64);
         let mut exhausted = false;
+        let mut reported = 0i64;
         loop {
             while !exhausted && inflight.len() < window {
                 if cancel.is_cancelled() {
@@ -136,17 +137,23 @@ impl Service {
                 }
                 match reader.next_record() {
                     Ok(Some(rec)) => {
-                        if self
-                            .early
-                            .as_ref()
-                            .is_some_and(|e| e.take_confirmed(&rec.message_id))
-                        {
+                        let early = self.early.as_deref();
+                        let pending = early.is_some_and(|e| e.is_pending(&rec.message_id));
+                        if !pending && early.is_some_and(|e| e.take_confirmed(&rec.message_id)) {
                             checked += 1;
                             answered += 1;
                             continue;
                         }
                         let stater = &self.stater;
                         inflight.push(async move {
+                            // posted moments ago: its own check is due soon, wait for it rather
+                            // than STAT before the propagation delay has passed
+                            if pending
+                                && let Some(e) = early
+                                && e.settle(&rec.message_id).await
+                            {
+                                return (rec, Ok(false));
+                            }
                             let r = stater.stat(&rec.message_id).await;
                             (rec, r)
                         });
@@ -155,6 +162,12 @@ impl Service {
                     // unreadable or corrupt content: back off (and eventually terminalize)
                     Err(e) => return Err(Stop::Manifest(e.to_string())),
                 }
+            }
+            // also once every record is read: confirmed articles are counted without a STAT, and the
+            // sweep may now wait a while on the last ones still being checked during upload
+            if checked - reported >= PROGRESS_EVERY || (exhausted && checked != reported) {
+                live.set(checked, missing.len() as i64);
+                reported = checked;
             }
             let next = tokio::select! {
                 () = cancel.cancelled() => return Err(Stop::Canceled),
@@ -172,9 +185,6 @@ impl Service {
                     errored += 1;
                     missing.push(rec);
                 }
-            }
-            if checked % PROGRESS_EVERY == 0 {
-                live.set(checked, missing.len() as i64);
             }
         }
         if answered == 0 && errored > 0 {

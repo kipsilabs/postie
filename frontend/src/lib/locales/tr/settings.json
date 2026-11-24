@@ -272,7 +272,7 @@
 			"max_concurrent_checks": "Maksimum Eşzamanlı Kontrol",
 			"max_concurrent_checks_description": "Tüm süreç genelinde aynı anda işlemde olan maksimum STAT doğrulama kontrolü sayısı. 0 = otomatik: doğrulama havuzunun tüm ardışık (pipeline) kapasitesi (bağlantılar × inflight); yüklemelerle paylaşılan bir havuzda, yüklemeler sürerken kontrol bağlantılarının ardışık kapasitesi (yükleme sırasında kontrol kapalıysa 2 kontrol).",
 			"check_during_upload": "Yükleme Sırasında Kontrol Et",
-			"check_during_upload_description": "Her makaleyi gönderildikten birkaç saniye sonra, yüklemenin geri kalanı sürerken STAT ile kontrol eder; böylece yükleme bittiğinde doğrulama neredeyse tamamlanmış olur.",
+			"check_during_upload_description": "Her makaleyi gönderildikten birkaç saniye sonra, yüklemenin geri kalanı sürerken STAT ile kontrol eder; böylece yükleme bittiğinde doğrulama neredeyse tamamlanmış olur. Ardından doğrulama, kontrol gecikmesini beklemeden hemen başlar.",
 			"check_connections": "Kontrol Bağlantıları",
 			"check_connections_description": "Doğrulama rolünde sunucu yapılandırılmamışsa bu kontroller için yükleme sunucularından ayrılan bağlantılar; yüklemeler kalanını kullanır (yükleme için her zaman en az bir bağlantı bırakılır). 0 = otomatik: 1, 10 bağlantıdan itibaren 2."
 		},

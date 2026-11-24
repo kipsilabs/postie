@@ -342,11 +342,21 @@ impl Postie {
         lock(&self.reused_sources).contains(path)
     }
 
-    /// Marks the transfer's files uploaded so the durable verification service picks them up, scheduling
-    /// the first check after the propagation delay.
+    /// Marks the transfer's files uploaded so the durable verification service picks them up. The
+    /// first check waits out the propagation delay, unless articles were checked during the upload:
+    /// then it starts at once, since the early checker already waits that delay per article and the
+    /// sweep waits on the ones it has not checked yet.
     fn complete_transfer_upload(&self) {
         let Some(r) = &self.recorder else { return };
-        let delay = chrono::Duration::nanoseconds(self.check_cfg.retry_delay.nanos().max(0));
+        let checked_during_upload = self
+            .runtime
+            .as_ref()
+            .is_some_and(|rt| rt.post_observer().is_some());
+        let delay = if checked_during_upload {
+            chrono::Duration::zero()
+        } else {
+            chrono::Duration::nanoseconds(self.check_cfg.retry_delay.nanos().max(0))
+        };
         let now = Utc::now();
         if let Err(e) = r.complete_upload(
             now,

@@ -699,6 +699,74 @@ async fn articles_confirmed_during_upload_are_not_stated_again() {
 }
 
 #[tokio::test]
+async fn a_sweep_right_after_the_upload_waits_for_articles_still_being_checked() {
+    let mut e = env(&["m3"]);
+    let delay = std::time::Duration::from_millis(200);
+    let ec = Arc::new(EarlyChecker::new(e.stater.clone(), delay));
+    e.svc.set_early_checker(ec.clone());
+    let started = std::time::Instant::now();
+    for i in 0..5 {
+        crate::poster::PostObserver::posted(ec.as_ref(), &format!("<m{i}>"), 0, None);
+    }
+    let tf = e.file("t", "f", 10, "");
+    let (cancel, sweep_cancel) = (CancellationToken::new(), Env::cancel());
+    tokio::select! {
+        () = ec.run(&cancel) => unreachable!("the checker runs until cancelled"),
+        r = e.svc.verify_file(&sweep_cancel, &tf) => r.unwrap(),
+    }
+    assert!(
+        started.elapsed() >= delay,
+        "m0..m4 were awaited, not STATed early"
+    );
+    // 5 early checks, then the sweep STATs m5..m9 and re-checks m3, which the checker found missing
+    assert_eq!(e.stater.calls.load(Ordering::SeqCst), 11);
+    assert_eq!(
+        e.store
+            .count_failures("t", "f", ts::FAILURE_PENDING)
+            .unwrap(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn articles_confirmed_during_upload_show_while_the_sweep_waits_for_the_rest() {
+    let mut e = env(&[]);
+    let delay = std::time::Duration::from_millis(200);
+    let ec = Arc::new(EarlyChecker::new(e.stater.clone(), delay));
+    e.svc.set_early_checker(ec.clone());
+    e.item("ci", "pending_verification");
+    let tf = e.file("t", "f", 10, "ci");
+    let (cancel, sweep_cancel) = (CancellationToken::new(), Env::cancel());
+    let post = |range: std::ops::Range<i32>| {
+        for i in range {
+            crate::poster::PostObserver::posted(ec.as_ref(), &format!("<m{i}>"), 0, None);
+        }
+    };
+    let upload = async {
+        post(5..10);
+        tokio::time::sleep(delay * 2).await; // m5..m9 confirmed
+        post(0..5); // the last posts, still waiting when the sweep starts
+        let probe = async {
+            tokio::time::sleep(delay / 2).await;
+            e.svc.activity().unwrap()
+        };
+        let (swept, mid) = tokio::join!(e.svc.verify_file(&sweep_cancel, &tf), probe);
+        swept.unwrap();
+        mid
+    };
+    let mid = tokio::select! {
+        () = ec.run(&cancel) => unreachable!("the checker runs until cancelled"),
+        mid = upload => mid,
+    };
+    assert_eq!(mid.len(), 1);
+    assert_eq!(
+        (mid[0].phase, mid[0].verified_articles),
+        ("checking", 5),
+        "confirmed articles count while the sweep waits on the rest"
+    );
+}
+
+#[tokio::test]
 async fn a_sweep_where_every_stat_errors_is_retried_without_budget_or_failures() {
     let e = env(&[]);
     e.stater

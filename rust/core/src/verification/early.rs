@@ -3,6 +3,9 @@
 //! Message-IDs are remembered so the file's verification sweep can skip them; by the time a large
 //! upload finishes, almost every article is already confirmed and the sweep has little left to do.
 //!
+//! The sweep can start as soon as an upload ends: an article still waiting here is awaited
+//! ([`EarlyChecker::settle`]) rather than STATed before its propagation delay has passed.
+//!
 //! This is purely an accelerator. A miss, an error, a dropped notification or a restart only means
 //! the article is not pre-confirmed, and the durable sweep checks it as before. Nothing here
 //! writes to the database or re-posts.
@@ -28,6 +31,9 @@ const MAX_CONFIRMED: usize = 1_000_000;
 /// Confirmations no sweep consumed (a cancelled or discarded job) are forgotten after this long.
 const CONFIRMED_TTL: Duration = Duration::from_secs(12 * 3600);
 const PRUNE_EVERY: Duration = Duration::from_secs(60);
+/// How long past an article's due time the sweep waits for its check before STATing it itself
+/// (a stalled STAT, or a checker that stopped).
+const SETTLE_GRACE: Duration = Duration::from_secs(60);
 
 struct Posted {
     id: String,
@@ -50,6 +56,10 @@ pub struct EarlyChecker {
     tx: mpsc::Sender<Posted>,
     rx: Mutex<Option<mpsc::Receiver<Posted>>>,
     confirmed: Mutex<HashMap<String, Instant>>,
+    /// Articles queued or being checked, with the time their check is due.
+    pending: Mutex<HashMap<String, Instant>>,
+    /// Signalled whenever a pending article's check finishes (or the checker stops).
+    settled: tokio::sync::Notify,
 }
 
 impl EarlyChecker {
@@ -62,6 +72,8 @@ impl EarlyChecker {
             tx,
             rx: Mutex::new(Some(rx)),
             confirmed: Mutex::new(HashMap::new()),
+            pending: Mutex::new(HashMap::new()),
+            settled: tokio::sync::Notify::new(),
         }
     }
 
@@ -70,6 +82,35 @@ impl EarlyChecker {
         lock(&self.confirmed)
             .remove(normalize(message_id))
             .is_some()
+    }
+
+    /// Whether this article is still waiting for (or in) its check here.
+    pub fn is_pending(&self, message_id: &str) -> bool {
+        lock(&self.pending).contains_key(normalize(message_id))
+    }
+
+    /// Waits for a pending article's check, then reports (and consumes) whether it confirmed the
+    /// article. Gives up `SETTLE_GRACE` past the check's due time, so a stalled check or a stopped
+    /// checker only costs the sweep its own STAT.
+    pub async fn settle(&self, message_id: &str) -> bool {
+        let id = normalize(message_id);
+        loop {
+            let notified = self.settled.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
+            let Some(due) = lock(&self.pending).get(id).copied() else {
+                return self.take_confirmed(id);
+            };
+            tokio::select! {
+                () = notified => {}
+                () = tokio::time::sleep_until(due + SETTLE_GRACE) => return self.take_confirmed(id),
+            }
+        }
+    }
+
+    fn finish(&self, id: &str) {
+        lock(&self.pending).remove(id);
+        self.settled.notify_waiters();
     }
 
     fn confirm(&self, id: String) {
@@ -87,9 +128,16 @@ impl EarlyChecker {
     /// Checks posted articles until `cancel` fires. Runs at most once (later calls return at once).
     /// Due checks are issued in posting order, up to the stater's window at a time.
     pub async fn run(&self, cancel: &CancellationToken) {
-        let Some(mut rx) = lock(&self.rx).take() else {
+        let Some(rx) = lock(&self.rx).take() else {
             return;
         };
+        self.check_posted(rx, cancel).await;
+        // nothing pending will be checked any more: let waiting sweeps STAT for themselves
+        lock(&self.pending).clear();
+        self.settled.notify_waiters();
+    }
+
+    async fn check_posted(&self, mut rx: mpsc::Receiver<Posted>, cancel: &CancellationToken) {
         let window = self.stater.window().max(1);
         let mut inflight = FuturesUnordered::new();
         let mut head: Option<Posted> = None;
@@ -105,8 +153,9 @@ impl EarlyChecker {
                         if let Some((row, size)) = &p.row {
                             row.update_progress(*size);
                         }
-                        self.confirm(p.id);
+                        self.confirm(p.id.clone());
                     }
+                    self.finish(&p.id);
                 }
                 () = tokio::time::sleep_until(due.unwrap_or_else(Instant::now)),
                     if room && due.is_some() =>
@@ -135,12 +184,18 @@ impl EarlyChecker {
 impl PostObserver for EarlyChecker {
     fn posted(&self, message_id: &str, size: i64, row: Option<&Arc<Progress>>) {
         let due = Instant::now() + self.delay;
-        // full queue: drop it, the sweep checks this article as usual
-        let _ = self.tx.try_send(Posted {
-            id: normalize(message_id).to_string(),
+        let id = normalize(message_id).to_string();
+        // pending before it is queued, so the checker never finishes an id not yet marked
+        lock(&self.pending).insert(id.clone(), due);
+        let posted = Posted {
+            id: id.clone(),
             due,
             row: row.map(|r| (r.clone(), size)),
-        });
+        };
+        // full queue (or a stopped checker): drop it, the sweep checks this article as usual
+        if self.tx.try_send(posted).is_err() {
+            self.finish(&id);
+        }
     }
 }
 
@@ -234,6 +289,48 @@ mod tests {
         ec.posted("<late@x>", 0, None);
         settle(&ec, &CancellationToken::new(), Duration::from_secs(5)).await;
         assert!(!ec.take_confirmed("late@x"), "a second run must not start");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn settle_waits_for_a_pending_check() {
+        let ec = Arc::new(EarlyChecker::new(
+            Arc::new(Fake::default()),
+            Duration::from_secs(5),
+        ));
+        ec.posted("<a@x>", 0, None);
+        ec.posted("<x-missing@x>", 0, None);
+        assert!(ec.is_pending("a@x") && ec.is_pending("<x-missing@x>"));
+        assert!(!ec.is_pending("never-posted@x"));
+        let cancel = CancellationToken::new();
+        let (a, missing) = tokio::select! {
+            () = ec.run(&cancel) => unreachable!(),
+            r = async { tokio::join!(ec.settle("a@x"), ec.settle("x-missing@x")) } => r,
+        };
+        assert!(a, "confirmed once its check ran");
+        assert!(!missing, "a miss is left to the sweep");
+        assert!(!ec.is_pending("a@x"));
+        assert!(!ec.settle("never-posted@x").await, "nothing to wait for");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_stopped_checker_releases_waiting_sweeps() {
+        let ec = EarlyChecker::new(Arc::new(Fake::default()), Duration::from_secs(5));
+        ec.posted("<a@x>", 0, None);
+        let cancel = CancellationToken::new();
+        cancel.cancel();
+        ec.run(&cancel).await;
+        assert!(!ec.is_pending("a@x"));
+        ec.posted("<b@x>", 0, None);
+        assert!(!ec.is_pending("b@x"), "nothing will check it any more");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn settle_gives_up_on_a_checker_that_never_runs() {
+        let ec = EarlyChecker::new(Arc::new(Fake::default()), Duration::from_secs(5));
+        ec.posted("<a@x>", 0, None);
+        let start = Instant::now();
+        assert!(!ec.settle("a@x").await);
+        assert!(start.elapsed() >= Duration::from_secs(5) + SETTLE_GRACE);
     }
 
     #[tokio::test(start_paused = true)]
