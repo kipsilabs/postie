@@ -260,6 +260,7 @@ function getWatcherDisplayName(w: configType.WatcherConfig, index: number): stri
 
 					<DurationInput
 						bind:value={watcher.check_interval}
+						fallback="1m"
 						label={$t('settings.watcher.check_interval')}
 						description={$t('settings.watcher.check_interval_description')}
 						presets={checkIntervalPresets}
@@ -267,6 +268,7 @@ function getWatcherDisplayName(w: configType.WatcherConfig, index: number): stri
 					/>
 					<DurationInput
 						bind:value={watcher.min_file_age}
+						fallback="1m"
 						label={$t('settings.watcher.min_file_age')}
 						description={$t('settings.watcher.min_file_age_description')}
 						presets={minFileAgePresets}
@@ -274,6 +276,7 @@ function getWatcherDisplayName(w: configType.WatcherConfig, index: number): stri
 					/>
 					<DurationInput
 						bind:value={watcher.min_file_age_to_delete}
+						fallback="0s"
 						label={$t('settings.watcher.min_file_age_to_delete')}
 						description={$t('settings.watcher.min_file_age_to_delete_description')}
 						presets={minFileAgeToDeletePresets}

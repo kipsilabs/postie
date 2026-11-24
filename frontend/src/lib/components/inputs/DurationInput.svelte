@@ -3,6 +3,7 @@ import FieldRow from "./FieldRow.svelte";
 import PresetChips from "./PresetChips.svelte";
 // Imports
 import { t } from "$lib/i18n";
+import { parseDurationInput } from "$lib/duration-input";
 
 // Types
 interface ComponentProps {
@@ -10,6 +11,8 @@ interface ComponentProps {
 	label?: string;
 	description?: string;
 	placeholder?: string;
+	/** Shown (and saved) when the value is empty: the backend's value for an empty duration. */
+	fallback?: string;
 	presets?: Array<{ label: string; value: number; unit: string }>;
 	minValue?: number;
 	maxValue?: number;
@@ -23,6 +26,7 @@ let {
 	label = "",
 	description = "",
 	placeholder = "5",
+	fallback = "5s",
 	presets = [],
 	minValue = 1,
 	maxValue = 3600,
@@ -32,14 +36,7 @@ let {
 
 // State - local state for form inputs (following best practices)
 function parseValue(val: string | undefined): { number: number; unit: string } {
-	if (!val || typeof val !== "string" || val.trim() === "") {
-		return { number: 5, unit: "s" };
-	}
-	// Match patterns like "1m0s" or "1h30m" and extract the first meaningful element
-	const match = val.match(/^(\d+)([smh])/);
-	return match
-		? { number: Number.parseInt(match[1]), unit: match[2] }
-		: { number: 5, unit: "s" };
+	return parseDurationInput(val, fallback);
 }
 
 // Initialize with current value
