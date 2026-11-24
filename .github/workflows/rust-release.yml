@@ -36,7 +36,10 @@ jobs:
           fi
           echo "POSTIE_REQUIRE_PAR2=1" >> "$GITHUB_ENV"
       # Windows runs the same suite; only the external par2cmdline check is skipped there
-      - run: cargo test --workspace --no-fail-fast
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      - run: cargo nextest run --workspace --profile ci
         working-directory: rust
 
   binaries:
