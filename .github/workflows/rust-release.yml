@@ -119,16 +119,18 @@ jobs:
           cargo binstall -y --locked --targets "$host" tauri-cli@2
       # Tauri skips the DMG window layout (background, drag-to-Applications positions) when CI is
       # set, since it scripts Finder; opt back in. Finder scripting can time out on hosted
-      # runners, so retry: a rerun only re-bundles, the compile is already done.
+      # runners, so retry (a rerun only re-bundles, the compile is already done), and fall back to
+      # a plain DMG rather than failing the release.
       - shell: bash
-        env:
-          TAURI_BUNDLER_DMG_IGNORE_CI: "true"
         run: |
-          for attempt in 1 2 3; do
-            cargo tauri build && exit 0
+          for attempt in 1 2; do
+            TAURI_BUNDLER_DMG_IGNORE_CI=true cargo tauri build && exit 0
             echo "::warning::cargo tauri build failed (attempt $attempt)"
           done
-          exit 1
+          if [ "$RUNNER_OS" = macOS ]; then
+            echo "::warning::building the DMG without its Finder layout"
+          fi
+          cargo tauri build
         working-directory: rust/desktop
       - uses: actions/upload-artifact@v4
         with:
