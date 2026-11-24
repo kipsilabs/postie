@@ -129,6 +129,7 @@ impl Service {
         let mut missing: Vec<ArticleRecord> = Vec::new();
         let (mut checked, mut answered, mut errored) = (0i64, 0i64, 0i64);
         let mut exhausted = false;
+        let mut reported = 0i64;
         loop {
             while !exhausted && inflight.len() < window {
                 if cancel.is_cancelled() {
@@ -162,6 +163,12 @@ impl Service {
                     Err(e) => return Err(Stop::Manifest(e.to_string())),
                 }
             }
+            // also once every record is read: confirmed articles are counted without a STAT, and the
+            // sweep may now wait a while on the last ones still being checked during upload
+            if checked - reported >= PROGRESS_EVERY || (exhausted && checked != reported) {
+                live.set(checked, missing.len() as i64);
+                reported = checked;
+            }
             let next = tokio::select! {
                 () = cancel.cancelled() => return Err(Stop::Canceled),
                 r = inflight.next() => r,
@@ -178,9 +185,6 @@ impl Service {
                     errored += 1;
                     missing.push(rec);
                 }
-            }
-            if checked % PROGRESS_EVERY == 0 {
-                live.set(checked, missing.len() as i64);
             }
         }
         if answered == 0 && errored > 0 {
