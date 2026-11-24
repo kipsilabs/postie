@@ -1,6 +1,6 @@
 [package]
 name = "postie-cli"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 publish = false
 description = "Postie command line (port of cmd/postie): one-shot upload and directory watch"

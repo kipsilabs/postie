@@ -1,6 +1,6 @@
 [package]
 name = "postie-yenc"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 publish = false
 description = "Article wire encoding: headers + yEnc part (=ybegin/=ypart/=yend) on the vendored rapidyenc"

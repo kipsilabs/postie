@@ -1,6 +1,6 @@
 [package]
 name = "rapidyenc-sys"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 publish = false
 description = "Safe wrapper over the vendored C rapidyenc yEnc encoder (ADR-010): the only unsafe boundary"

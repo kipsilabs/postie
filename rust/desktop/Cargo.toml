@@ -1,6 +1,6 @@
 [package]
 name = "postie-desktop"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 publish = false
 description = "Postie desktop shell (Tauri v2): runs the Postie web server in-process and shows it in a native window"

@@ -1,6 +1,6 @@
 [package]
 name = "postie-nntp"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 publish = false
 description = "NNTP client for posting: pipelined POST and STAT, lazy per-provider pools, SOCKS5, TLS, shared throttle"

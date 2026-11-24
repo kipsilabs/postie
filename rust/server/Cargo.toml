@@ -1,6 +1,6 @@
 [package]
 name = "postie-web"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 publish = false
 description = "Postie web server (port of cmd/web): the HTTP/WebSocket API and static frontend over postie-core"

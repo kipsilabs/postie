@@ -1,6 +1,6 @@
 [package]
 name = "postie-core"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 publish = false
 description = "Postie core library: stateful and IO units ported from the Go internal/ packages"

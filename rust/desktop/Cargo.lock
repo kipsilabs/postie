@@ -84,7 +84,7 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "article-rs"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "postie-yenc",
  "rand 0.10.4",
@@ -1119,7 +1119,7 @@ checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 
 [[package]]
 name = "duplicatelookup-rs"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "quick-xml",
  "serde",
@@ -3258,7 +3258,7 @@ dependencies = [
 
 [[package]]
 name = "postie-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "aes-gcm",
  "article-rs",
@@ -3294,7 +3294,7 @@ dependencies = [
 
 [[package]]
 name = "postie-desktop"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "postie-core",
  "postie-web",
@@ -3309,7 +3309,7 @@ dependencies = [
 
 [[package]]
 name = "postie-nntp"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-channel",
  "rustls",
@@ -3323,7 +3323,7 @@ dependencies = [
 
 [[package]]
 name = "postie-web"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axum",
  "chrono",
@@ -3338,7 +3338,7 @@ dependencies = [
 
 [[package]]
 name = "postie-yenc"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "crc32fast",
  "rapidyenc-sys",
@@ -3616,7 +3616,7 @@ dependencies = [
 
 [[package]]
 name = "rapidyenc-sys"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cmake",
 ]
