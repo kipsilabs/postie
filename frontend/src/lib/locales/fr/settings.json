@@ -66,8 +66,7 @@
 			"compression": "Compression NZB",
 			"par2": "PAR2",
 			"post_check": "Vérification Post",
-			"post_upload_script": "Script Post-Téléchargement",
-			"connection_pool": "Pool de Connexions"
+			"post_upload_script": "Script Post-Téléchargement"
 		},
 		"general": {
 			"config_file": "Fichier de configuration",
@@ -137,26 +136,14 @@
 				"disabled_description": "Les fichiers NZB seront sauvegardés non compressés. Activez la compression pour réduire les tailles de fichier."
 			}
 		},
-		"connection_pool": {
-			"save_button": "Sauvegarder la Configuration du Pool de Connexions",
-			"title": "Configuration du Pool de Connexions",
-			"min_connections": "Connexions Minimales",
-			"min_connections_description": "Nombre minimum de connexions à maintenir dans le pool",
-			"health_check_interval": "Intervalle de Vérification de Santé",
-			"health_check_interval_description": "Intervalle entre les vérifications de santé des connexions",
-			"skip_providers_verification_on_creation": "Ignorer la Vérification des Fournisseurs à la Création",
-			"skip_providers_verification_on_creation_description": "Ignorer la vérification de connectivité du serveur lors de la création du pool de connexions. Utile pour des temps de démarrage plus rapides.",
-			"info_title": "Pool de Connexions :",
-			"info_description": "Gère les connexions à vos serveurs NNTP. Un nombre minimum de connexions plus élevé offre de meilleures performances mais utilise plus de ressources."
-		},
 		"watcher": {
 			"title": "Surveillant de Fichiers",
 			"enable": "Activer le Surveillant de Fichiers",
-			"description": "Surveille automatiquement un répertoire pour de nouveaux fichiers et les télécharge lorsqu'ils répondent aux critères configurés. Les fichiers sont mis en file d'attente pour traitement et déplacés vers le répertoire de sortie global après un téléchargement réussi.",
+			"description": "Surveille automatiquement un répertoire pour de nouveaux fichiers et les envoie lorsqu'ils répondent aux critères configurés. Chaque NZB est écrit dans le répertoire de sortie global ; les fichiers source restent en place sauf si « Supprimer les fichiers originaux après le téléchargement » est activé.",
 			"directories": "Répertoires",
 			"directories_description": "Configurez où le surveillant surveille les fichiers pour les téléchargements automatiques",
 			"watch_directory": "Répertoire de Surveillance",
-			"watch_directory_description": "Répertoire où les nouveaux fichiers seront surveillés pour le téléchargement automatique. Les fichiers traités seront déplacés vers le répertoire de sortie global.",
+			"watch_directory_description": "Répertoire où les nouveaux fichiers seront surveillés pour l'envoi automatique. Les fichiers source restent en place sauf si « Supprimer les fichiers originaux après le téléchargement » est activé.",
 			"check_interval": "Intervalle de Vérification",
 			"check_interval_description": "Fréquence de recherche de nouveaux fichiers",
 			"min_file_age": "Âge Minimum du Fichier",

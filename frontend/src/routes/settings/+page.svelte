@@ -2,7 +2,6 @@
 import { goto } from "$app/navigation";
 import apiClient from "$lib/api/client";
 import ApiSection from "$lib/components/settings/ApiSection.svelte";
-import ConnectionPoolSection from "$lib/components/settings/ConnectionPoolSection.svelte";
 import FileNamingSection from "$lib/components/settings/FileNamingSection.svelte";
 import GeneralSection from "$lib/components/settings/GeneralSection.svelte";
 import DuplicateLookupSection from "$lib/components/settings/DuplicateLookupSection.svelte";
@@ -361,7 +360,6 @@ onDestroy(() => {
             {#if $advancedMode}
               <div transition:collapse class="space-y-6">
                 <QueueSection bind:config={localConfig} />
-                <ConnectionPoolSection bind:config={localConfig} />
               </div>
             {/if}
           </div>

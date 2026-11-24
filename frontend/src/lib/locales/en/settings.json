@@ -66,8 +66,7 @@
 			"compression": "NZB Compression",
 			"par2": "PAR2",
 			"post_check": "Post Check",
-			"post_upload_script": "Post Upload Script",
-			"connection_pool": "Connection Pool"
+			"post_upload_script": "Post Upload Script"
 		},
 		"general": {
 			"config_file": "Configuration file",
@@ -137,26 +136,14 @@
 			},
 			"save_button": "Save NZB Compression Settings"
 		},
-		"connection_pool": {
-			"save_button": "Save Connection Pool Settings",
-			"title": "Connection Pool Configuration",
-			"min_connections": "Minimum Connections",
-			"min_connections_description": "Minimum number of connections to maintain in the pool",
-			"health_check_interval": "Health Check Interval",
-			"health_check_interval_description": "Interval between connection health checks",
-			"skip_providers_verification_on_creation": "Skip Provider Verification on Creation",
-			"skip_providers_verification_on_creation_description": "Skip verifying server connectivity when creating the connection pool. Useful for faster startup times.",
-			"info_title": "Connection Pool:",
-			"info_description": "Manages the connections to your NNTP servers. A larger minimum connection count provides better performance but uses more resources."
-		},
 		"watcher": {
 			"title": "File Watcher",
 			"enable": "Enable File Watcher",
-			"description": "Automatically monitors a directory for new files and uploads them when they meet the configured criteria. Files are queued for processing and moved to the global output directory after successful upload.",
+			"description": "Automatically monitors a directory for new files and uploads them when they meet the configured criteria. Each NZB is written to the global output directory; the source files stay where they are unless 'Delete original files after upload' is on.",
 			"directories": "Directories",
 			"directories_description": "Configure where the watcher monitors files for automatic uploads",
 			"watch_directory": "Watch Directory",
-			"watch_directory_description": "Directory where new files will be monitored for automatic upload. Processed files will be moved to the global output directory.",
+			"watch_directory_description": "Directory where new files will be monitored for automatic upload. Source files are left in place unless 'Delete original files after upload' is on.",
 			"check_interval": "Check Interval",
 			"check_interval_description": "How often to scan for new files",
 			"min_file_age": "Min File Age",

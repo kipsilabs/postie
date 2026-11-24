@@ -66,8 +66,7 @@
 			"compression": "NZB Sıkıştırma",
 			"par2": "PAR2",
 			"post_check": "Gönderim Kontrolü",
-			"post_upload_script": "Yükleme Sonrası Betik",
-			"connection_pool": "Bağlantı Havuzu"
+			"post_upload_script": "Yükleme Sonrası Betik"
 		},
 		"general": {
 			"config_file": "Yapılandırma dosyası",
@@ -137,26 +136,14 @@
 			},
 			"save_button": "NZB Sıkıştırma Ayarlarını Kaydet"
 		},
-		"connection_pool": {
-			"save_button": "Bağlantı Havuzu Ayarlarını Kaydet",
-			"title": "Bağlantı Havuzu Yapılandırması",
-			"min_connections": "Minimum Bağlantı",
-			"min_connections_description": "Havuzda tutulacak minimum bağlantı sayısı",
-			"health_check_interval": "Sağlık Kontrolü Aralığı",
-			"health_check_interval_description": "Bağlantı sağlık kontrolleri arasındaki aralık",
-			"skip_providers_verification_on_creation": "Oluşturma Sırasında Sağlayıcı Doğrulamasını Atla",
-			"skip_providers_verification_on_creation_description": "Bağlantı havuzu oluşturulurken sunucu bağlantı doğrulamasını atla. Daha hızlı başlatma süreleri için kullanışlıdır.",
-			"info_title": "Bağlantı Havuzu:",
-			"info_description": "NNTP sunucularınıza olan bağlantıları yönetir. Daha büyük bir minimum bağlantı sayısı daha iyi performans sağlar ancak daha fazla kaynak kullanır."
-		},
 		"watcher": {
 			"title": "Dosya İzleyici",
 			"enable": "Dosya İzleyiciyi Etkinleştir",
-			"description": "Yeni dosyalar için bir dizini otomatik olarak izler ve yapılandırılan kriterleri karşıladıklarında yükler. Dosyalar işlenmek üzere kuyruğa alınır ve başarılı yüklemeden sonra genel çıktı dizinine taşınır.",
+			"description": "Yeni dosyalar için bir dizini otomatik olarak izler ve yapılandırılan kriterleri karşıladıklarında yükler. Her NZB genel çıktı dizinine yazılır; 'Yüklemeden sonra orijinal dosyaları sil' açık değilse kaynak dosyalar yerinde kalır.",
 			"directories": "Dizinler",
 			"directories_description": "Otomatik yüklemeler için izleyicinin dosyaları nerede izleyeceğini yapılandırın",
 			"watch_directory": "İzleme Dizini",
-			"watch_directory_description": "Otomatik yükleme için yeni dosyaların izleneceği dizin. İşlenen dosyalar genel çıktı dizinine taşınacaktır.",
+			"watch_directory_description": "Otomatik yükleme için yeni dosyaların izleneceği dizin. 'Yüklemeden sonra orijinal dosyaları sil' açık değilse kaynak dosyalar yerinde kalır.",
 			"check_interval": "Kontrol Aralığı",
 			"check_interval_description": "Yeni dosyaların ne sıklıkla taranacağı",
 			"min_file_age": "Minimum Dosya Yaşı",
