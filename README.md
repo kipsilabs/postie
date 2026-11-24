@@ -57,7 +57,7 @@ public hostname to `POSTIE_ALLOWED_HOSTS`, or enable authentication instead.
 
 ### Homebrew (CLI)
 
-Install the command-line poster on Apple Silicon Macs or Linux (x86_64, arm64; glibc 2.35+):
+Install the command-line poster on Apple Silicon Macs or Linux (x86_64, arm64; glibc 2.34+):
 
 ```bash
 brew tap kipsilabs/postie https://github.com/kipsilabs/postie

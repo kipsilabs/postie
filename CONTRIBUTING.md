@@ -23,8 +23,9 @@ Run `make test` for both suites and `make lint` for rustfmt, clippy (`-D warning
 
 ## Updating the Homebrew package
 
-The formula in `Formula/postie.rb` pins the published CLI release archives and
-SHA256 digests for macOS and Linux, on ARM64 and AMD64. After publishing a stable
+The formula in `Formula/postie.rb` pins the published `postie-rust-<tag>-<target>.tar.gz`
+archives and their SHA256 digests: macOS arm64, Linux x86_64 and Linux arm64 (there is
+no Intel macOS build, so the formula requires arm64 on macOS). After publishing a stable
 release, regenerate it with Python 3 and the GitHub CLI:
 
 ```bash
@@ -34,7 +35,7 @@ python3 scripts/update_homebrew.py < /tmp/postie-release.json
 python3 -m unittest discover -s scripts -p 'test_update_homebrew.py'
 ```
 
-The updater requires all four archives and valid GitHub SHA256 asset digests;
+The updater requires all three archives and valid GitHub SHA256 asset digests;
 it leaves the formula unchanged if validation fails. Review and commit the
 updated formula in a pull request. Homebrew users receive it through `brew update`.
 The Homebrew workflow runs updater tests and a real install/test on macOS and Linux.
