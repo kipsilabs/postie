@@ -26,6 +26,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
+      # the tag is the only source of the version: stamp it onto the crates, lockfiles and
+      # tauri.conf.json (after the cache restore, so cache keys do not change per release)
+      - name: Set the version from the tag
+        shell: bash
+        run: '"$( [ "$RUNNER_OS" = Windows ] && echo python || echo python3 )" scripts/set_version.py "$GITHUB_REF_NAME"'
       - name: Install par2cmdline
         if: runner.os != 'Windows'
         shell: bash
@@ -58,6 +63,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
+      - name: Set the version from the tag
+        shell: bash
+        run: '"$( [ "$RUNNER_OS" = Windows ] && echo python || echo python3 )" scripts/set_version.py "$GITHUB_REF_NAME"'
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile && bun run build
         working-directory: frontend
@@ -107,6 +115,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust/desktop
+      - name: Set the version from the tag
+        shell: bash
+        run: '"$( [ "$RUNNER_OS" = Windows ] && echo python || echo python3 )" scripts/set_version.py "$GITHUB_REF_NAME"'
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile && bun run build
         working-directory: frontend
@@ -184,6 +195,10 @@ jobs:
               "docker-cargo-cache/target": "/app/rust/target"
             }
           skip-extraction: ${{ steps.cargo-cache.outputs.cache-hit }}
+      # after the cargo cache restore, whose key hashes Cargo.lock
+      - name: Set the version from the tag
+        shell: bash
+        run: '"$( [ "$RUNNER_OS" = Windows ] && echo python || echo python3 )" scripts/set_version.py "$GITHUB_REF_NAME"'
       - id: image
         shell: bash
         run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
