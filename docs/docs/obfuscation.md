@@ -17,73 +17,45 @@ Obfuscation serves several purposes:
 
 ## Available Obfuscation Policies
 
-Postie offers three levels of obfuscation that can be configured separately for regular posts and PAR2 files:
+Postie has three policies. `obfuscation_policy` applies to your files and `par2_obfuscation_policy` to the
+PAR2 recovery files.
 
-### Full Obfuscation (`full`)
+| | `full` | `partial` | `none` |
+|---|---|---|---|
+| **Subject** | Random text, new for every article | MD5 of the normal subject, different per article | The real file name and part number |
+| **yEnc file name** | Random text, new for every article | MD5 of file name plus part number, different per article | The real file name |
+| **Date** | Random time within the last 6 hours | Real posting time | Real posting time |
+| **Poster (From)** | Random, new for every article | One random poster for the whole file | One random poster for the whole file |
+| **X-NXG header** | Never | When `add_nxg_header` is on | When `add_nxg_header` is on |
 
-This is the highest level of obfuscation:
+A few rules apply across policies:
 
-- **Subject**: Completely obfuscated with random characters
-- **Filename**: Obfuscated in yEnc headers
-- **yEnc Header Filename**: Randomized for every article
-- **Date**: Randomized within the last 6 hours
-- **NXG Header**: Not added
-- **Poster**: Random for each article
-
-Example configuration:
+- **`default_from` wins.** When `posting.post_headers.default_from` is set, every article uses it as the
+  poster, whatever the policy.
+- **PAR2 files follow the main policy for date, poster and X-NXG.** `par2_obfuscation_policy` only changes
+  their subjects and yEnc file names.
+- **The NZB always has the real names.** Obfuscation hides names on the servers; the NZB maps the
+  articles back to the original files, so downloaders get them with their real names.
+- **`message_id_format: nxg`** builds deterministic message IDs and, with `partial`, NXG-style
+  obfuscated subjects. The X-NXG header is never added with `nxg` message IDs.
 
 ```yaml
 posting:
   obfuscation_policy: full
   par2_obfuscation_policy: full
-```
-
-### Partial Obfuscation (`partial`)
-
-A moderate level of obfuscation:
-
-- **Subject**: Obfuscated
-- **Filename**: Obfuscated
-- **yEnc Header Filename**: Same for all articles in a post
-- **Date**: Real posted date
-- **Poster**: Same for all articles in a post
-
-Example configuration:
-
-```yaml
-posting:
-  obfuscation_policy: partial
-  par2_obfuscation_policy: partial
-```
-
-### No Obfuscation (`none`)
-
-No obfuscation is applied:
-
-- **Subject**: Original filename
-- **Filename**: Original filename in yEnc headers
-- **Date**: Real posted date
-- **Poster**: Same for all articles, uses the value from `default_from` if provided
-
-Example configuration:
-
-```yaml
-posting:
-  obfuscation_policy: none
-  par2_obfuscation_policy: none
+  post_headers:
+    default_from: "" # leave empty to keep random posters
 ```
 
 ## Separate Policies for Regular Files and PAR2 Files
 
-Postie allows you to set different obfuscation policies for regular files and PAR2 recovery files:
-
 ```yaml
 posting:
-  obfuscation_policy: full # For regular files
-  par2_obfuscation_policy: none # For PAR2 files
+  obfuscation_policy: full # your files
+  par2_obfuscation_policy: none # PAR2 files keep readable subjects
 ```
 
-This flexibility allows you to make PAR2 files more easily discoverable while keeping your main content obfuscated.
+This makes PAR2 files easier to find by subject while the main files stay obfuscated.
 
 ## Best Practices
 

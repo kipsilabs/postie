@@ -6,7 +6,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
   title: 'Postie',
-  tagline: 'A high-performance Usenet binary poster written in Go',
+  tagline: 'A high-performance Usenet binary poster written in Rust',
   favicon: 'img/favicon.ico',
 
   // Set the production url of your site here

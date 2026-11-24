@@ -1,3 +1,7 @@
+---
+sidebar_position: 9
+---
+
 # Duplicate lookup
 
 Postie can ask a compatible HTTP service for an existing NZB before generating

@@ -15,8 +15,8 @@ const FeatureList: FeatureItem[] = [
     Svg: require('@site/static/img/throughput.svg').default,
     description: (
       <>
-        Built with Go and optimized for speed, Postie leverages rapidyenc for
-        high-performance yEnc encoding and connection pooling for maximum throughput.
+        Written in Rust, with SIMD yEnc encoding (rapidyenc), pipelined NNTP posting and
+        PAR2 creation that runs while the file uploads.
       </>
     ),
   },
@@ -25,7 +25,7 @@ const FeatureList: FeatureItem[] = [
     Svg: require('@site/static/img/trusted.svg').default,
     description: (
       <>
-        Multi-server support with automatic failover, post verification, and
+        Several servers at once, post verification with automatic reposts, and
         configurable obfuscation policies to protect your uploads.
       </>
     ),

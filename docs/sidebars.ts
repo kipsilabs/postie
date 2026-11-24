@@ -23,17 +23,12 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Configuration',
-      items: ['configuration', 'watcher', 'web-authentication'],
+      items: ['configuration', 'watcher', 'obfuscation', 'web-authentication'],
     },
     {
       type: 'category',
-      label: 'Obfuscation',
-      items: ['obfuscation'],
-    },
-    {
-      type: 'category',
-      label: 'File Hash',
-      items: ['file-hash'],
+      label: 'Integrations',
+      items: ['integrations', 'duplicate-lookup'],
     },
     {
       type: 'category',

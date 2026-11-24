@@ -12,16 +12,16 @@ Before starting, install Postie using one of the available methods — see the [
 
 | Method | How to run |
 |--------|-----------|
-| **Desktop App** (Windows / macOS) | Download from [GitHub Releases](https://github.com/kipsilabs/postie/releases/latest) and launch the app |
-| **Docker** | `docker run -p 8080:8080 -v $(pwd)/config:/config kipsilabs/postie` |
-| **Binary** | Download from Releases, then run `./postie` |
+| **Desktop App** (Windows, macOS, Linux) | Download from [GitHub Releases](https://github.com/kipsilabs/postie/releases/latest) and launch the app |
+| **Docker** | `docker run -d -p 8080:8080 -v ./config:/config -v ./output:/output ghcr.io/kipsilabs/postie:latest` |
+| **Binaries** | Download from Releases, extract, then run `./postie-web` |
 
 > 💡 The setup wizard launches automatically the first time you open Postie.
 
 ## Opening the Setup Wizard
 
 - **Desktop App** — the wizard opens automatically on first launch.
-- **Docker / Binary** — open `http://localhost:8080` in your browser; the wizard appears when no configuration exists.
+- **Docker / Binaries** — open `http://localhost:8080` in your browser; the wizard appears when no configuration exists.
 
 ---
 
@@ -89,7 +89,7 @@ Set where Postie saves the generated NZB files. The output path is required.
 |-------|-------------|---------|
 | **Output Path** | Directory for NZB output files | `./output` |
 
-The default `./output` creates a folder next to the Postie binary. Click **Finish Setup** to save the configuration and open the dashboard.
+The default `./output` is relative to where the server was started. In Docker, use `/output` so NZBs land in the mounted folder. Click **Finish Setup** to save the configuration and open the dashboard.
 
 ---
 

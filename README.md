@@ -57,8 +57,7 @@ public hostname to `POSTIE_ALLOWED_HOSTS`, or enable authentication instead.
 
 ### Homebrew (CLI)
 
-Install the command-line poster on macOS or Linux (Apple Silicon/ARM64 or Intel/AMD64).
-Linux requires glibc 2.34+ and the system C++/GCC runtimes:
+Install the command-line poster on Apple Silicon Macs or Linux (x86_64, arm64; glibc 2.35+):
 
 ```bash
 brew tap kipsilabs/postie https://github.com/kipsilabs/postie
@@ -72,9 +71,11 @@ To upgrade after a formula update, run `brew update && brew upgrade kipsilabs/po
 
 ### Binary Download
 
-[![Download for Windows](https://img.shields.io/badge/Windows-Download-0078d4?style=for-the-badge&logo=windows)](https://github.com/kipsilabs/postie/releases/latest/download/postie_windows_amd64.zip)
-[![Download for macOS](https://img.shields.io/badge/macOS-Download-0078d4?style=for-the-badge&logo=apple)](https://github.com/kipsilabs/postie/releases/latest/download/postie_darwin_amd64.zip)
-[![Download for Linux](https://img.shields.io/badge/Linux-Download-0078d4?style=for-the-badge&logo=linux)](https://github.com/kipsilabs/postie/releases/latest/download/postie_linux_amd64.zip)
+[![Download for Windows](https://img.shields.io/badge/Windows-Download-0078d4?style=for-the-badge&logo=windows)](https://github.com/kipsilabs/postie/releases/latest/download/Postie-windows-x64-setup.exe)
+[![Download for macOS](https://img.shields.io/badge/macOS_(Apple_Silicon)-Download-0078d4?style=for-the-badge&logo=apple)](https://github.com/kipsilabs/postie/releases/latest/download/Postie-macos-arm64.dmg)
+[![Download for Linux](https://img.shields.io/badge/Linux-AppImage-0078d4?style=for-the-badge&logo=linux)](https://github.com/kipsilabs/postie/releases/latest/download/Postie-linux-x86_64.AppImage)
+
+The [releases page](https://github.com/kipsilabs/postie/releases/latest) also has `.msi`, `.deb`, `.rpm` and the `postie` / `postie-web` binaries for Linux (x86_64, arm64), macOS (Apple Silicon) and Windows.
 
 ## Documentation
 
@@ -133,4 +134,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ### Duplicate lookup
 
-Optionally reuse an existing NZB before uploading individual files using a generic HTTP lookup service. Disabled by default; reused source files are always retained. See [configuration and provider protocol](docs/duplicate-lookup.md).
+Optionally reuse an existing NZB before uploading individual files using a generic HTTP lookup service. Disabled by default; reused source files are always retained. See [configuration and provider protocol](https://postie.kipsilabs.top/docs/duplicate-lookup).
